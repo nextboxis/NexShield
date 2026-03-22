@@ -1,0 +1,12 @@
+{
+    "source_directories": ["."],
+    "search_path": [
+        "C:\\Users\\GIRID\\AppData\\Local\\Python\\pythoncore-3.14-64\\Lib\\site-packages"
+    ],
+    "site_package_search_strategy": "all",
+    "site_roots": ["."],
+    "strict": false,
+    "taint_models_path": "",
+    "typeshed": "",
+    "workers": 1
+}
