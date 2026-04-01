@@ -1,9 +1,0 @@
-{
-    "executionEnvironments": [{ "root": "." }],
-    "reportMissingImports": "none",
-    "reportMissingModuleSource": "none",
-    "reportGeneralTypeIssues": "none",
-    "pythonVersion": "3.14",
-    "venvPath": ".",
-    "extraPaths": ["."]
-}
