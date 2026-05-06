@@ -38,7 +38,7 @@ NexShield v5 is a professional-grade cybersecurity platform that bridges the gap
 
 ```bash
 # Clone the tactical core
-git clone https://github.com/nexshield/core-v5.git
+git clone https://github.com/nextboxis/NexShield.git
 cd core-v5
 
 # Deploy dependencies
