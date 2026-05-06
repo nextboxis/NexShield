@@ -1,4 +1,6 @@
 <div align="center">
+  <img src="nexshield_cinematic_banner_1778069071181.png" width="100%" alt="NexShield Cinematic Banner">
+
 ```text
 ███╗   ██╗███████╗██╗  ██╗███████╗██╗  ██╗██╗███████╗██╗     ██████╗ 
 ████╗  ██║██╔════╝╚██╗██╔╝██╔════╝██║  ██║██║██╔════╝██║     ██╔══██╗
