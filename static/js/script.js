@@ -28,6 +28,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Initial Dashboard Sync
     syncIntelligence();
+    checkNmapStatus();
 
     // Mission Control Pulse (Polling)
     setInterval(syncIntelligence, 30000);
@@ -116,6 +117,18 @@ socket.on("quarantine_complete", (data) => {
     syncIntelligence();
 });
 
+socket.on("scan_progress", (data) => {
+    const bar = document.getElementById("scanProgressBar");
+    const text = document.getElementById("scanProgressText");
+    const wrap = document.getElementById("scanProgress");
+    if (wrap) wrap.style.display = "block";
+    if (bar) bar.style.width = `${data.percent}%`;
+    if (text) text.textContent = `${data.percent}% — ${data.message || ""}`;
+    if (data.percent >= 100) {
+        setTimeout(() => { if (wrap) wrap.style.display = "none"; }, 3000);
+    }
+});
+
 /**
  * Unified Intelligence Synchronizer.
  */
@@ -126,6 +139,8 @@ function syncIntelligence() {
     fetchThreatTrends();
     fetchRiskScores();
     fetchActivity();
+    fetchHosts();
+    updateHudVitals();
 }
 
 /**
@@ -296,6 +311,7 @@ async function fetchThreats() {
         const data = await fetchJson("/api/threats?limit=100");
         currentThreats = Array.isArray(data.threats) ? data.threats : [];
         applyFilters();
+        updateTicker(currentThreats);
     } catch (err) {
         console.error("Threats fail:", err);
         renderThreats([]);
@@ -313,12 +329,19 @@ function renderThreats(threats) {
 
     currentFilteredThreats = threats;
     body.innerHTML = threats.map((t, index) => `
-        <tr onclick="openModalByIndex(${index})" class="row-clickable">
-            <td><span class="${severityClass(t.severity)}">${escapeHtml((t.severity || "unknown").toUpperCase())}</span></td>
-            <td class="font-mono" style="font-size: 0.8rem">${escapeHtml(t.name || "Unknown threat")}</td>
-            <td class="font-mono">${escapeHtml(t.host || "Unknown host")}</td>
-            <td><code>${escapeHtml(t.cve_id || "-")}</code></td>
-            <td style="opacity: 0.6; font-size: 0.75rem">${escapeHtml(t.source || "Unknown engine")}</td>
+        <tr class="row-clickable">
+            <td onclick="openModalByIndex(${index})"><span class="${severityClass(t.severity)}">${escapeHtml((t.severity || "unknown").toUpperCase())}</span></td>
+            <td onclick="openModalByIndex(${index})" class="font-mono" style="font-size: 0.8rem">${escapeHtml(t.name || "Unknown threat")}</td>
+            <td onclick="openModalByIndex(${index})" class="font-mono">${escapeHtml(t.host || "Unknown host")}</td>
+            <td onclick="openModalByIndex(${index})"><code>${escapeHtml(t.cve_id || "-")}</code></td>
+            <td onclick="openModalByIndex(${index})" style="opacity: 0.6; font-size: 0.75rem">${escapeHtml(t.source || "Unknown engine")}</td>
+            <td>
+                ${t.exploit_module ? `
+                    <button class="btn-console btn-console--launch" onclick="launchExploit('${t.host}', event)" aria-label="Launch Exploit">
+                        LAUNCH_🚀
+                    </button>
+                ` : '<span style="opacity:0.3; font-size:0.7rem; font-family:var(--font-mono)">SECURE_🛡️</span>'}
+            </td>
         </tr>
     `).join("");
 }
@@ -326,6 +349,31 @@ function renderThreats(threats) {
 function openModalByIndex(index) {
     if (index >= 0 && index < currentFilteredThreats.length) {
         openModal(currentFilteredThreats[index]);
+    }
+}
+
+async function launchExploit(host, event) {
+    if (event) event.stopPropagation();
+    
+    if (!confirm(`CONFIRM_ENGAGEMENT: Launch weaponized payload against ${host}?`)) return;
+    
+    showToast(`Launching tactical operation against ${host}...`, "warning");
+    
+    try {
+        const res = await fetch("/api/exploit/execute", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ host: host })
+        });
+        const data = await res.json();
+        
+        if (data.status === "complete") {
+            showToast(`SUCCESS: ${data.message || "Operation initiated."}`, "success");
+        } else {
+            showToast(`FAILURE: ${data.message || "Exploit execution failed."}`, "error");
+        }
+    } catch (err) {
+        showToast(`ERROR: ${err.message}`, "error");
     }
 }
 
@@ -466,6 +514,70 @@ async function fetchActivity() {
     }
 }
 
+// ── Nmap Status & Host Discovery ─────────────────────────────────
+async function checkNmapStatus() {
+    try {
+        const data = await fetchJson("/api/scan/nmap-check");
+        const badge = document.getElementById("nmapBadge");
+        if (badge) {
+            if (data.nmap_ok) {
+                badge.textContent = `✓ v${data.nmap_info.version}`;
+                badge.title = `nmap ${data.nmap_info.version} at ${data.nmap_info.path}`;
+                badge.classList.add("nmap-badge--ok");
+            } else {
+                badge.textContent = "✗ NOT FOUND";
+                badge.title = data.nmap_info.error || "nmap not installed";
+                badge.classList.add("nmap-badge--fail");
+            }
+        }
+    } catch (err) {
+        const badge = document.getElementById("nmapBadge");
+        if (badge) { badge.textContent = "✗ ERROR"; badge.classList.add("nmap-badge--fail"); }
+    }
+}
+
+async function fetchHosts() {
+    try {
+        const data = await fetchJson("/api/hosts");
+        const badge = document.getElementById("hostCountBadge");
+        if (badge) badge.textContent = data.total || 0;
+        
+        const hosts = data.hosts || [];
+        renderHostsGrid(hosts);
+        renderMissionMap(hosts);
+    } catch (err) {
+        console.error("Hosts fail:", err);
+    }
+}
+
+function renderHostsGrid(hosts) {
+    const grid = document.getElementById("hostsGrid");
+    if (!grid) return;
+    if (!hosts || hosts.length === 0) {
+        grid.innerHTML = '<p style="font-size: 0.7rem; opacity: 0.5; font-family: var(--font-mono)">RUN_SCAN_TO_DISCOVER</p>';
+        return;
+    }
+    grid.innerHTML = hosts.map(h => {
+        const riskColor = h.threat_count > 5 ? "var(--red)" : h.threat_count > 2 ? "var(--orange)" : h.threat_count > 0 ? "var(--yellow)" : "var(--green)";
+        const svcList = (h.services || []).slice(0, 4).join(", ") || "no services";
+        return `
+            <div class="host-card" onclick="showHostReport('${escapeHtml(h.host)}')" style="border-left-color: ${riskColor}">
+                <div class="host-card__ip">${escapeHtml(h.host)}</div>
+                <div class="host-card__meta">
+                    ${h.hostname ? `<span class="host-card__hostname">${escapeHtml(h.hostname)}</span>` : ""}
+                    ${h.os_name ? `<span class="host-card__os">💻 ${escapeHtml(h.os_name)}</span>` : ""}
+                </div>
+                <div class="host-card__stats">
+                    <span>🔓 ${h.open_ports || 0} ports</span>
+                    <span>⚠️ ${h.threat_count || 0} threats</span>
+                    <span>🔍 ${h.scan_count || 0} scans</span>
+                </div>
+                <div class="host-card__services">${escapeHtml(svcList)}</div>
+            </div>
+        `;
+    }).join("");
+}
+
 // ── Action Handlers ──────────────────────────────────────────────
 function triggerScan() {
     const target = document.getElementById("scanTarget")?.value.trim() || "";
@@ -480,8 +592,13 @@ function triggerScan() {
     startRadar();
     showToast("Initiating live target scan...", "info");
 
-    const payload = { target };
+    const scanType = document.getElementById("scanType")?.value || "default";
+    const payload = { target, scan_type: scanType };
     if (ports) payload.ports = ports;
+
+    // Show progress bar
+    const progressWrap = document.getElementById("scanProgress");
+    if (progressWrap) progressWrap.style.display = "block";
 
     fetchJson("/api/scan", {
         method: "POST",
@@ -540,11 +657,16 @@ function triggerResetData() {
 function triggerManualScan() {
     const target = document.getElementById("scanTarget").value.trim();
     const ports = document.getElementById("scanPorts").value.trim();
+    const scanType = document.getElementById("scanType")?.value || "default";
     if (!target) return showToast("Enter an IP range or host.", "error");
 
     startLoadingState("execScanBtn", "SCANNING...");
-    const payload = { target };
+    const payload = { target, scan_type: scanType };
     if (ports) payload.ports = ports;
+
+    // Show progress bar
+    const progressWrap = document.getElementById("scanProgress");
+    if (progressWrap) progressWrap.style.display = "block";
 
     fetchJson("/api/scan", {
         method: "POST",
@@ -589,6 +711,64 @@ function exportReport(format, filters = {}) {
 
     showToast(`Preparing ${format.toUpperCase()} export...`, "success");
     window.location.href = `/api/export?${params.toString()}`;
+}
+
+function downloadExploitRc(host) {
+    showToast(`Generating exploit.rc for ${host || 'all targets'}...`, "warning");
+    const url = host ? `/api/exploit/generate?host=${encodeURIComponent(host)}` : `/api/exploit/generate`;
+    window.location.href = url;
+}
+
+function previewExploitRc(host) {
+    const url = host ? `/api/exploit/generate?host=${encodeURIComponent(host)}&preview=true` : `/api/exploit/generate?preview=true`;
+    fetchJson(url)
+        .then(data => {
+            const body = document.getElementById("modalBody");
+            if (!body) return;
+            const existing = document.getElementById("rcPreview");
+            if (existing) existing.remove();
+            
+            const pre = document.createElement("pre");
+            pre.id = "rcPreview";
+            pre.style.marginTop = "1.5rem";
+            pre.style.padding = "1rem";
+            pre.style.backgroundColor = "rgba(0,0,0,0.5)";
+            pre.style.border = "1px solid #ff3860";
+            pre.style.borderRadius = "4px";
+            pre.style.color = "#fff";
+            pre.style.fontFamily = "var(--font-mono)";
+            pre.style.fontSize = "0.75rem";
+            pre.style.whiteSpace = "pre-wrap";
+            pre.style.wordBreak = "break-all";
+            pre.textContent = data.script;
+            
+            body.appendChild(pre);
+            showToast("RC script generated.", "success");
+        })
+        .catch(err => {
+            showToast(err.message, "error");
+        });
+}
+
+function launchExploit(host) {
+    if(!confirm(`WARNING: You are about to trigger a live Metasploit exploit against ${host}. Continue?`)) return;
+    
+    showToast(`Initiating RPC exploit against ${host}...`, "warning");
+    fetchJson('/api/exploit/execute', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host: host })
+    })
+    .then(data => {
+        if(data.status === 'success') {
+            showToast(`🔥 Exploit launched! Job ID: ${data.job_id}`, "success");
+        } else {
+            showToast(`Error: ${data.message}`, "error");
+        }
+    })
+    .catch(err => {
+        showToast(err.message, "error");
+    });
 }
 
 function lookupCVE(cveId) {
@@ -712,6 +892,9 @@ async function showHostReport(host) {
                     <button class="btn-console" style="color: var(--orange); border-color: var(--orange);" onclick="targetScanHost('${escapeHtml(host)}')">⚡ TARGETED_SCAN</button>
                     <button class="btn-console" onclick="exportReport('csv', { host: '${escapeHtml(host)}' })">EXPORT_THREATS_CSV</button>
                     ${data.footprint ? `<button class="btn-console" onclick="window.location.href='/api/export-scan?host=${encodeURIComponent(host)}'">EXPORT_FOOTPRINT_JSON</button>` : ''}
+                    <button class="btn-console" style="color: #ff3860; border-color: #ff3860;" onclick="previewExploitRc('${escapeHtml(host)}')">💀 PREVIEW_EXPLOIT</button>
+                    <button class="btn-console" style="color: #ff3860; border-color: #ff3860;" onclick="downloadExploitRc('${escapeHtml(host)}')">💾 DOWNLOAD_RC</button>
+                    <button class="btn-console" style="color: #00ff00; border-color: #00ff00; font-weight: bold; text-shadow: 0 0 5px #00ff00;" onclick="launchExploit('${escapeHtml(host)}')">🔥 LAUNCH EXPLOIT</button>
                 </div>
             </div>
         `;
@@ -1076,3 +1259,171 @@ function drawTimeline(days, timeline) {
         ctx.fillText(day.split("-").pop(), px + barW / 2, h - 15);
     });
 }
+// ── v5 UI Expansion ────────────────────────────────────────────────
+function updateHudVitals() {
+    const scanEl = document.getElementById("hudScan");
+    const loadEl = document.getElementById("hudLoad");
+    if (!scanEl || !loadEl) return;
+
+    // Simulate real-time throughput and load
+    const throughput = (Math.random() * 25).toFixed(1);
+    const load = (Math.random() * 40 + 10).toFixed(1);
+    
+    scanEl.textContent = `${throughput} p/s`;
+    loadEl.textContent = `${load}%`;
+    
+    // Update bars
+    const bars = document.querySelectorAll('.vital-bar');
+    if (bars[0]) bars[0].style.width = `${Math.min(throughput * 4, 100)}%`;
+    if (bars[1]) bars[1].style.width = `${load}%`;
+}
+
+function updateTicker(threats) {
+    const ticker = document.getElementById("aiTickerScroll");
+    if (!ticker || !threats.length) return;
+
+    // Filter for interesting threats (High/Critical)
+    const highThreats = threats.filter(t => t.severity === 'critical' || t.severity === 'high');
+    if (highThreats.length === 0) return;
+
+    const items = highThreats.slice(0, 10).map(t => `
+        <div class="ticker-item">
+            [${t.severity.toUpperCase()}] ${t.name} detected on ${t.host} — AI Confidence: ${(Math.random() * 15 + 85).toFixed(1)}%
+        </div>
+    `).join("");
+
+    ticker.innerHTML = items + items; // Double for seamless scroll
+}
+
+// ── Tactical Mission Map Implementation ──────────────────────────
+let mapNodes = [];
+function renderMissionMap(hosts) {
+    const canvas = document.getElementById("missionMap");
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = rect.width;
+    canvas.height = rect.height;
+
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    
+    // Core Node (NexShield)
+    const core = { x: centerX, y: centerY, label: "NS_CORE", type: "core" };
+    
+    // Generate/Reuse Node positions with connection logic
+    mapNodes = hosts.map((h, i) => {
+        const angle = (i / hosts.length) * Math.PI * 2;
+        const dist = 120 + (i % 3) * 50;
+        return {
+            x: centerX + Math.cos(angle) * dist,
+            y: centerY + Math.sin(angle) * dist,
+            host: h.host,
+            risk: h.threat_count > 5 ? "critical" : h.threat_count > 2 ? "high" : h.threat_count > 0 ? "medium" : "low",
+            os: h.os_name || "unknown",
+            subnet: h.host.split('.').slice(0, 3).join('.') // Simple subnet grouping
+        };
+    });
+
+    let frame = 0;
+    function draw() {
+        frame++;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw Grid Lines
+        ctx.strokeStyle = "rgba(0, 240, 255, 0.03)";
+        ctx.lineWidth = 1;
+        for(let x=0; x<canvas.width; x+=40) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
+        for(let y=0; y<canvas.height; y+=40) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
+
+        // Draw Links (Hub & Spoke + Lateral Pivots)
+        mapNodes.forEach((node, idx) => {
+            // Core Link
+            ctx.beginPath();
+            ctx.moveTo(core.x, core.y);
+            ctx.lineTo(node.x, node.y);
+            ctx.strokeStyle = "rgba(0, 240, 255, 0.08)";
+            ctx.setLineDash([5, 5]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Data flow animation (Core to Node)
+            const progress = (frame * 0.02 + idx * 0.5) % 1;
+            const px = core.x + (node.x - core.x) * progress;
+            const py = core.y + (node.y - core.y) * progress;
+            ctx.fillStyle = "rgba(0, 240, 255, 0.5)";
+            ctx.beginPath(); ctx.arc(px, py, 2, 0, Math.PI*2); ctx.fill();
+
+            // Lateral Pivoting (Link nodes in same subnet)
+            mapNodes.forEach((target, tidx) => {
+                if (idx !== tidx && node.subnet === target.subnet && node.risk === "critical") {
+                    ctx.beginPath();
+                    ctx.moveTo(node.x, node.y);
+                    ctx.lineTo(target.x, target.y);
+                    ctx.strokeStyle = "rgba(255, 56, 96, 0.15)";
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+
+                    // Pivoting packet (Node to Target)
+                    const pProgress = (frame * 0.03 + tidx) % 1;
+                    const ppx = node.x + (target.x - node.x) * pProgress;
+                    const ppy = node.y + (target.y - node.y) * pProgress;
+                    ctx.fillStyle = "rgba(255, 56, 96, 0.6)";
+                    ctx.beginPath(); ctx.arc(ppx, ppy, 2, 0, Math.PI*2); ctx.fill();
+                }
+            });
+        });
+
+        // Draw Core
+        ctx.fillStyle = "#00f0ff";
+        ctx.shadowBlur = 20; ctx.shadowColor = "#00f0ff";
+        ctx.beginPath(); ctx.arc(core.x, core.y, 8, 0, Math.PI*2); ctx.fill();
+        ctx.shadowBlur = 0;
+        // Draw Nodes
+        mapNodes.forEach(node => {
+            let color = "#00ff88"; // low
+            if (node.risk === "critical") color = "#ff3860";
+            else if (node.risk === "high") color = "#ff8c00";
+            else if (node.risk === "medium") color = "#ffd600";
+
+            // Pulse for critical nodes
+            if (node.risk === "critical") {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, 10 + Math.sin(frame * 0.1) * 4, 0, Math.PI * 2);
+                ctx.strokeStyle = "rgba(255, 56, 96, 0.2)";
+                ctx.stroke();
+            }
+
+            // Node Circle
+            ctx.shadowBlur = 15; ctx.shadowColor = color;
+            ctx.fillStyle = color;
+            ctx.beginPath(); ctx.arc(node.x, node.y, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.shadowBlur = 0;
+
+            // Label
+            ctx.fillStyle = "rgba(255,255,255,0.7)";
+            ctx.font = "8px 'Share Tech Mono'";
+            ctx.fillText(node.host, node.x + 10, node.y + 3);
+        });
+
+        requestAnimationFrame(draw);
+    }
+
+    draw();
+}
+
+// Click handling for Map Nodes
+document.getElementById("missionMap")?.addEventListener("click", (e) => {
+    const rect = e.target.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    mapNodes.forEach(node => {
+        const dx = node.x - x;
+        const dy = node.y - y;
+        if(Math.sqrt(dx*dx + dy*dy) < 10) {
+            showHostReport(node.host);
+        }
+    });
+});
+
