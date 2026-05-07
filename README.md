@@ -81,8 +81,8 @@ chmod +x install.sh
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-org/nexshield-v5.git
-cd nexshield-v5
+git clone https://github.com/nextboxis/NexShield.git
+cd NexShield
 
 # 2. Create a virtual environment (recommended)
 python -m venv .venv
