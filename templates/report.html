@@ -1,0 +1,1638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NexShield — Pentest Intelligence Report</title>
+    <meta name="description" content="AI-Powered Threat Intelligence and Vulnerability Assessment Report." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg-deep: #06090f;
+            --bg-panel: rgba(13, 20, 33, 0.9);
+            --bg-card: rgba(22, 30, 46, 0.7);
+            --cyan: #00f0ff;
+            --green: #00ff88;
+            --red: #ff3860;
+            --orange: #ff8c00;
+            --yellow: #ffd600;
+            --purple: #a855f7;
+            --font-mono: 'Share Tech Mono', monospace;
+            --font-sans: 'Outfit', sans-serif;
+            --radius: 16px;
+            --glass: blur(12px) saturate(180%);
+            --border: 1px solid rgba(255, 255, 255, 0.08);
+            --shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.8);
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            background: var(--bg-deep); 
+            color: #e2e8f0; 
+            font-family: var(--font-sans); 
+            min-height: 100vh;
+            overflow-x: hidden;
+            scroll-behavior: smooth;
+        }
+
+        /* Scanline Effect */
+        body::after {
+            content: "";
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 255, 0, 0.06));
+            z-index: 9999;
+            background-size: 100% 2px, 3px 100%;
+            pointer-events: none;
+            opacity: 0.1;
+        }
+
+        /* Liquid Glass Nav */
+        .liquid-nav-shell {
+            position: fixed;
+            top: 12px;
+            left: 0;
+            right: 0;
+            z-index: 2000;
+            padding: 0 1.2rem;
+            pointer-events: none;
+        }
+
+        .liquid-nav {
+            max-width: 1600px;
+            margin: 0 auto;
+            height: 58px;
+            border-radius: 18px;
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            background:
+                linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.02)),
+                linear-gradient(120deg, rgba(0, 240, 255, 0.08), rgba(0, 255, 136, 0.04));
+            box-shadow: 0 14px 45px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.26);
+            backdrop-filter: blur(18px) saturate(160%);
+            -webkit-backdrop-filter: blur(18px) saturate(160%);
+            padding: 0 14px 0 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+            pointer-events: auto;
+        }
+
+        .liquid-nav::before {
+            content: "";
+            position: absolute;
+            top: -160%;
+            left: -20%;
+            width: 140%;
+            height: 220%;
+            background: radial-gradient(circle at center, rgba(255, 255, 255, 0.14), transparent 55%);
+            transform: rotate(-8deg);
+            pointer-events: none;
+        }
+
+        .liquid-nav__brand {
+            font-family: var(--font-mono);
+            color: #f3fcff;
+            text-decoration: none;
+            letter-spacing: 2px;
+            font-size: 0.86rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.6rem;
+            text-shadow: 0 0 14px rgba(0, 240, 255, 0.35);
+            white-space: nowrap;
+            z-index: 1;
+        }
+
+        .liquid-nav__glyph {
+            font-size: 1.05rem;
+            line-height: 1;
+            filter: drop-shadow(0 0 10px rgba(0, 240, 255, 0.45));
+        }
+
+        .liquid-nav__links {
+            display: flex;
+            align-items: center;
+            gap: 0.38rem;
+            min-width: 0;
+            z-index: 1;
+            overflow-x: auto;
+            scrollbar-width: none;
+        }
+
+        .liquid-nav__links::-webkit-scrollbar { display: none; }
+
+        .liquid-nav__link {
+            text-decoration: none;
+            color: rgba(229, 243, 252, 0.78);
+            font-family: var(--font-sans);
+            font-size: 0.82rem;
+            font-weight: 500;
+            letter-spacing: 0.2px;
+            padding: 0.38rem 0.7rem;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            transition: all 0.28s ease;
+            white-space: nowrap;
+        }
+
+        .liquid-nav__link:hover {
+            color: #fff;
+            border-color: rgba(255, 255, 255, 0.24);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .liquid-nav__link--active {
+            color: #001219;
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.95), rgba(0, 255, 136, 0.8));
+            border-color: rgba(255, 255, 255, 0.25);
+            box-shadow: 0 0 18px rgba(0, 240, 255, 0.32);
+            font-weight: 600;
+        }
+
+        .liquid-nav__link--section-active {
+            color: #fff;
+            border-color: rgba(0, 240, 255, 0.34);
+            background: rgba(0, 240, 255, 0.1);
+            box-shadow: inset 0 0 0 1px rgba(0, 240, 255, 0.2);
+        }
+
+        /* Main Content - Fluid for all Desktops/Laptops */
+        .main-content {
+            margin-left: 0;
+            padding: 6.5rem 4% 3rem;
+            width: 100%;
+            min-height: 100vh;
+        }
+
+        @media (max-width: 1400px) {
+            .main-content { padding: 6rem 2.5% 2rem; }
+        }
+
+        @media (max-width: 1024px) {
+            .liquid-nav-shell {
+                top: 8px;
+                padding: 0 0.55rem;
+            }
+
+            .liquid-nav {
+                height: 52px;
+                border-radius: 14px;
+                padding: 0 10px 0 12px;
+            }
+
+            .liquid-nav__brand {
+                letter-spacing: 1px;
+                font-size: 0.76rem;
+            }
+
+            .liquid-nav__link {
+                font-size: 0.68rem;
+                padding: 0.32rem 0.58rem;
+            }
+
+            .report-header h1 { font-size: 2.2rem; }
+            .main-content { padding-top: 5.6rem; }
+        }
+
+        .report-header {
+            margin-bottom: 4rem;
+            padding: 3rem;
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.05) 0%, transparent 100%);
+            border: var(--border);
+            border-radius: var(--radius);
+            position: relative;
+            overflow: hidden;
+        }
+        .report-header::after {
+            content: "TOP_SECRET";
+            position: absolute;
+            top: 1rem; right: -2rem;
+            transform: rotate(45deg);
+            background: var(--red);
+            color: #000;
+            font-family: var(--font-mono);
+            font-weight: 800;
+            padding: 0.5rem 4rem;
+            font-size: 0.8rem;
+        }
+
+        .report-header h1 {
+            font-size: 3rem;
+            font-weight: 800;
+            color: #fff;
+            margin-bottom: 1rem;
+            letter-spacing: -1px;
+        }
+
+        .header-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 2.5rem;
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: #8892a4;
+        }
+
+        .meta-item b { color: var(--cyan); margin-right: 8px; }
+
+        /* Sections */
+        .section {
+            margin-bottom: 5rem;
+            scroll-margin-top: 3rem;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.8s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+        .section.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            position: relative;
+        }
+
+        .section-title {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--cyan);
+            font-family: var(--font-mono);
+            letter-spacing: 4px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .section-title::before {
+            content: "";
+            width: 12px; height: 12px;
+            background: var(--cyan);
+            box-shadow: 0 0 15px var(--cyan);
+            clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+        }
+
+        /* Executive Cards */
+        .exec-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .exec-card {
+            background: var(--bg-card);
+            backdrop-filter: var(--glass);
+            border: var(--border);
+            border-radius: var(--radius);
+            padding: 2rem;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.4s;
+        }
+
+        .exec-card:hover {
+            transform: translateY(-8px) scale(1.02);
+            border-color: var(--cyan);
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .exec-card::after {
+            content: "";
+            position: absolute;
+            bottom: 0; left: 0; width: 100%; height: 4px;
+            opacity: 0.6;
+        }
+
+        .card--crit::after { background: var(--red); }
+        .card--high::after { background: var(--orange); }
+        .card--med::after { background: var(--yellow); }
+        .card--total::after { background: var(--cyan); }
+
+        .exec-label {
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            color: #8892a4;
+            margin-bottom: 0.8rem;
+            letter-spacing: 2px;
+        }
+
+        .exec-value {
+            font-size: 2.8rem;
+            font-weight: 800;
+            font-family: var(--font-mono);
+            line-height: 1;
+        }
+
+        /* Charts Grid - Expanded for Wider Screens */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(600px, 1fr));
+            gap: 2rem;
+            margin-bottom: 4rem;
+        }
+
+        @media (max-width: 1300px) {
+            .charts-grid { grid-template-columns: 1fr; }
+        }
+
+        .chart-container {
+            background: var(--bg-panel);
+            border: var(--border);
+            border-radius: var(--radius);
+            padding: 2.5rem;
+            box-shadow: var(--shadow);
+            position: relative;
+        }
+        .chart-container::before {
+            content: "";
+            position: absolute;
+            top: 0; right: 0;
+            width: 60px; height: 60px;
+            background: linear-gradient(225deg, rgba(0, 240, 255, 0.1) 0%, transparent 50%);
+            border-radius: 0 var(--radius) 0 0;
+        }
+
+        .chart-title {
+            font-family: var(--font-mono);
+            font-size: 1rem;
+            color: #fff;
+            margin-bottom: 2rem;
+            text-align: left;
+            letter-spacing: 2px;
+            border-left: 3px solid var(--cyan);
+            padding-left: 15px;
+        }
+
+        .chart-wrapper { height: 350px; width: 100%; }
+
+        /* Tables */
+        .table-container {
+            background: var(--bg-panel);
+            border: var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+
+        .report-table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+
+        .report-table th {
+            text-align: left;
+            padding: 1.5rem;
+            background: rgba(255, 255, 255, 0.04);
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            color: var(--cyan);
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            border-bottom: var(--border);
+        }
+
+        .report-table td {
+            padding: 1.4rem 1.5rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.95rem;
+            transition: background 0.2s;
+        }
+
+        .report-table tr:hover td {
+            background: rgba(0, 240, 255, 0.03);
+        }
+
+        /* Badges */
+        .badge {
+            padding: 6px 12px;
+            border-radius: 8px;
+            font-family: var(--font-mono);
+            font-size: 0.8rem;
+            font-weight: 700;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            text-transform: uppercase;
+        }
+        .badge::before { content: "●"; font-size: 0.6rem; }
+
+        .badge--crit { background: rgba(255, 56, 96, 0.12); color: var(--red); border: 1px solid rgba(255, 56, 96, 0.3); }
+        .badge--high { background: rgba(255, 140, 0, 0.12); color: var(--orange); border: 1px solid rgba(255, 140, 0, 0.3); }
+        .badge--med { background: rgba(255, 214, 0, 0.12); color: var(--yellow); border: 1px solid rgba(255, 214, 0, 0.3); }
+        .badge--low { background: rgba(0, 255, 136, 0.12); color: var(--green); border: 1px solid rgba(0, 255, 136, 0.3); }
+
+        .tag {
+            background: rgba(255, 255, 255, 0.05);
+            color: #8892a4;
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-family: var(--font-mono);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* Finding Groups */
+        .finding-group {
+            margin-bottom: 3rem;
+            background: var(--bg-panel);
+            border: var(--border);
+            border-radius: var(--radius);
+            overflow: hidden;
+            box-shadow: var(--shadow);
+        }
+
+        .finding-group-header {
+            background: linear-gradient(90deg, rgba(0, 240, 255, 0.08) 0%, transparent 100%);
+            padding: 1.5rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: var(--border);
+        }
+
+        .group-ip {
+            font-family: var(--font-mono);
+            color: var(--cyan);
+            font-weight: 800;
+            font-size: 1.4rem;
+            letter-spacing: 2px;
+        }
+
+        /* Report Map */
+        .topology-shell {
+            display: grid;
+            grid-template-columns: minmax(0, 1.9fr) minmax(280px, 1fr);
+            gap: 1.2rem;
+            margin-bottom: 3rem;
+        }
+
+        .report-map-container {
+            width: 100%;
+            height: 440px;
+            background:
+                radial-gradient(circle at 20% -15%, rgba(0, 240, 255, 0.14), transparent 45%),
+                radial-gradient(circle at 90% 105%, rgba(168, 85, 247, 0.16), transparent 48%),
+                linear-gradient(160deg, rgba(13, 20, 33, 0.9), rgba(7, 14, 28, 0.95));
+            border: 1px solid rgba(0, 240, 255, 0.26);
+            border-radius: var(--radius);
+            overflow: hidden;
+            position: relative;
+            box-shadow: inset 0 0 40px rgba(0, 240, 255, 0.07), 0 10px 35px rgba(0, 0, 0, 0.5);
+        }
+
+        .report-map-container::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background-image:
+                linear-gradient(rgba(0, 240, 255, 0.07) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 240, 255, 0.07) 1px, transparent 1px);
+            background-size: 34px 34px;
+            opacity: 0.2;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .report-map-container::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(180deg, transparent 0%, rgba(0, 240, 255, 0.02) 52%, transparent 100%);
+            animation: topoSweep 4.6s linear infinite;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        @keyframes topoSweep {
+            0% { transform: translateY(-100%); }
+            100% { transform: translateY(100%); }
+        }
+
+        #reportMap {
+            width: 100%;
+            height: 100%;
+            display: block;
+            position: relative;
+            z-index: 2;
+        }
+
+        .topology-map-overlay {
+            position: absolute;
+            top: 14px;
+            left: 14px;
+            display: flex;
+            gap: 0.55rem;
+            z-index: 3;
+            flex-wrap: wrap;
+            pointer-events: none;
+        }
+
+        .topology-map-stat {
+            background: rgba(5, 12, 22, 0.75);
+            border: 1px solid rgba(0, 240, 255, 0.25);
+            border-radius: 10px;
+            min-width: 105px;
+            padding: 0.48rem 0.6rem;
+            box-shadow: inset 0 0 12px rgba(0, 240, 255, 0.08);
+        }
+
+        .topology-map-stat span {
+            display: block;
+            font-family: var(--font-mono);
+            font-size: 0.57rem;
+            color: #7e8ba0;
+            letter-spacing: 1.4px;
+            margin-bottom: 0.22rem;
+        }
+
+        .topology-map-stat b {
+            display: block;
+            font-family: var(--font-mono);
+            font-size: 0.88rem;
+            color: #fff;
+            letter-spacing: 1px;
+        }
+
+        .topology-map-controls {
+            position: absolute;
+            right: 14px;
+            top: 14px;
+            z-index: 4;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .topology-map-btn {
+            min-width: 34px;
+            height: 30px;
+            padding: 0 10px;
+            border: 1px solid rgba(0, 240, 255, 0.28);
+            background: rgba(4, 12, 22, 0.75);
+            color: var(--cyan);
+            border-radius: 8px;
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            font-weight: 700;
+            letter-spacing: 0.4px;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+
+        .topology-map-btn:hover {
+            background: rgba(0, 240, 255, 0.12);
+            border-color: rgba(0, 240, 255, 0.45);
+            box-shadow: 0 0 12px rgba(0, 240, 255, 0.2);
+        }
+
+        .topology-map-btn:active {
+            transform: translateY(1px) scale(0.97);
+        }
+
+        .topology-map-btn--reset {
+            min-width: 52px;
+            color: #eaf8ff;
+        }
+
+        .topology-hud {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .topology-card {
+            background: linear-gradient(145deg, rgba(13, 20, 33, 0.95), rgba(8, 14, 24, 0.9));
+            border: 1px solid rgba(0, 240, 255, 0.18);
+            border-radius: 14px;
+            padding: 1rem;
+            box-shadow: inset 0 0 18px rgba(0, 240, 255, 0.06);
+        }
+
+        .topology-card__title {
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: var(--cyan);
+            letter-spacing: 1.8px;
+            margin-bottom: 0.8rem;
+        }
+
+        .topology-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 0.45rem;
+        }
+
+        .topology-legend-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.4rem 0.46rem;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            letter-spacing: 0.6px;
+        }
+
+        .topology-legend-row strong {
+            color: #d6dfeb;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .topology-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 999px;
+            display: inline-block;
+            box-shadow: 0 0 10px currentColor;
+        }
+
+        .topology-host-stream {
+            display: flex;
+            flex-direction: column;
+            gap: 0.42rem;
+            max-height: 210px;
+            overflow: auto;
+            padding-right: 2px;
+        }
+
+        .topology-stream-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            padding: 0.45rem 0.5rem;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            font-family: var(--font-mono);
+            font-size: 0.66rem;
+            letter-spacing: 0.4px;
+        }
+
+        .topology-stream-item b {
+            color: var(--cyan);
+            font-weight: 700;
+        }
+
+        .topology-empty {
+            font-family: var(--font-mono);
+            color: #556278;
+            font-size: 0.72rem;
+            letter-spacing: 1px;
+            opacity: 0.9;
+            padding: 0.35rem 0.2rem;
+        }
+
+        @media (max-width: 1250px) {
+            .topology-shell {
+                grid-template-columns: 1fr;
+            }
+
+            .report-map-container {
+                height: 390px;
+            }
+
+            .topology-hud {
+                display: grid;
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        @media (max-width: 760px) {
+            .topology-hud {
+                grid-template-columns: 1fr;
+            }
+
+            .topology-map-overlay {
+                gap: 0.4rem;
+            }
+
+            .topology-map-stat {
+                min-width: 88px;
+                padding: 0.4rem 0.5rem;
+            }
+
+            .topology-map-controls {
+                right: 10px;
+                top: 10px;
+                gap: 5px;
+            }
+
+            .topology-map-btn {
+                min-width: 30px;
+                height: 28px;
+                padding: 0 8px;
+                font-size: 0.72rem;
+            }
+
+            .topology-map-btn--reset {
+                min-width: 46px;
+            }
+        }
+
+        /* Priority Matrix - Flexible Quadrants */
+        .matrix-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        @media (max-width: 1100px) {
+            .matrix-grid { grid-template-columns: 1fr; }
+        }
+        .matrix-quadrant {
+            background: var(--bg-card);
+            border: var(--border);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            position: relative;
+        }
+        .matrix-quadrant::before {
+            content: attr(data-label);
+            position: absolute;
+            top: 1rem; right: 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.65rem;
+            opacity: 0.4;
+            letter-spacing: 2px;
+        }
+        .quad--q1 { border-top: 3px solid var(--red); }
+        .quad--q2 { border-top: 3px solid var(--orange); }
+        .quad--q3 { border-top: 3px solid var(--yellow); }
+        .quad--q4 { border-top: 3px solid var(--green); }
+
+        /* Floating Buttons */
+        .floating-actions {
+            position: fixed;
+            bottom: 3rem;
+            right: 3rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.2rem;
+            z-index: 1000;
+        }
+
+        .btn-float {
+            width: 70px; height: 70px;
+            border-radius: 20px;
+            border: var(--border);
+            background: var(--bg-panel);
+            backdrop-filter: var(--glass);
+            color: var(--cyan);
+            font-size: 1.8rem;
+            cursor: pointer;
+            box-shadow: var(--shadow);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        .btn-float:hover {
+            transform: scale(1.1) rotate(5deg);
+            background: var(--cyan);
+            color: #000;
+            box-shadow: 0 0 30px rgba(0, 240, 255, 0.5);
+        }
+
+        /* Loading Screen */
+        .loading-screen {
+            position: fixed;
+            inset: 0;
+            background: var(--bg-deep);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+        .spinner-outer {
+            width: 100px; height: 100px;
+            border: 2px solid rgba(0, 240, 255, 0.1);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            position: relative;
+        }
+        .spinner-inner {
+            width: 70px; height: 70px;
+            border: 3px solid transparent;
+            border-top-color: var(--cyan);
+            border-radius: 50%;
+            animation: spin 1s infinite cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Scroll Progress */
+        .progress-bar {
+            position: fixed;
+            top: 0; left: 0;
+            height: 4px;
+            background: linear-gradient(90deg, var(--cyan), var(--purple));
+            z-index: 1000;
+            width: 0%;
+            transition: width 0.1s;
+        }
+    </style>
+</head>
+<body>
+    <div class="progress-bar" id="progressBar"></div>
+
+    <div class="loading-screen" id="loadingScreen">
+        <div class="spinner-outer">
+            <div class="spinner-inner"></div>
+        </div>
+        <div style="margin-top: 3rem; font-family: var(--font-mono); color: var(--cyan); letter-spacing: 8px; font-weight: 700;">NEXSHIELD_CORE_V5</div>
+        <div style="margin-top: 1rem; font-family: var(--font-mono); color: #445; font-size: 0.8rem;" id="loadingStatus">DECRYPTING_THREAT_MODELS...</div>
+    </div>
+
+    <header class="liquid-nav-shell">
+        <nav class="liquid-nav" aria-label="Primary Navigation">
+            <a href="/" class="liquid-nav__brand" aria-label="NexShield Dashboard">
+                <span class="liquid-nav__glyph" aria-hidden="true">🛡</span>
+                <span>NexShield</span>
+            </a>
+            <div class="liquid-nav__links">
+                <a href="/" class="liquid-nav__link">Dashboard</a>
+                <a href="/report" class="liquid-nav__link liquid-nav__link--active">Report</a>
+                <a href="#summary" class="liquid-nav__link liquid-nav__link--section liquid-nav__link--section-active">Summary</a>
+                <a href="#topology" class="liquid-nav__link liquid-nav__link--section">Topology</a>
+                <a href="#environment" class="liquid-nav__link liquid-nav__link--section">Assets</a>
+                <a href="#findings" class="liquid-nav__link liquid-nav__link--section">Findings</a>
+                <a href="#risk" class="liquid-nav__link liquid-nav__link--section">Risk Matrix</a>
+                <a href="#remediation" class="liquid-nav__link liquid-nav__link--section">Roadmap</a>
+                <a href="#metadata" class="liquid-nav__link liquid-nav__link--section">Metadata</a>
+            </div>
+        </nav>
+    </header>
+
+    <main class="main-content" id="reportShell" style="display: none;">
+        <!-- Content will be injected here -->
+    </main>
+
+    <div class="floating-actions">
+        <button class="btn-float" onclick="location.href='/api/report/download-rc'" title="Download Operation RC Script" style="color:var(--orange)">💾</button>
+        <button class="btn-float" onclick="window.print()" title="Print to PDF">🖨️</button>
+        <button class="btn-float" onclick="window.scrollTo({top:0, behavior:'smooth'})" title="Back to Top">↑</button>
+    </div>
+
+    <script>
+        let topologyAnimationFrame = null;
+        let topologyResizeTimer = null;
+        let topologyResizeBound = false;
+        let topologyZoomBound = false;
+        let topologyMapState = { hosts: [], scores: [] };
+        const topologyView = { zoom: 1, minZoom: 0.6, maxZoom: 2.4, step: 0.15 };
+
+        function riskColor(risk) {
+            const normalized = String(risk || "low").toLowerCase();
+            if (normalized === "critical") return "#ff3860";
+            if (normalized === "high") return "#ff8c00";
+            if (normalized === "medium") return "#ffd600";
+            return "#00ff88";
+        }
+
+        function updateTopologyZoomValue() {
+            const zoomEl = document.getElementById("reportMapZoomValue");
+            if (!zoomEl) return;
+            zoomEl.textContent = `${Math.round(topologyView.zoom * 100)}%`;
+        }
+
+        function adjustTopologyZoom(delta) {
+            const nextZoom = Math.max(
+                topologyView.minZoom,
+                Math.min(topologyView.maxZoom, topologyView.zoom + delta)
+            );
+            if (Math.abs(nextZoom - topologyView.zoom) < 0.001) return;
+
+            topologyView.zoom = nextZoom;
+            updateTopologyZoomValue();
+            renderReportMap(topologyMapState.hosts, topologyMapState.scores);
+        }
+
+        function setupTopologyZoomControls() {
+            const canvas = document.getElementById("reportMap");
+            const zoomInBtn = document.getElementById("reportMapZoomIn");
+            const zoomOutBtn = document.getElementById("reportMapZoomOut");
+            const zoomResetBtn = document.getElementById("reportMapZoomReset");
+            if (!canvas || !zoomInBtn || !zoomOutBtn || !zoomResetBtn) return;
+
+            if (!topologyZoomBound) {
+                zoomInBtn.addEventListener("click", () => adjustTopologyZoom(topologyView.step));
+                zoomOutBtn.addEventListener("click", () => adjustTopologyZoom(-topologyView.step));
+                zoomResetBtn.addEventListener("click", () => {
+                    topologyView.zoom = 1;
+                    updateTopologyZoomValue();
+                    renderReportMap(topologyMapState.hosts, topologyMapState.scores);
+                });
+
+                canvas.addEventListener("wheel", (event) => {
+                    event.preventDefault();
+                    adjustTopologyZoom(event.deltaY < 0 ? topologyView.step : -topologyView.step);
+                }, { passive: false });
+
+                topologyZoomBound = true;
+            }
+
+            updateTopologyZoomValue();
+        }
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            const status = document.getElementById('loadingStatus');
+            try {
+                setTimeout(() => { status.textContent = "CORRELATING_VULNERABILITIES..."; }, 800);
+                setTimeout(() => { status.textContent = "GENERATING_INTELLIGENCE..."; }, 1600);
+
+                const res = await fetch('/api/report');
+                const data = await res.json();
+                if (data.status !== 'complete') throw new Error(data.message);
+                
+                document.getElementById('loadingScreen').style.opacity = '0';
+                setTimeout(() => {
+                    document.getElementById('loadingScreen').style.display = 'none';
+                    document.getElementById('reportShell').style.display = 'block';
+                    renderReport(data);
+                    observeSections();
+                }, 500);
+                
+            } catch (err) {
+                document.getElementById('loadingScreen').innerHTML = `
+                    <div style="color:var(--red); font-family:var(--font-mono); font-size:1.2rem; text-align:center;">
+                        [!] FATAL_ERROR<br><br>
+                        <span style="color:#8892a4; font-size:0.9rem;">${err.message}</span>
+                    </div>
+                `;
+            }
+        });
+
+        window.onscroll = () => {
+            const winScroll = document.body.scrollTop || document.documentElement.scrollTop;
+            const height = document.documentElement.scrollHeight - document.documentElement.clientHeight;
+            const scrolled = (winScroll / height) * 100;
+            document.getElementById("progressBar").style.width = scrolled + "%";
+        };
+
+        function badge(s) {
+            const cls = s.toLowerCase();
+            return `<span class="badge badge--${cls.substring(0,4)}">${s.toUpperCase()}</span>`;
+        }
+
+        function observeSections() {
+            const sectionLinks = Array.from(document.querySelectorAll('.liquid-nav__link--section'));
+            const observer = new IntersectionObserver((entries) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        entry.target.classList.add('visible');
+                        const id = entry.target.getAttribute('id');
+                        sectionLinks.forEach((link) => {
+                            link.classList.toggle('liquid-nav__link--section-active', link.getAttribute('href') === '#' + id);
+                        });
+                    }
+                });
+            }, { threshold: 0.1 });
+
+            document.querySelectorAll('.section').forEach(s => observer.observe(s));
+        }
+
+        function renderReport(d) {
+            const shell = document.getElementById('reportShell');
+            const es = d.executive_summary;
+            const riskClass = es.overall_risk.toLowerCase();
+            topologyZoomBound = false;
+            const hosts = Array.isArray(d.target_environment) ? d.target_environment : [];
+            const scores = Array.isArray(d.risk_scores) ? d.risk_scores : [];
+            const severityCounts = scores.reduce((acc, item) => {
+                const level = String(item.risk_level || "low").toLowerCase();
+                if (level === "critical") acc.critical += 1;
+                else if (level === "high") acc.high += 1;
+                else if (level === "medium") acc.medium += 1;
+                else acc.low += 1;
+                return acc;
+            }, { critical: 0, high: 0, medium: 0, low: 0 });
+            const hotNodes = [...scores]
+                .sort((a, b) => (b.score || 0) - (a.score || 0))
+                .slice(0, 7);
+
+            shell.innerHTML = `
+            <header class="report-header">
+                <h1>INTEL_RECON_REPORT</h1>
+                <div class="header-meta">
+                    <div class="meta-item"><b>NODE_ID:</b> <span>NEXSHIELD_ALPHA</span></div>
+                    <div class="meta-item"><b>TIMESTAMP:</b> <span>${new Date(es.generated_at).toLocaleString()}</span></div>
+                    <div class="meta-item"><b>CONFIDENTIALITY:</b> <span style="color:var(--red)">LEVEL_5_EYES_ONLY</span></div>
+                    <div class="meta-item"><b>ANALYSIS_CORE:</b> <span>v${d.report_version}</span></div>
+                </div>
+            </header>
+
+            <!-- 1. Executive Summary -->
+            <section class="section" id="summary">
+                <div class="section-header">
+                    <div class="section-title">01 // EXECUTIVE_INTELLIGENCE</div>
+                </div>
+                <div class="exec-grid">
+                    <div class="exec-card card--total"><div class="exec-label">TOTAL_THREATS</div><div class="exec-value">${es.total_threats}</div></div>
+                    <div class="exec-card card--crit"><div class="exec-label">CRITICAL_RISK</div><div class="exec-value" style="color:var(--red)">${es.severity_breakdown.critical}</div></div>
+                    <div class="exec-card card--high"><div class="exec-label">HIGH_VULN</div><div class="exec-value" style="color:var(--orange)">${es.severity_breakdown.high}</div></div>
+                    <div class="exec-card card--total"><div class="exec-label">ASSETS_AFFECTED</div><div class="exec-value" style="color:var(--green)">${es.unique_hosts_affected}</div></div>
+                </div>
+                <div class="charts-grid">
+                    <div class="chart-container">
+                        <div class="chart-title">ATTACK_SURFACE_RADAR</div>
+                        <div class="chart-wrapper"><canvas id="radarChart"></canvas></div>
+                    </div>
+                    <div class="chart-container">
+                        <div class="chart-title">THREAT_SEVERITY_DENSITY</div>
+                        <div class="chart-wrapper"><canvas id="doughnutChart"></canvas></div>
+                    </div>
+                </div>
+                <div style="background:var(--bg-panel); border:var(--border); border-radius:var(--radius); padding:2.5rem; border-left: 5px solid var(--${riskClass === 'critical' || riskClass === 'high' ? 'red' : 'yellow'});">
+                    <div style="font-family:var(--font-mono); color:#8892a4; font-size:0.9rem; margin-bottom:1rem; letter-spacing:3px;">STRATEGIC_OVERVIEW</div>
+                    <div style="font-size:2rem; color:var(--${riskClass === 'critical' || riskClass === 'high' ? 'red' : 'yellow'}); font-family:var(--font-mono); font-weight:800; margin-bottom:1.5rem;">STATUS: ${es.overall_risk}</div>
+                    <p style="color:#e2e8f0; line-height:1.8; font-size:1.1rem; opacity:0.8;">${es.summary}</p>
+                </div>
+            </section>
+
+            <!-- 2. Network Topology -->
+            <section class="section" id="topology">
+                <div class="section-header">
+                    <div class="section-title">02 // MISSION_TOPOLOGY_INTEL</div>
+                </div>
+                <div class="topology-shell">
+                    <div class="report-map-container">
+                        <canvas id="reportMap"></canvas>
+                        <div class="topology-map-overlay">
+                            <div class="topology-map-stat">
+                                <span>NODES_ACTIVE</span>
+                                <b>${hosts.length}</b>
+                            </div>
+                            <div class="topology-map-stat">
+                                <span>THREAT_SIGNALS</span>
+                                <b>${es.total_threats}</b>
+                            </div>
+                            <div class="topology-map-stat">
+                                <span>HOT_ZONES</span>
+                                <b>${severityCounts.critical + severityCounts.high}</b>
+                            </div>
+                            <div class="topology-map-stat">
+                                <span>MAP_ZOOM</span>
+                                <b id="reportMapZoomValue">100%</b>
+                            </div>
+                        </div>
+                        <div class="topology-map-controls" role="group" aria-label="Topology Map Zoom Controls">
+                            <button type="button" class="topology-map-btn" id="reportMapZoomOut" aria-label="Zoom out">-</button>
+                            <button type="button" class="topology-map-btn topology-map-btn--reset" id="reportMapZoomReset" aria-label="Reset zoom">100%</button>
+                            <button type="button" class="topology-map-btn" id="reportMapZoomIn" aria-label="Zoom in">+</button>
+                        </div>
+                    </div>
+                    <aside class="topology-hud">
+                        <div class="topology-card">
+                            <div class="topology-card__title">RISK_SIGNATURE</div>
+                            <div class="topology-legend">
+                                <div class="topology-legend-row">
+                                    <strong><span class="topology-dot" style="color:#ff3860; background:#ff3860;"></span>CRITICAL</strong>
+                                    <span>${severityCounts.critical}</span>
+                                </div>
+                                <div class="topology-legend-row">
+                                    <strong><span class="topology-dot" style="color:#ff8c00; background:#ff8c00;"></span>HIGH</strong>
+                                    <span>${severityCounts.high}</span>
+                                </div>
+                                <div class="topology-legend-row">
+                                    <strong><span class="topology-dot" style="color:#ffd600; background:#ffd600;"></span>MEDIUM</strong>
+                                    <span>${severityCounts.medium}</span>
+                                </div>
+                                <div class="topology-legend-row">
+                                    <strong><span class="topology-dot" style="color:#00ff88; background:#00ff88;"></span>LOW</strong>
+                                    <span>${severityCounts.low}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="topology-card">
+                            <div class="topology-card__title">HOT_NODES</div>
+                            <div class="topology-host-stream">
+                                ${hotNodes.length ? hotNodes.map((item) => `
+                                    <div class="topology-stream-item">
+                                        <b>${item.host}</b>
+                                        <span style="color:${riskColor(item.risk_level)};">${String(item.risk_level || 'low').toUpperCase()} :: ${item.score ?? 0}</span>
+                                    </div>
+                                `).join('') : '<div class="topology-empty">NO_HOST_TELEMETRY_AVAILABLE</div>'}
+                            </div>
+                        </div>
+                    </aside>
+                </div>
+            </section>
+
+            <!-- 3. Target Environment -->
+            <section class="section" id="environment">
+                <div class="section-header">
+                    <div class="section-title">03 // ASSET_INVENTORY</div>
+                </div>
+                <div class="table-container">
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>NETWORK_NODE</th>
+                                <th>OS_FAMILY</th>
+                                <th>OPEN_PORTS</th>
+                                <th>PRIMARY_SERVICES</th>
+                                <th>RISK_LEVEL</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${d.target_environment.map(h => {
+                                const risk = d.risk_scores.find(r => r.host === h.host);
+                                return `
+                                <tr>
+                                    <td style="font-family:var(--font-mono); color:var(--cyan); font-weight:700;">${h.host}</td>
+                                    <td>${h.os} <span style="color:#556; font-size:0.75rem; font-family:var(--font-mono);">[${h.os_accuracy}%]</span></td>
+                                    <td style="font-family:var(--font-mono);">${h.open_ports}</td>
+                                    <td style="font-size:0.8rem; color:#8892a4;">${h.services.slice(0,6).map(s => '<span class="tag">'+s+'</span>').join(' ')}</td>
+                                    <td>${badge(risk ? risk.risk_level : 'low')}</td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 4. Vulnerability Findings -->
+            <section class="section" id="findings">
+                <div class="section-header">
+                    <div class="section-title">04 // THREAT_INTEL_FINDINGS</div>
+                </div>
+                ${d.vulnerability_findings.map(f => `
+                <div class="finding-group">
+                    <div class="finding-group-header">
+                        <span class="group-ip">${f.host}</span>
+                        <div style="display:flex; gap:2rem; align-items:center;">
+                            <span style="font-size:0.8rem; font-family:var(--font-mono); color:var(--red); font-weight:700;">CRIT: ${f.critical}</span>
+                            <span style="font-size:0.8rem; font-family:var(--font-mono); color:var(--orange);">HIGH: ${f.high}</span>
+                            <span style="font-size:0.8rem; font-family:var(--font-mono); color:#8892a4;">TOTAL: ${f.total_threats}</span>
+                        </div>
+                    </div>
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>SEVERITY</th>
+                                <th>VULNERABILITY_DESCRIPTION</th>
+                                <th>CVE_ID</th>
+                                <th width="320">EXPLOIT_VECTOR</th>
+                                <th width="120">ANALYSIS</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${f.threats.map(t => `
+                            <tr>
+                                <td>${badge(t.severity)}</td>
+                                <td>
+                                    <div style="font-weight:700; color:#fff; margin-bottom:0.5rem; font-size:1rem;">${t.name}</div>
+                                    <div style="font-size:0.85rem; color:#8892a4; line-height:1.6;">${t.detail}</div>
+                                </td>
+                                <td style="font-family:var(--font-mono); font-size:0.9rem; color:var(--purple);">${t.cve_id || '—'}</td>
+                                <td style="font-family:var(--font-mono); font-size:0.75rem; color:${t.exploit_module ? 'var(--red)' : '#445'};">
+                                    ${t.exploit_module ? `
+                                        <div style="font-weight:800; color:var(--red); margin-bottom:0.4rem; display:flex; justify-content:space-between;">
+                                            <span><span style="opacity:0.4">msf></span> ${t.exploit_module}</span>
+                                            <span style="background:rgba(255,56,96,0.1); padding:2px 6px; border-radius:4px; font-size:0.6rem;">${t.exploit_rank}</span>
+                                        </div>
+                                        <div style="font-size:0.7rem; color:#8892a4; margin-bottom:0.6rem; line-height:1.4; border-left: 2px solid rgba(255,255,255,0.1); padding-left:8px;">
+                                            ${t.exploit_desc}
+                                        </div>
+                                        <div style="display:flex; gap:10px; margin-bottom:0.8rem; font-size:0.6rem; opacity:0.8;">
+                                            <span style="color:var(--cyan)">RELIABILITY: ${t.exploit_reliability}</span>
+                                            <span style="color:${t.exploit_check ? 'var(--green)' : '#666'}">CHECK_SUPPORT: ${t.exploit_check ? 'YES' : 'NO'}</span>
+                                        </div>
+                                        <div style="font-size:0.6rem; opacity:0.6; padding:6px; background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.05); border-radius:4px; color:#fff; word-break:break-all;">
+                                            use ${t.exploit_module}; set RHOSTS ${f.host}; exploit -j
+                                        </div>
+                                    ` : '—'}
+                                </td>
+                                <td><span class="tag" style="background:rgba(0,240,255,0.05); color:var(--cyan); border-color:var(--cyan);">${t.source}</span></td>
+                            </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                `).join('')}
+            </section>
+
+            <!-- 5. Risk Matrix -->
+            <section class="section" id="risk">
+                <div class="section-header">
+                    <div class="section-title">05 // RISK_EXPOSURE_MATRIX</div>
+                </div>
+                <div class="table-container">
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>TARGET_ASSET</th>
+                                <th>AI_RISK_SCORE</th>
+                                <th>STATUS</th>
+                                <th>THREAT_VECTOR</th>
+                                <th>WEAPONIZATION</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${d.risk_scores.map(r => `
+                            <tr>
+                                <td style="font-family:var(--font-mono); color:var(--cyan); font-weight:700;">${r.host}</td>
+                                <td width="300">
+                                    <div style="width:100%; height:10px; background:rgba(255,255,255,0.05); border-radius:10px; overflow:hidden; border:1px solid rgba(255,255,255,0.1);">
+                                        <div style="width:${Math.min(r.score, 100)}%; height:100%; background:linear-gradient(90deg, #00f0ff, #a855f7); box-shadow: 0 0 15px rgba(0,240,255,0.4);"></div>
+                                    </div>
+                                    <div style="font-size:0.75rem; color:#8892a4; margin-top:0.6rem; font-family:var(--font-mono); font-weight:700;">VAL: ${r.score} / 100</div>
+                                </td>
+                                <td>${badge(r.risk_level)}</td>
+                                <td style="font-family:var(--font-mono); font-size:0.8rem;">${r.engines_flagged} ANALYSIS_CORES</td>
+                                <td style="font-weight:800; font-family:var(--font-mono); color:${r.critical_count > 0 ? 'var(--red)' : '#445'};">${r.critical_count > 0 ? '🔥 READY' : '🛡️ SECURE'}</td>
+                            </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 6. Remediation Roadmap -->
+            <section class="section" id="remediation">
+                <div class="section-header">
+                    <div class="section-title">06 // REMEDIATION_ROADMAP</div>
+                </div>
+                
+                <!-- Priority Matrix -->
+                <div class="matrix-grid">
+                    <div class="matrix-quadrant quad--q1" data-label="Q1: CRITICAL_IMPACT">
+                        <div style="font-weight:800; color:var(--red); margin-bottom:1rem; font-family:var(--font-mono);">IMMEDIATE_ACTION</div>
+                        <ul style="list-style:none; font-size:0.8rem; color:#8892a4;" id="priorityQ1"></ul>
+                    </div>
+                    <div class="matrix-quadrant quad--q2" data-label="Q2: HIGH_VALUE">
+                        <div style="font-weight:800; color:var(--orange); margin-bottom:1rem; font-family:var(--font-mono);">STRATEGIC_FIX</div>
+                        <ul style="list-style:none; font-size:0.8rem; color:#8892a4;" id="priorityQ2"></ul>
+                    </div>
+                    <div class="matrix-quadrant quad--q3" data-label="Q3: QUICK_WINS">
+                        <div style="font-weight:800; color:var(--yellow); margin-bottom:1rem; font-family:var(--font-mono);">EASY_PATCH</div>
+                        <ul style="list-style:none; font-size:0.8rem; color:#8892a4;" id="priorityQ3"></ul>
+                    </div>
+                    <div class="matrix-quadrant quad--q4" data-label="Q4: MAINTENANCE">
+                        <div style="font-weight:800; color:var(--green); margin-bottom:1rem; font-family:var(--font-mono);">DEBT_REDUCTION</div>
+                        <ul style="list-style:none; font-size:0.8rem; color:#8892a4;" id="priorityQ4"></ul>
+                    </div>
+                </div>
+                <div class="table-container">
+                    <table class="report-table">
+                        <thead>
+                            <tr>
+                                <th>PRIORITY</th>
+                                <th>IDENTIFIED_ISSUE</th>
+                                <th>MITIGATION_STRATEGY</th>
+                                <th>AFFECTED_SCOPE</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${d.recommendations.map(r => {
+                                const p = r.priority.split(' ')[0];
+                                return `
+                                <tr>
+                                    <td><span style="font-family:var(--font-mono); font-weight:800; font-size:1.1rem; color:${p === 'P0' ? 'var(--red)' : p === 'P1' ? 'var(--orange)' : 'var(--yellow)'}">${p}</span></td>
+                                    <td style="font-weight:700; color:#fff;">${r.finding}</td>
+                                    <td style="font-size:0.95rem; line-height:1.7; color:#8892a4;">${r.remediation}</td>
+                                    <td><span class="tag" style="border-color:var(--cyan); color:var(--cyan);">${r.affected_hosts} ASSETS</span></td>
+                                </tr>`;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- 7. Metadata -->
+            <section class="section" id="metadata">
+                <div class="section-header">
+                    <div class="section-title">07 // SYSTEM_METADATA</div>
+                </div>
+                <div style="display:grid; grid-template-columns:1fr 1fr; gap:2rem;">
+                    <div class="table-container">
+                        <table class="report-table">
+                            <tr><td style="font-family:var(--font-mono); color:#8892a4;">SCAN_ID</td><td style="font-family:var(--font-mono); color:var(--cyan);">${d.scan_metadata.latest_scan_id}</td></tr>
+                            <tr><td style="font-family:var(--font-mono); color:#8892a4;">TIMESTAMP</td><td style="font-family:var(--font-mono);">${d.scan_metadata.latest_scan_time || 'N/A'}</td></tr>
+                            <tr><td style="font-family:var(--font-mono); color:#8892a4;">CORE_REGISTRY</td><td style="font-family:var(--font-mono);">${es.engines_active} ENGINES</td></tr>
+                            <tr><td style="font-family:var(--font-mono); color:#8892a4;">NMAP_BUILD</td><td style="font-family:var(--font-mono);">${d.scan_metadata.nmap_version}</td></tr>
+                        </table>
+                    </div>
+                    <div style="background:var(--bg-panel); padding:2rem; border:var(--border); border-radius:var(--radius); position:relative;">
+                        <div style="font-family:var(--font-mono); font-size:0.9rem; color:var(--cyan); margin-bottom:1.5rem; letter-spacing:2px;">ENGINE_SIGNATURES</div>
+                        <pre style="font-family:var(--font-mono); font-size:0.7rem; color:#445; line-height:1.6; overflow-x:auto;">${JSON.stringify(d.scan_metadata.engine_registry, null, 2)}</pre>
+                    </div>
+                </div>
+            </section>
+
+            <footer style="margin-top:5rem; padding-top:3rem; border-top:var(--border); text-align:center; font-family:var(--font-mono); font-size:0.8rem; color:#445; letter-spacing:4px; text-transform:uppercase;">
+                NEXSHIELD // INTELLIGENCE_v5.0 // END_OF_REPORT
+            </footer>
+            `;
+
+            initCharts(d);
+        }
+
+        function initCharts(d) {
+            const es = d.executive_summary;
+            const b = es.severity_breakdown;
+
+            // Doughnut Chart
+            new Chart(document.getElementById('doughnutChart'), {
+                type: 'doughnut',
+                data: {
+                    labels: ['Critical', 'High', 'Medium', 'Low'],
+                    datasets: [{
+                        data: [b.critical, b.high, b.medium, b.low],
+                        backgroundColor: ['#ff3860', '#ff8c00', '#ffd600', '#00ff88'],
+                        borderWidth: 0,
+                        hoverOffset: 20
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { 
+                        legend: { 
+                            position: 'bottom', 
+                            labels: { color: '#8892a4', font: { family: 'Share Tech Mono', size: 10 }, padding: 20 } 
+                        }
+                    },
+                    cutout: '80%'
+                }
+            });
+
+            // Radar Chart
+            new Chart(document.getElementById('radarChart'), {
+                type: 'radar',
+                data: {
+                    labels: ['Exposure', 'Vulnerability', 'Exploitability', 'Data Risk', 'Network Depth'],
+                    datasets: [{
+                        label: 'Intensity',
+                        data: [
+                            Math.min(es.total_threats, 10), 
+                            Math.min(b.critical * 2 + b.high, 10), 
+                            Math.min(b.critical * 3, 10), 
+                            Math.min(es.unique_hosts_affected * 2, 10), 
+                            Math.min(es.total_hosts_scanned, 10)
+                        ],
+                        backgroundColor: 'rgba(0, 240, 255, 0.2)',
+                        borderColor: '#00f0ff',
+                        pointBackgroundColor: '#00f0ff',
+                        borderWidth: 3,
+                        pointRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        r: {
+                            angleLines: { color: 'rgba(255,255,255,0.1)' },
+                            grid: { color: 'rgba(255,255,255,0.1)' },
+                            pointLabels: { color: '#8892a4', font: { family: 'Share Tech Mono', size: 11 } },
+                            ticks: { display: false, max: 10, min: 0 }
+                        }
+                    },
+                    plugins: { legend: { display: false } }
+                }
+            });
+            renderReportMap(d.target_environment, d.risk_scores);
+            renderPriorityMatrix(d.recommendations);
+
+            topologyMapState = {
+                hosts: Array.isArray(d.target_environment) ? d.target_environment : [],
+                scores: Array.isArray(d.risk_scores) ? d.risk_scores : [],
+            };
+
+            if (!topologyResizeBound) {
+                window.addEventListener('resize', () => {
+                    clearTimeout(topologyResizeTimer);
+                    topologyResizeTimer = setTimeout(() => {
+                        renderReportMap(topologyMapState.hosts, topologyMapState.scores);
+                    }, 160);
+                });
+                topologyResizeBound = true;
+            }
+        }
+
+        function renderReportMap(hosts, scores) {
+            const canvas = document.getElementById('reportMap');
+            if (!canvas || !canvas.parentElement) return;
+            setupTopologyZoomControls();
+
+            if (topologyAnimationFrame) {
+                cancelAnimationFrame(topologyAnimationFrame);
+                topologyAnimationFrame = null;
+            }
+
+            topologyMapState = {
+                hosts: Array.isArray(hosts) ? hosts : [],
+                scores: Array.isArray(scores) ? scores : [],
+            };
+
+            const dpr = window.devicePixelRatio || 1;
+            const rect = canvas.parentElement.getBoundingClientRect();
+            const width = Math.max(320, rect.width);
+            const height = Math.max(260, rect.height);
+            canvas.width = Math.floor(width * dpr);
+            canvas.height = Math.floor(height * dpr);
+
+            const ctx = canvas.getContext('2d');
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            const cx = width / 2;
+            const cy = height / 2;
+            const riskLookup = new Map(topologyMapState.scores.map((item) => [item.host, String(item.risk_level || 'low').toLowerCase()]));
+
+            const hostList = topologyMapState.hosts.slice(0, 56);
+            if (!hostList.length) {
+                ctx.clearRect(0, 0, width, height);
+                ctx.fillStyle = "rgba(0, 240, 255, 0.62)";
+                ctx.font = "700 13px 'Share Tech Mono'";
+                ctx.textAlign = "center";
+                ctx.fillText("NO_TOPOLOGY_DATA :: RUN_DISCOVERY", cx, cy);
+                updateTopologyZoomValue();
+                return;
+            }
+
+            const zoom = topologyView.zoom;
+            const baseRadius = Math.min(width, height) * 0.24;
+            const nodes = hostList.map((host, i) => {
+                const angle = (i / hostList.length) * Math.PI * 2;
+                const ringOffset = (i % 3) * 34;
+                const wobble = ((i % 5) - 2) * 6;
+                const dist = (baseRadius + ringOffset + wobble) * zoom;
+                const risk = riskLookup.get(host.host) || 'low';
+                const riskWeight = risk === 'critical' ? 1 : risk === 'high' ? 0.78 : risk === 'medium' ? 0.52 : 0.3;
+
+                return {
+                    x: cx + Math.cos(angle) * dist,
+                    y: cy + Math.sin(angle) * dist,
+                    host: host.host,
+                    risk,
+                    riskWeight,
+                };
+            });
+
+            const drawPill = (x, y, w, h, r) => {
+                ctx.beginPath();
+                ctx.moveTo(x + r, y);
+                ctx.lineTo(x + w - r, y);
+                ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+                ctx.lineTo(x + w, y + h - r);
+                ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+                ctx.lineTo(x + r, y + h);
+                ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+                ctx.lineTo(x, y + r);
+                ctx.quadraticCurveTo(x, y, x + r, y);
+                ctx.closePath();
+            };
+
+            const drawFrame = (time) => {
+                ctx.clearRect(0, 0, width, height);
+
+                const radial = ctx.createRadialGradient(cx, cy, 30, cx, cy, Math.max(width, height) * 0.58);
+                radial.addColorStop(0, "rgba(0, 240, 255, 0.1)");
+                radial.addColorStop(0.55, "rgba(0, 240, 255, 0.02)");
+                radial.addColorStop(1, "rgba(0, 0, 0, 0)");
+                ctx.fillStyle = radial;
+                ctx.fillRect(0, 0, width, height);
+
+                for (let i = 1; i <= 5; i += 1) {
+                    const radius = baseRadius * 0.45 + i * 42 + Math.sin((time * 0.0016) + i) * 1.4;
+                    ctx.beginPath();
+                    ctx.arc(cx, cy, radius, 0, Math.PI * 2);
+                    ctx.strokeStyle = `rgba(0, 240, 255, ${0.05 + i * 0.015})`;
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
+
+                nodes.forEach((node, index) => {
+                    const linkAlpha = 0.08 + (node.riskWeight * 0.12);
+                    ctx.beginPath();
+                    ctx.moveTo(cx, cy);
+                    ctx.lineTo(node.x, node.y);
+                    ctx.strokeStyle = `rgba(0, 240, 255, ${linkAlpha})`;
+                    ctx.lineWidth = 1;
+                    ctx.setLineDash([4, 5]);
+                    ctx.stroke();
+
+                    const packetProgress = (time * 0.00016 + index * 0.083) % 1;
+                    const px = cx + (node.x - cx) * packetProgress;
+                    const py = cy + (node.y - cy) * packetProgress;
+                    const packetColor = riskColor(node.risk);
+                    ctx.setLineDash([]);
+                    ctx.beginPath();
+                    ctx.arc(px, py, 2.2 + node.riskWeight, 0, Math.PI * 2);
+                    ctx.fillStyle = packetColor;
+                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = packetColor;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+                });
+
+                const corePulse = 11 + Math.sin(time * 0.004) * 2.4;
+                ctx.beginPath();
+                ctx.arc(cx, cy, corePulse + 8, 0, Math.PI * 2);
+                ctx.strokeStyle = "rgba(0, 240, 255, 0.3)";
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+
+                ctx.beginPath();
+                ctx.arc(cx, cy, corePulse, 0, Math.PI * 2);
+                ctx.fillStyle = "#00f0ff";
+                ctx.shadowBlur = 24;
+                ctx.shadowColor = "#00f0ff";
+                ctx.fill();
+                ctx.shadowBlur = 0;
+
+                nodes.forEach((node, index) => {
+                    const color = riskColor(node.risk);
+                    const pulse = node.riskWeight > 0.7 ? 1.8 + Math.sin(time * 0.005 + index) * 2.1 : 0;
+                    const radius = 5.5 + (node.riskWeight * 2.5) + pulse;
+
+                    if (node.riskWeight > 0.7) {
+                        ctx.beginPath();
+                        ctx.arc(node.x, node.y, radius + 5, 0, Math.PI * 2);
+                        ctx.strokeStyle = `${color}55`;
+                        ctx.lineWidth = 1;
+                        ctx.stroke();
+                    }
+
+                    ctx.beginPath();
+                    ctx.arc(node.x, node.y, radius, 0, Math.PI * 2);
+                    ctx.fillStyle = color;
+                    ctx.shadowBlur = 16;
+                    ctx.shadowColor = color;
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                    const shortHost = String(node.host || "").length > 18 ? `${String(node.host).slice(0, 15)}...` : String(node.host || "unknown");
+                    ctx.font = "10px 'Share Tech Mono'";
+                    const textW = ctx.measureText(shortHost).width;
+                    const boxX = node.x + 10;
+                    const boxY = node.y - 10;
+                    drawPill(boxX, boxY, textW + 14, 18, 7);
+                    ctx.fillStyle = "rgba(4, 10, 20, 0.74)";
+                    ctx.fill();
+                    ctx.strokeStyle = "rgba(0, 240, 255, 0.22)";
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+
+                    ctx.fillStyle = "rgba(224, 238, 255, 0.9)";
+                    ctx.textAlign = "left";
+                    ctx.fillText(shortHost, boxX + 7, boxY + 12.5);
+                });
+
+                topologyAnimationFrame = requestAnimationFrame(drawFrame);
+            };
+
+            drawFrame(0);
+            updateTopologyZoomValue();
+        }
+
+        function renderPriorityMatrix(roadmap) {
+            const q1 = document.getElementById('priorityQ1');
+            const q2 = document.getElementById('priorityQ2');
+            const q3 = document.getElementById('priorityQ3');
+            const q4 = document.getElementById('priorityQ4');
+            if(!q1 || !q2 || !q3 || !q4) return;
+
+            roadmap.forEach(item => {
+                const p = item.priority ? item.priority.split(' ')[0] : 'P3';
+                const rem = item.remediation || '';
+                const shortRem = rem.length > 45 ? rem.substring(0, 45) + '...' : rem;
+                const li = `<li style="margin-bottom:0.5rem; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:0.4rem;">
+                    <b style="color:var(--cyan);">${item.finding}</b><br>
+                    <span style="font-size:0.75rem;">${shortRem}</span>
+                </li>`;
+                if(p === 'P0') q1.innerHTML += li;
+                else if(p === 'P1') q2.innerHTML += li;
+                else if(p === 'P2') q3.innerHTML += li;
+                else q4.innerHTML += li;
+            });
+
+            [q1, q2, q3, q4].forEach(q => {
+                if(!q.innerHTML) q.innerHTML = '<li style="opacity:0.3; font-style:italic;">NO_DATA_POINTS_DETECTED</li>';
+            });
+        }
+    </script>
+
+</body>
+</html>
