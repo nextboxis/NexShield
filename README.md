@@ -1,3 +1,92 @@
+</div>
+
+## Recent Improvements
+- Added API endpoints: `POST /api/analyze`, `POST /api/train`, `GET /api/threat/<id>` for on-demand analysis and threat retrieval.
+- Improved threat deduplication and severity handling in `ai_logic.py`.
+- Imported `MSF_MAPPINGS` in `app.py` and enriched threat responses with `exploit_module` metadata.
+- Minor UI and report-generation fixes in `templates/report.html`.
+<div align="center">
+
+```text
+███╗   ██╗███████╗██╗  ██╗███████╗██╗  ██╗██╗███████╗██╗     ██████╗ 
+████╗  ██║██╔════╝╚██╗██╔╝██╔════╝██║  ██║██║██╔════╝██║     ██╔══██╗
+██╔██╗ ██║█████╗   ╚███╔╝ ███████╗███████║██║█████╗  ██║     ██║  ██║
+██║╚██╗██║██╔══╝   ██╔██╗ ╚════██║██╔══██║██║██╔══╝  ██║     ██║  ██║
+██║ ╚████║███████╗██╔╝ ██╗███████║██║  ██║██║███████╗███████╗██████╔╝
+╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝╚══════╝╚══════╝╚═════╝ 
+                               MISSION CONTROL v5.0
+```
+
+[![Python](https://img.shields.io/badge/Python-3.9+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![Flask](https://img.shields.io/badge/Flask-Framework-000000.svg?style=for-the-badge&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
+[![MongoDB](https://img.shields.io/badge/MongoDB-Database-47A248.svg?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![scikit-learn](https://img.shields.io/badge/scikit--learn-AI_Engine-F7931E.svg?style=for-the-badge&logo=scikit-learn&logoColor=white)](https://scikit-learn.org/)
+[![License](https://img.shields.io/badge/License-Proprietary-red.svg?style=for-the-badge)](LICENSE)
+
+</div>
+
+---
+
+# 🛡️ NexShield v5
+
+### AI-Powered Threat Intelligence & SOC Mission Control
+
+NexShield v5 is a professional-grade cybersecurity platform that bridges the gap between raw vulnerability data and actionable intelligence. It transforms network reconnaissance into an **"Intelligence-to-Action"** mission workflow — scanning targets, analyzing findings with a 16-engine AI pipeline, correlating exploits from Metasploit, and generating executive-ready pentest reports.
+
+---
+
+## ✨ Key Features
+
+| Feature | Description |
+|---------|-------------|
+| **Mission Control HUD** | Real-time SOC dashboard with animated topology map, severity radar, and 7-day incident timeline |
+| **16-Engine AI Pipeline** | Automated threat detection covering CVE correlation, default credentials, SSL/TLS audit, lateral movement, zero-day heuristics, and more |
+| **ML Threat Prediction** | Ensemble model (Random Forest + Gradient Boosting) trained on your scan data to predict threat severity |
+| **Metasploit Integration** | Automatic exploit module mapping with one-click RC script generation and live exploit launch via RPC |
+| **Multi-Scan Types** | Quick, Default, Deep, Stealth, OS Detect, Vuln Scripts, SSL/TLS, UDP, and Full port scanning |
+| **Pentest Reporting** | Full intelligence report with executive summary, risk matrix, remediation roadmap, and topology visualization |
+| **Real-time WebSocket** | Live scan progress, analysis status, and threat notifications via Socket.IO |
+| **CVE Intelligence** | Built-in CVE lookup with NVD integration and local caching |
+| **Host Quarantine** | Zero-trust isolation of compromised nodes with automatic threat remediation |
+| **Export & Automation** | CSV/JSON export, downloadable Metasploit RC scripts, and keyboard shortcuts |
+
+---
+
+## 📋 Prerequisites
+
+Before installing NexShield, ensure these are available on your system:
+
+| Dependency | Purpose | Install Guide |
+|-----------|---------|---------------|
+| **Python 3.9+** | Runtime | [python.org](https://www.python.org/downloads/) |
+| **MongoDB 6.0+** | Threat & scan data storage | [mongodb.com/docs](https://www.mongodb.com/docs/manual/installation/) |
+| **Nmap 7.80+** | Network scanning engine | [nmap.org](https://nmap.org/download.html) |
+| **Metasploit** *(optional)* | Exploit execution via RPC | [metasploit.com](https://www.metasploit.com/) |
+
+> **Note:** `python-nmap` is a Python wrapper — it requires the `nmap` binary installed and accessible in your system `PATH`.
+
+---
+
+## 🚀 Quick Start
+
+### The Easy Way (Automated Setup)
+
+**Windows:**
+Double-click `install.bat` or run it from the command line:
+```cmd
+install.bat
+```
+
+**Linux / macOS:**
+Make the script executable and run it:
+```bash
+chmod +x install.sh
+./install.sh
+```
+
+### The Manual Way
+
+```bash
 <div align="center">
 
 ```text
@@ -210,4 +299,10 @@ NexShield's analysis pipeline runs **16 independent engines** against scan data:
 <div align="center">
 <strong>NexShield Core v5.0 — Mission Ready.</strong>
 </div>
-\n## Recent Improvements\n- Added API endpoints: POST /api/analyze, POST /api/train, GET /api/threat/<id> for on-demand analysis, training, and single-threat fetch.\n- Normalized threat hashing and severity handling in i_logic.py to improve deduplication accuracy.\n- Imported MSF_MAPPINGS in pp.py and enriched threat responses with exploit_module.\n\n
+
+## Recent Improvements
+
+- Added API endpoints: `POST /api/analyze`, `POST /api/train`, `GET /api/threat/<id>` for on-demand analysis and threat retrieval.
+- Improved threat deduplication and severity handling in `ai_logic.py`.
+- Imported `MSF_MAPPINGS` in `app.py` and enriched threat responses with `exploit_module` metadata.
+- Minor UI and report-generation fixes in `templates/report.html`.
