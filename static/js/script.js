@@ -178,12 +178,13 @@ async function fetchJson(url, options = {}) {
         ...options,
     });
 
-    const data = await response.json();
-
     if (response.status === 401) {
-        window.location.href = "/login";
-        throw new Error("Session expired. Please sign in again.");
+        // Redirect to login page, preserving current location for return
+        window.location.href = "/login?next=" + encodeURIComponent(window.location.pathname);
+        throw new Error("Session expired. Redirecting to login...");
     }
+
+    const data = await response.json();
 
     if (!response.ok) {
         throw new Error(data.message || `Request failed (${response.status})`);

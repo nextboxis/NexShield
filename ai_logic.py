@@ -595,25 +595,32 @@ def _engine_mitre_map(ctx):
 MODEL_PATH = "threat_ml_model.pkl"
 VECTORIZER_PATH = "threat_ml_vect.pkl"
 
+def extract_is_sensitive_port(X):
+    import numpy as np
+    from ai_logic import SENSITIVE_PORTS
+    return np.array([[1 if p in SENSITIVE_PORTS else 0] for p in X.iloc[:, 0]])
+
 def train_ml_model():
     """
-    Trains an ensemble classifier (Random Forest + Gradient Boosting)
-    using historical threat data with cross-validation.
-    Returns accuracy score on the validation set.
+    Trains an enhanced ensemble classifier (RF + GBT + MLP)
+    using historical threat data with RandomizedSearchCV for hyperparameter tuning
+    and CalibratedClassifierCV for accurate probabilities.
     """
     try:
         from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, VotingClassifier  # type: ignore
+        from sklearn.neural_network import MLPClassifier  # type: ignore
         from sklearn.feature_extraction.text import TfidfVectorizer  # type: ignore
         from sklearn.compose import ColumnTransformer  # type: ignore
-        from sklearn.preprocessing import StandardScaler, OneHotEncoder  # type: ignore
+        from sklearn.preprocessing import StandardScaler, OneHotEncoder, FunctionTransformer  # type: ignore
         from sklearn.pipeline import Pipeline  # type: ignore
-        from sklearn.model_selection import cross_val_score  # type: ignore
-        from sklearn.metrics import classification_report  # type: ignore
+        from sklearn.model_selection import RandomizedSearchCV  # type: ignore
+        from sklearn.calibration import CalibratedClassifierCV  # type: ignore
+        from scipy.stats import randint, uniform  # type: ignore
         import pandas as pd  # type: ignore
         import numpy as np  # type: ignore
         import joblib  # type: ignore
     except ImportError:
-        print("[!] ML libraries missing. Run: pip install scikit-learn pandas joblib numpy")
+        print("[!] ML libraries missing. Run: pip install scikit-learn pandas joblib numpy scipy")
         return False
 
     if not check_connection():
@@ -623,7 +630,7 @@ def train_ml_model():
     print("[*] Fetching historical threat data for ML training...")
     past_threats = list(threats.find({"source": {"$ne": MODELS["ml_predict"]}}))
 
-    # --- Synthetic training data (expanded threat signatures) ---
+    # --- Expanded Synthetic training data ---
     synthetic_threats = [
         {"name": "MS08-067 (NetAPI) Exploitation", "detail": "vulnerability reference", "severity": "critical", "port": 445, "protocol": "tcp", "service": "smb"},
         {"name": "vsftpd 2.3.4 Backdoor", "detail": "backdoor reference", "severity": "critical", "port": 21, "protocol": "tcp", "service": "ftp"},
@@ -647,6 +654,16 @@ def train_ml_model():
         {"name": "SMB EternalBlue", "detail": "smbv1 eternalblue ms17-010 worm", "severity": "critical", "port": 445, "protocol": "tcp", "service": "smb"},
         {"name": "FTP Bounce Attack", "detail": "ftp bounce attack port scanning proxy", "severity": "high", "port": 21, "protocol": "tcp", "service": "ftp"},
         {"name": "NFS World Readable", "detail": "nfs world readable export no_root_squash", "severity": "high", "port": 2049, "protocol": "tcp", "service": "nfs"},
+        # New synthetics
+        {"name": "WebLogic Unauth RCE", "detail": "oracle weblogic server remote code execution CVE-2020-14882", "severity": "critical", "port": 7001, "protocol": "tcp", "service": "http"},
+        {"name": "Confluence OGNL Injection", "detail": "atlassian confluence ognl injection rce CVE-2022-26134", "severity": "critical", "port": 8090, "protocol": "tcp", "service": "http"},
+        {"name": "SSH Brute Force", "detail": "frequent failed ssh login attempts detected", "severity": "medium", "port": 22, "protocol": "tcp", "service": "ssh"},
+        {"name": "RDP Exposure", "detail": "remote desktop protocol exposed to public internet", "severity": "high", "port": 3389, "protocol": "tcp", "service": "ms-wbt-server"},
+        {"name": "VNC No Auth", "detail": "vnc server allowing unauthenticated access", "severity": "critical", "port": 5900, "protocol": "tcp", "service": "vnc"},
+        {"name": "Memcached UDP Amplification", "detail": "memcached server exposed on udp allowing ddos amplification", "severity": "critical", "port": 11211, "protocol": "udp", "service": "memcache"},
+        {"name": "GitLab Image Exif RCE", "detail": "gitlab exiftool remote code execution CVE-2021-22205", "severity": "critical", "port": 443, "protocol": "tcp", "service": "https"},
+        {"name": "Kubelet Anonymous Read", "detail": "kubernetes kubelet allowing anonymous read access", "severity": "critical", "port": 10250, "protocol": "tcp", "service": "https"},
+        {"name": "PostgreSQL Default Creds", "detail": "postgresql accepting default credentials postgres/postgres", "severity": "high", "port": 5432, "protocol": "tcp", "service": "postgresql"},
     ]
     past_threats.extend(synthetic_threats * 8)
 
@@ -676,38 +693,64 @@ def train_ml_model():
     df = pd.DataFrame(data)
     y = df.pop("severity")
 
+    sensitive_port_transformer = FunctionTransformer(extract_is_sensitive_port, validate=False)
+
     # Pipeline: ColumnTransformer for multi-modal features
     preprocessor = ColumnTransformer(
         transformers=[
-            ('text', TfidfVectorizer(max_features=2000, ngram_range=(1, 2), sublinear_tf=True), 'text'),
+            ('text', TfidfVectorizer(max_features=2500, ngram_range=(1, 3), sublinear_tf=True), 'text'),
             ('num', StandardScaler(), ['port']),
-            ('cat', OneHotEncoder(handle_unknown='ignore'), ['protocol'])
+            ('cat', OneHotEncoder(handle_unknown='ignore'), ['protocol']),
+            ('sensitive', sensitive_port_transformer, ['port'])
         ])
 
-    # Ensemble: Random Forest + Gradient Boosting (soft voting)
-    rf = RandomForestClassifier(n_estimators=150, max_depth=12, random_state=42, class_weight="balanced")
-    gbt = GradientBoostingClassifier(n_estimators=100, max_depth=5, learning_rate=0.1, random_state=42)
-    ensemble = VotingClassifier(estimators=[("rf", rf), ("gbt", gbt)], voting="soft")
+    # Ensemble Base Models
+    rf = RandomForestClassifier(random_state=42, class_weight="balanced")
+    gbt = GradientBoostingClassifier(random_state=42)
+    mlp = MLPClassifier(hidden_layer_sizes=(64,), max_iter=300, random_state=42, early_stopping=True)
 
-    pipeline = Pipeline([
+    ensemble = VotingClassifier(estimators=[("rf", rf), ("gbt", gbt), ("mlp", mlp)], voting="soft")
+
+    tune_pipeline = Pipeline([
         ('preprocessor', preprocessor),
         ('classifier', ensemble)
     ])
 
-    # Cross-validation
+    param_distributions = {
+        'classifier__rf__n_estimators': randint(50, 150),
+        'classifier__gbt__learning_rate': uniform(0.05, 0.15),
+    }
+
     unique_labels = list(set(y))
-    cv_folds = min(5, min(y.tolist().count(label) for label in unique_labels) if all(y.tolist().count(l) >= 2 for l in unique_labels) else 3)
+    cv_folds = min(3, min(y.tolist().count(label) for label in unique_labels) if all(y.tolist().count(l) >= 2 for l in unique_labels) else 2)
     cv_folds = max(2, cv_folds)
+
+    print("[*] Starting RandomizedSearchCV for hyperparameter tuning...")
+    search = RandomizedSearchCV(tune_pipeline, param_distributions, n_iter=3, cv=cv_folds, scoring='accuracy', random_state=42)
+    
     try:
-        scores = cross_val_score(pipeline, df, y, cv=cv_folds, scoring="accuracy")
-        print(f"[*] Cross-validation accuracy: {np.mean(scores)*100:.1f}% (±{np.std(scores)*100:.1f}%)")
-    except Exception as cv_err:
-        print(f"[!] Cross-validation skipped: {cv_err}")
+        search.fit(df, y)
+        print(f"[*] Best tuning accuracy: {search.best_score_*100:.1f}%")
+        best_params = search.best_params_
+    except Exception as e:
+        print(f"[!] Hyperparameter tuning failed: {e}. Using defaults.")
+        best_params = {}
 
-    pipeline.fit(df, y)
+    # Apply best params to the ensemble elements
+    if best_params:
+        rf.set_params(n_estimators=best_params.get('classifier__rf__n_estimators', 100))
+        gbt.set_params(learning_rate=best_params.get('classifier__gbt__learning_rate', 0.1))
 
-    joblib.dump(pipeline, MODEL_PATH)
-    print(f"[+] AI pipeline (ColumnTransformer+Ensemble) trained and saved to {MODEL_PATH}!")
+    # Final Pipeline with CalibratedClassifierCV
+    final_pipeline = Pipeline([
+        ('preprocessor', preprocessor),
+        ('classifier', CalibratedClassifierCV(estimator=ensemble, cv=cv_folds))
+    ])
+    
+    final_pipeline.fit(df, y)
+
+    joblib.dump(final_pipeline, MODEL_PATH)
+    print(f"[+] AI pipeline (Ensemble+Tuning+Calibration) trained and saved to {MODEL_PATH}!")
     return True
 
 def _engine_ml_predict(ctx):
@@ -732,9 +775,9 @@ def _engine_ml_predict(ctx):
         probs = pipeline.predict_proba(df_pred)[0]
         max_prob = max(probs)
 
-        # Only report if it predicts high/critical risk with > 55% confidence
-        if pred in ["high", "critical"] and max_prob > 0.55:
-            confidence_label = "Very High" if max_prob > 0.90 else "High" if max_prob > 0.80 else "Moderate" if max_prob > 0.65 else "Low"
+        # High/critical risk with > 60% calibrated confidence
+        if pred in ["high", "critical"] and max_prob > 0.60:
+            confidence_label = "Very High" if max_prob > 0.90 else "High" if max_prob > 0.80 else "Moderate"
             return [_make_threat(
                 name=f"AI Predicted: {pred.title()} Risk ({confidence_label} Confidence)",
                 severity=pred,
@@ -742,14 +785,13 @@ def _engine_ml_predict(ctx):
                 cve_id=f"AI-{ctx['port']}-{ctx['host'].replace('.', '_')}",
                 source=MODELS["ml_predict"],
                 detail=(
-                    f"Machine Learning pipeline flagged port {ctx['port']}/{ctx['protocol']} "
-                    f"as {pred} risk with {max_prob*100:.1f}% confidence. "
+                    f"Advanced ML Engine predicted {pred} risk with {max_prob*100:.1f}% calibrated confidence. "
                     f"Service: {ctx['product']} {ctx['version']}"
                 ),
                 tags=["machine_learning", "ai_predicted", f"confidence_{confidence_label.lower().replace(' ', '_')}"]
             )]
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"ML Predict Error: {e}")
     return []
 
 

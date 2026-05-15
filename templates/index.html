@@ -37,7 +37,7 @@
                 <a href="#manualScan" class="liquid-nav__link">Scanner</a>
                 <a href="#hostsGrid" class="liquid-nav__link">Assets</a>
                 <a href="#activityFeed" class="liquid-nav__link">Operations</a>
-                <a href="/report" class="liquid-nav__link" target="_blank" rel="noopener">Report</a>
+                <a href="/report" class="liquid-nav__link">Report</a>
                 <a href="#" class="liquid-nav__link liquid-nav__link--pill" onclick="showShortcutsHelp(); return false;">Shortcuts</a>
             </div>
         </nav>
@@ -84,7 +84,7 @@
                 <button class="btn btn--reset" id="btnReset" onclick="triggerResetData()" aria-label="Reset Data">
                     <span class="btn__icon">⚠</span> RESET_DATA
                 </button>
-                <button class="btn btn--report" id="btnReport" onclick="window.open('/report','_blank')" aria-label="Generate Report">
+                <button class="btn btn--report" id="btnReport" onclick="window.location.href='/report'" aria-label="Generate Report">
                     <span class="btn__icon">📋</span> GEN_REPORT
                 </button>
             </div>

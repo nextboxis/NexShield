@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NexShield — Authenticate</title>
+    <meta name="description" content="NexShield Mission Control — Secure Authentication Portal" />
+    <meta name="theme-color" content="#04060b" />
+
+    <!-- Inline SVG Favicon -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%2300f0ff'/%3E%3Cstop offset='100%25' stop-color='%2300ff88'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M32 4L6 18v20c0 14 12 20 26 22 14-2 26-8 26-22V18L32 4z' fill='none' stroke='url(%23g)' stroke-width='3'/%3E%3Cpath d='M32 16l-14 8v12c0 8 6 12 14 14 8-2 14-6 14-14V24l-14-8z' fill='url(%23g)' opacity='.15'/%3E%3Cpath d='M28 32l-4-4 2-2 2 2 8-8 2 2z' fill='url(%23g)'/%3E%3C/svg%3E" />
+
+    <!-- Google Font: Share Tech Mono + Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+
+    <style>
+        :root {
+            --bg-deep: #06090f;
+            --cyan: #00f0ff;
+            --green: #00ff88;
+            --red: #ff3860;
+            --font-mono: 'Share Tech Mono', monospace;
+            --font-sans: 'Outfit', sans-serif;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            background: var(--bg-deep);
+            color: #e2e8f0;
+            font-family: var(--font-sans);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* Grid BG */
+        .grid-bg {
+            position: fixed; inset: 0;
+            background-image:
+                linear-gradient(rgba(0, 240, 255, 0.02) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 240, 255, 0.02) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none; z-index: 0;
+            animation: gridDrift 20s linear infinite;
+        }
+        @keyframes gridDrift { 0% { background-position: 0 0; } 100% { background-position: 60px 60px; } }
+
+        /* Radar sweep */
+        .radar-sweep {
+            position: fixed; top: 50%; left: 50%;
+            width: 200vmax; height: 200vmax;
+            background: conic-gradient(from 0deg, transparent 0%, rgba(0, 240, 255, 0.06) 10%, transparent 15%);
+            transform: translate(-50%, -50%);
+            pointer-events: none; z-index: 1;
+            animation: radarSweep 8s linear infinite;
+        }
+        @keyframes radarSweep { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
+
+        .scanline-overlay {
+            position: fixed; inset: 0;
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 240, 255, 0.008) 2px, rgba(0, 240, 255, 0.008) 4px);
+            pointer-events: none; z-index: 1;
+        }
+
+        /* Login Card */
+        .login-card {
+            position: relative; z-index: 10;
+            width: 100%; max-width: 440px;
+            padding: 3rem 2.5rem;
+            background: rgba(13, 20, 33, 0.85);
+            border: 1px solid rgba(0, 240, 255, 0.12);
+            border-radius: 20px;
+            backdrop-filter: blur(20px) saturate(180%);
+            -webkit-backdrop-filter: blur(20px) saturate(180%);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+            animation: cardEntrance 0.8s ease-out;
+        }
+
+        @keyframes cardEntrance {
+            from { opacity: 0; transform: translateY(30px) scale(0.96); }
+            to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+
+        /* Corner flourishes */
+        .login-card::after {
+            content: ''; position: absolute; top: -1px; right: -1px;
+            width: 24px; height: 24px;
+            border-top: 2px solid var(--cyan); border-right: 2px solid var(--cyan);
+            border-radius: 0 20px 0 0; opacity: 0.5;
+        }
+        .login-card::before {
+            content: ''; position: absolute; bottom: -1px; left: -1px;
+            width: 24px; height: 24px;
+            border-bottom: 2px solid var(--cyan); border-left: 2px solid var(--cyan);
+            border-radius: 0 0 0 20px; opacity: 0.3;
+        }
+
+        .login-brand {
+            text-align: center; margin-bottom: 2.5rem;
+        }
+
+        .login-brand__shield {
+            font-size: 2.5rem;
+            filter: drop-shadow(0 0 20px rgba(0, 240, 255, 0.4));
+            display: block; margin-bottom: 0.8rem;
+        }
+
+        .login-brand__title {
+            font-family: var(--font-mono);
+            font-size: 1.4rem;
+            letter-spacing: 4px;
+            color: var(--cyan);
+            text-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
+        }
+
+        .login-brand__sub {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: #8892a4;
+            letter-spacing: 2px;
+            margin-top: 0.4rem;
+        }
+
+        .login-form { display: flex; flex-direction: column; gap: 1.2rem; }
+
+        .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+
+        .form-label {
+            font-family: var(--font-mono);
+            font-size: 0.7rem;
+            color: #8892a4;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+        }
+
+        .form-input {
+            background: rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(0, 240, 255, 0.15);
+            color: #fff;
+            font-family: var(--font-mono);
+            padding: 0.85rem 1.2rem;
+            border-radius: 8px;
+            outline: none;
+            font-size: 0.9rem;
+            transition: all 0.3s;
+        }
+
+        .form-input::placeholder {
+            color: rgba(136, 146, 164, 0.4);
+        }
+
+        .form-input:focus {
+            border-color: var(--cyan);
+            box-shadow: 0 0 20px rgba(0, 240, 255, 0.12), inset 0 0 15px rgba(0, 240, 255, 0.03);
+            background: rgba(0, 240, 255, 0.04);
+        }
+
+        .btn-auth {
+            font-family: var(--font-mono);
+            font-size: 0.85rem;
+            letter-spacing: 2px;
+            padding: 0.95rem;
+            border: 1px solid var(--cyan);
+            border-radius: 8px;
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.12), rgba(0, 255, 136, 0.08));
+            color: var(--cyan);
+            cursor: pointer;
+            transition: all 0.35s;
+            margin-top: 0.5rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-auth:hover {
+            background: linear-gradient(135deg, rgba(0, 240, 255, 0.25), rgba(0, 255, 136, 0.15));
+            box-shadow: 0 0 25px rgba(0, 240, 255, 0.2);
+            transform: translateY(-2px);
+        }
+
+        .btn-auth:active {
+            transform: translateY(0);
+        }
+
+        .btn-auth:disabled {
+            opacity: 0.5;
+            cursor: wait;
+        }
+
+        .login-feedback {
+            font-family: var(--font-mono);
+            font-size: 0.78rem;
+            text-align: center;
+            min-height: 1.4em;
+            letter-spacing: 0.5px;
+            transition: all 0.3s;
+        }
+
+        .login-feedback--error { color: var(--red); text-shadow: 0 0 10px rgba(255, 56, 96, 0.3); }
+        .login-feedback--success { color: var(--green); text-shadow: 0 0 10px rgba(0, 255, 136, 0.3); }
+
+        .login-toggle {
+            text-align: center;
+            margin-top: 1.2rem;
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: #8892a4;
+            letter-spacing: 0.5px;
+        }
+
+        .login-toggle a {
+            color: var(--cyan);
+            text-decoration: none;
+            border-bottom: 1px dashed rgba(0, 240, 255, 0.3);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .login-toggle a:hover {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+
+        /* Pulse ring behind card */
+        .pulse-ring {
+            position: fixed;
+            top: 50%; left: 50%;
+            width: 500px; height: 500px;
+            border: 1px solid rgba(0, 240, 255, 0.05);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 2;
+            animation: pulseRing 4s ease-out infinite;
+        }
+
+        @keyframes pulseRing {
+            0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.6; }
+            100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="grid-bg" aria-hidden="true"></div>
+    <div class="radar-sweep" aria-hidden="true"></div>
+    <div class="scanline-overlay" aria-hidden="true"></div>
+    <div class="pulse-ring" aria-hidden="true"></div>
+
+    <div class="login-card">
+        <div class="login-brand">
+            <span class="login-brand__shield">🛡</span>
+            <div class="login-brand__title">NEXSHIELD</div>
+            <div class="login-brand__sub">SECURE_AUTHENTICATION_PORTAL</div>
+        </div>
+
+        <form class="login-form" id="authForm" onsubmit="handleAuth(event)">
+            <div class="form-group">
+                <label class="form-label" for="authUsername">OPERATOR_ID</label>
+                <input type="text" id="authUsername" class="form-input" placeholder="Enter username" value="admin" autocomplete="username" required />
+            </div>
+            <div class="form-group">
+                <label class="form-label" for="authPassword">ACCESS_KEY</label>
+                <input type="password" id="authPassword" class="form-input" placeholder="Enter password" value="admin" autocomplete="current-password" required />
+            </div>
+            <div class="login-feedback" id="authFeedback"></div>
+            <button type="submit" class="btn-auth" id="authBtn">AUTHENTICATE</button>
+        </form>
+
+        <div class="login-toggle" id="authToggle">
+            No account? <a onclick="toggleMode()">REGISTER_NEW_OPERATOR</a>
+        </div>
+    </div>
+
+    <script>
+        let isRegisterMode = false;
+
+        function toggleMode() {
+            isRegisterMode = !isRegisterMode;
+            const btn = document.getElementById("authBtn");
+            const toggle = document.getElementById("authToggle");
+            const feedback = document.getElementById("authFeedback");
+
+            if (isRegisterMode) {
+                btn.textContent = "REGISTER";
+                toggle.innerHTML = 'Already have access? <a onclick="toggleMode()">LOGIN</a>';
+            } else {
+                btn.textContent = "AUTHENTICATE";
+                toggle.innerHTML = 'No account? <a onclick="toggleMode()">REGISTER_NEW_OPERATOR</a>';
+            }
+            feedback.textContent = "";
+            feedback.className = "login-feedback";
+        }
+
+        async function handleAuth(e) {
+            e.preventDefault();
+            const btn = document.getElementById("authBtn");
+            const feedback = document.getElementById("authFeedback");
+            const username = document.getElementById("authUsername").value.trim();
+            const password = document.getElementById("authPassword").value.trim();
+
+            if (!username || !password) {
+                feedback.textContent = "All fields are required.";
+                feedback.className = "login-feedback login-feedback--error";
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = "TRANSMITTING...";
+            feedback.textContent = "";
+
+            const endpoint = isRegisterMode ? "/api/auth/register" : "/api/auth/login";
+
+            try {
+                const res = await fetch(endpoint, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ username, password }),
+                });
+                const data = await res.json();
+
+                if (res.ok) {
+                    feedback.textContent = data.message || "Success.";
+                    feedback.className = "login-feedback login-feedback--success";
+
+                    if (isRegisterMode) {
+                        // Auto-switch to login after successful registration
+                        setTimeout(() => {
+                            isRegisterMode = false;
+                            toggleMode();
+                            toggleMode(); // Reset to login mode
+                            feedback.textContent = "Account created. Please login.";
+                            feedback.className = "login-feedback login-feedback--success";
+                        }, 1500);
+                    } else {
+                        // Redirect to dashboard after login
+                        feedback.textContent = "ACCESS_GRANTED — Redirecting to Mission Control...";
+                        setTimeout(() => {
+                            const returnTo = new URLSearchParams(window.location.search).get("next") || "/";
+                            window.location.href = returnTo;
+                        }, 800);
+                    }
+                } else {
+                    feedback.textContent = data.message || "Authentication failed.";
+                    feedback.className = "login-feedback login-feedback--error";
+                }
+            } catch (err) {
+                feedback.textContent = "CONNECTION_FAILURE — Server unreachable.";
+                feedback.className = "login-feedback login-feedback--error";
+            } finally {
+                btn.disabled = false;
+                btn.textContent = isRegisterMode ? "REGISTER" : "AUTHENTICATE";
+            }
+        }
+    </script>
+</body>
+</html>

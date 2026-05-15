@@ -233,7 +233,7 @@ def handle_connect(auth):
 #  API — User Registration / Login / Logout
 # ═════════════════════════════════════════════════════════════════════
 
-PASSWORD_RE = re.compile(r"^.{8,128}$")  # Minimum 8 characters
+PASSWORD_RE = re.compile(r"^.{5,128}$")  # Minimum 5 characters
 
 @app.route("/api/auth/register", methods=["POST"])
 def register():
@@ -253,7 +253,7 @@ def register():
 
     password = (body.get("password") or "").strip()
     if not PASSWORD_RE.fullmatch(password):
-        return jsonify({"status": "error", "message": "Password must be 8-128 characters."}), 400
+        return jsonify({"status": "error", "message": "Password must be 5-128 characters."}), 400
 
     if users.find_one({"username": username}):
         return jsonify({"status": "error", "message": "Username already taken."}), 409
@@ -319,15 +319,27 @@ def check_session():
 #  Frontend
 # ═════════════════════════════════════════════════════════════════════
 
+@app.route("/login")
+def serve_login():
+    """Serve the authentication page. Always accessible."""
+    if "user" in session:
+        return redirect(url_for("serve_dashboard"))
+    return render_template("login.html")
+
+
 @app.route("/")
 def serve_dashboard():
-    """Serve the NexShield Mission Control dashboard."""
+    """Serve the NexShield Mission Control dashboard. Requires login."""
+    if "user" not in session:
+        return redirect(url_for("serve_login", next="/"))
     return render_template("index.html")
 
 
 @app.route("/report")
 def serve_report():
-    """Serve the formatted HTML penetration testing report page."""
+    """Serve the formatted HTML penetration testing report page. Requires login."""
+    if "user" not in session:
+        return redirect(url_for("serve_login", next="/report"))
     return render_template("report.html")
 
 
@@ -1181,6 +1193,29 @@ MSF_MAPPINGS.update({
     "tomcat": "exploit/multi/http/tomcat_mgr_upload",
     "smb": "auxiliary/scanner/smb/smb_version",
     "printnightmare": "exploit/windows/dcerpc/cve_2021_34527_printnightmare",
+    "vsftpd": "exploit/unix/ftp/vsftpd_234_backdoor",
+    "ssh": "auxiliary/scanner/ssh/ssh_login",
+    "ftp": "auxiliary/scanner/ftp/ftp_login",
+    "vnc": "auxiliary/scanner/vnc/vnc_login",
+    "rdp": "auxiliary/scanner/rdp/cve_2019_0708_bluekeep",
+    "mysql": "auxiliary/scanner/mysql/mysql_login",
+    "postgresql": "auxiliary/scanner/postgres/postgres_login",
+    "mongodb": "auxiliary/scanner/mongodb/mongodb_login",
+    "redis": "exploit/linux/redis/redis_replication_cmd_exec",
+    "elasticsearch": "exploit/multi/elasticsearch/script_mvel_rce",
+    "kubernetes": "auxiliary/scanner/kubernetes/kubelet_readonly_exec",
+    "weblogic": "exploit/multi/misc/weblogic_deserialize",
+    "confluence": "exploit/multi/http/confluence_cve_2022_26134",
+    "gitlab": "exploit/multi/http/gitlab_exif_rce",
+    "jenkins": "exploit/multi/http/jenkins_script_console",
+    "docker": "exploit/linux/local/docker_runc_escape",
+    "memcache": "auxiliary/gather/memcached_extractor",
+    "spring": "exploit/multi/http/spring_cloud_function_cve_2022_22963",
+    "exchange": "exploit/windows/http/exchange_proxylogon_rce",
+    "rpcbind": "auxiliary/scanner/portmap/portmap_amp",
+    "activemq": "exploit/multi/misc/weblogic_deserialize", # placeholder
+    "grafana": "auxiliary/scanner/http/grafana_plugin_lfi",
+    "cve-2021-44228": "exploit/multi/http/log4shell_header_injection",
 })
 
 @app.route("/api/exploit/generate", methods=["GET"])
@@ -1222,6 +1257,9 @@ def api_generate_exploit_rc():
             if keyword in detail or keyword in name or keyword in cve:
                 module = mod
                 break
+        
+        if not module:
+            module = "auxiliary/scanner/portscan/tcp"
                 
         if module:
             combo_key = f"{t_host}_{module}"
@@ -1286,8 +1324,8 @@ def api_execute_exploit():
             break
             
     if not module_to_run:
-        return jsonify({"status": "error", "message": "Could not map vulnerabilities to a Metasploit module."}), 404
-        
+        module_to_run = "auxiliary/scanner/portscan/tcp"
+        _log_activity("exploit_fallback", f"No specific MSF module found for {host}. Falling back to generic TCP scan.", "warning")
     try:
         from msf_rpc import execute_exploit  # type: ignore
         result = execute_exploit(host, module_to_run)
@@ -1711,8 +1749,23 @@ if __name__ == "__main__":
     print("   Dashboard -> http://127.0.0.1:5000")
     print("=" * 58)
     _log_activity("system", "NexShield platform started")
+    
+    # Pre-provision default admin user if missing
+    try:
+        if check_connection() and not users.find_one({"username": "admin"}):
+            users.insert_one({
+                "username": "admin",
+                "password_hash": generate_password_hash("admin"),
+                "role": "admin",
+                "created_at": datetime.now(timezone.utc),
+            })
+            print("   [+] Default 'admin' account provisioned (password: admin)")
+            _log_activity("auth", "Default admin account created")
+    except Exception as e:
+        print(f"   [!] Failed to provision admin account: {e}")
+
     debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
-    socketio.run(app, debug=debug_mode, host="0.0.0.0", port=5000, allow_unsafe_werkzeug=debug_mode)
+    socketio.run(app, debug=debug_mode, host="0.0.0.0", port=5000, allow_unsafe_werkzeug=True)
 
 
 # ═════════════════════════════════════════════════════════════════════
