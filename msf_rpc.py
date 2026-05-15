@@ -1,3 +1,4 @@
+import os
 import time
 import logging
 
@@ -9,9 +10,9 @@ except ImportError:
 logger = logging.getLogger(__name__)
 
 # Default config for MSF RPC
-MSF_PASSWORD = "nexshield"
-MSF_HOST = "127.0.0.1"
-MSF_PORT = 55553
+MSF_PASSWORD = os.environ.get("MSF_PASSWORD", "nexshield")
+MSF_HOST = os.environ.get("MSF_HOST", "127.0.0.1")
+MSF_PORT = int(os.environ.get("MSF_PORT", "55553"))
 
 def get_client():
     if not MsfRpcClient:

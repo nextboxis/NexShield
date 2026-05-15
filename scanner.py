@@ -5,11 +5,14 @@ scan types, IP validation, OS detection, and concurrency control.
 
 import nmap  # type: ignore
 import ipaddress
+import logging
 import shutil
 import threading
 import time
 from datetime import datetime, timezone
 from config import network_scans, check_connection  # type: ignore
+
+logger = logging.getLogger(__name__)
 
 # ═════════════════════════════════════════════════════════════════════
 #  Constants & Defaults
@@ -36,17 +39,20 @@ SCAN_TYPES = {
 # ═════════════════════════════════════════════════════════════════════
 
 _scan_lock = threading.Lock()
+_status_lock = threading.Lock()
 _active_scan = {"running": False, "target": None, "started_at": None, "progress": 0}
 
 
 def is_scan_running():
     """Check if a scan is currently in progress."""
-    return _active_scan["running"]
+    with _status_lock:
+        return _active_scan["running"]
 
 
 def get_scan_status():
     """Return current scan state for the frontend."""
-    return dict(_active_scan)
+    with _status_lock:
+        return dict(_active_scan)
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -186,11 +192,12 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
         raise RuntimeError("SCAN_LOCKED: Another scan is already running. Wait for it to finish.")
 
     try:
-        _active_scan.update({
-            "running": True, "target": target,
-            "started_at": datetime.now(timezone.utc).isoformat(),
-            "progress": 0, "scan_type": scan_type,
-        })
+        with _status_lock:
+            _active_scan.update({
+                "running": True, "target": target,
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "progress": 0, "scan_type": scan_type,
+            })
 
         if progress_callback:
             progress_callback(5, f"Initializing {scan_type} scan on {target}...")
@@ -204,9 +211,9 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
         scan_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         start_time = time.time()
 
-        print(f"[*] SCAN START — target: {target}  ports: {ports}  type: {scan_type}")
-        print(f"    nmap args: {scan_args}")
-        print(f"    nmap version: {nmap_info['version']}  path: {nmap_info['path']}")
+        logger.info("SCAN START — target: %s  ports: %s  type: %s", target, ports, scan_type)
+        logger.info("    nmap args: %s", scan_args)
+        logger.info("    nmap version: %s  path: %s", nmap_info['version'], nmap_info['path'])
 
         if progress_callback:
             progress_callback(10, "Executing nmap scan...")
@@ -327,20 +334,21 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
         # ── Persist to MongoDB ───────────────────────────────────
         if results and check_connection():
             network_scans.insert_many(results)
-            print(f"[+] Saved {len(results)} host records to MongoDB (scan {scan_id})")
+            logger.info("Saved %d host records to MongoDB (scan %s)", len(results), scan_id)
         elif not results:
-            print("[!] No hosts discovered.")
+            logger.warning("No hosts discovered.")
         else:
-            print("[!] MongoDB unreachable — results NOT saved.")
+            logger.warning("MongoDB unreachable — results NOT saved.")
 
         if progress_callback:
             progress_callback(100, f"Scan complete: {len(results)} host(s), {elapsed}s elapsed")
 
-        print(f"[✓] Scan finished in {elapsed}s — {len(results)} host(s)")
+        logger.info("Scan finished in %ss — %d host(s)", elapsed, len(results))
         return results
 
     finally:
-        _active_scan.update({"running": False, "target": None, "progress": 100})
+        with _status_lock:
+            _active_scan.update({"running": False, "target": None, "progress": 100})
         _scan_lock.release()
 
 

@@ -28,8 +28,11 @@ Run Order:  analyze_scan_results() → compute_risk_scores() → merge_duplicate
 
 from datetime import datetime, timezone
 import hashlib
+import logging
 import re
 from config import threats, network_scans, cve_cache, check_connection  # type: ignore
+
+logger = logging.getLogger(__name__)
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -1365,7 +1368,7 @@ def _threat_hash(threat):
     host = str(threat.get('host') or '').lower()
     src = str(threat.get('source') or '').lower()
     key = f"{cve}|{host}|{src}"
-    return hashlib.md5(key.encode('utf-8')).hexdigest()
+    return hashlib.sha256(key.encode('utf-8')).hexdigest()
 
 
 # ═════════════════════════════════════════════════════════════════════

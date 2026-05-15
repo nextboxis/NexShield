@@ -1,11 +1,15 @@
 import os
 import io
 import csv
+import ipaddress
 import json
 import uuid
 import re
 import secrets
+import logging
 import threading
+import time as _time
+from collections import defaultdict
 import requests # type: ignore
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response, make_response # type: ignore
 from flask_pymongo import PyMongo # type: ignore
@@ -21,8 +25,18 @@ from ai_logic import compute_risk_scores # type: ignore
 from config import threats, network_scans, activity_log, users, cve_cache, ip_geo_cache, scan_jobs, check_connection # type: ignore
 from exploit_cli import MSF_MAPPINGS # type: ignore
 
+logger = logging.getLogger(__name__)
+
 app = Flask(__name__)
-socketio = SocketIO(app, cors_allowed_origins="*")
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", secrets.token_hex(32))
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
+
+_ALLOWED_ORIGINS = os.environ.get(
+    "ALLOWED_ORIGINS", "http://127.0.0.1:5000,http://localhost:5000"
+).split(",")
+socketio = SocketIO(app, cors_allowed_origins=_ALLOWED_ORIGINS)
 
 ALLOWED_SEVERITIES = {"critical", "high", "medium", "low"}
 ALLOWED_EXPORT_FORMATS = {"csv", "json"}
@@ -58,7 +72,7 @@ def _log_activity(event_type, message, severity="info"):
                 "timestamp": datetime.now(timezone.utc),
             })
     except Exception as e:
-        print(f"[!] Activity logging failed: {e}")
+        logger.error("Activity logging failed: %s", e)
 
 
 def _normalize_limit(value: int | None, default: int, maximum: int) -> int:
@@ -127,10 +141,71 @@ def add_security_headers(response):
     response.headers.setdefault("X-Content-Type-Options", "nosniff")
     response.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
     response.headers.setdefault("Referrer-Policy", "same-origin")
+    response.headers.setdefault("X-XSS-Protection", "1; mode=block")
+    response.headers.setdefault("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+    response.headers.setdefault(
+        "Content-Security-Policy",
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' cdnjs.cloudflare.com cdn.socket.io cdn.jsdelivr.net; "
+        "style-src 'self' 'unsafe-inline' fonts.googleapis.com cdnjs.cloudflare.com cdn.jsdelivr.net; "
+        "font-src 'self' fonts.gstatic.com cdnjs.cloudflare.com; "
+        "connect-src 'self' ws: wss:; "
+        "img-src 'self' data:;"
+    )
+    response.headers.setdefault("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
     return response
 
 
 # No global CORS needed if running on same origin/proxy
+
+
+# ═════════════════════════════════════════════════════════════════════
+#  Authentication Helpers
+# ═════════════════════════════════════════════════════════════════════
+
+def login_required(f):
+    """Decorator: rejects unauthenticated requests with HTTP 401."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "user" not in session:
+            return jsonify({"status": "error", "message": "Authentication required."}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+def _validate_host(host_str: str) -> str:
+    """Validate and sanitize a host IP or hostname."""
+    candidate = (host_str or "").strip()
+    if not candidate:
+        raise ValueError("Host is required.")
+    if len(candidate) > 120:
+        raise ValueError("Host value too long.")
+    try:
+        ipaddress.ip_address(candidate)
+        return candidate
+    except ValueError:
+        pass
+    try:
+        ipaddress.ip_network(candidate, strict=False)
+        return candidate
+    except ValueError:
+        pass
+    if TARGET_RE.fullmatch(candidate):
+        return candidate
+    raise ValueError("Invalid host format.")
+
+
+# ── In-memory rate limiter ───────────────────────────────────────────
+_rate_limit_store: dict[str, list[float]] = defaultdict(list)
+
+def _rate_limit(key: str, max_requests: int = 10, window_sec: int = 60) -> bool:
+    """Returns True if rate limit is exceeded."""
+    now = _time.time()
+    _rate_limit_store[key] = [t for t in _rate_limit_store[key] if now - t < window_sec]
+    if len(_rate_limit_store[key]) >= max_requests:
+        return True
+    _rate_limit_store[key].append(now)
+    return False
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -141,11 +216,9 @@ def add_security_headers(response):
 WS_TOKEN = os.environ.get("WS_TOKEN", secrets.token_hex(16))
 
 @app.route("/api/auth/token", methods=["GET"])
+@login_required
 def get_ws_token():
-    """
-    Returns the WebSocket authorization token.
-    (Note: Once a login system is added, protect this route with @login_required)
-    """
+    """Returns the WebSocket authorization token. Requires authentication."""
     return jsonify({"status": "complete", "token": WS_TOKEN})
 
 @socketio.on("connect")
@@ -156,6 +229,90 @@ def handle_connect(auth):
         raise ConnectionRefusedError("Unauthorized: Invalid or missing token")
     # Connection accepted
 
+# ═════════════════════════════════════════════════════════════════════
+#  API — User Registration / Login / Logout
+# ═════════════════════════════════════════════════════════════════════
+
+PASSWORD_RE = re.compile(r"^.{8,128}$")  # Minimum 8 characters
+
+@app.route("/api/auth/register", methods=["POST"])
+def register():
+    """Register a new user account."""
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database offline."}), 503
+
+    ip_key = f"register:{request.remote_addr}"
+    if _rate_limit(ip_key, max_requests=5, window_sec=300):
+        return jsonify({"status": "error", "message": "Too many registration attempts. Try again later."}), 429
+
+    body = request.get_json(silent=True) or {}
+    try:
+        username = _validate_username(body.get("username"))
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+
+    password = (body.get("password") or "").strip()
+    if not PASSWORD_RE.fullmatch(password):
+        return jsonify({"status": "error", "message": "Password must be 8-128 characters."}), 400
+
+    if users.find_one({"username": username}):
+        return jsonify({"status": "error", "message": "Username already taken."}), 409
+
+    users.insert_one({
+        "username": username,
+        "password_hash": generate_password_hash(password),
+        "role": "analyst",
+        "created_at": datetime.now(timezone.utc),
+    })
+    _log_activity("auth", f"New user registered: {username}")
+    return jsonify({"status": "complete", "message": f"User '{username}' created."}), 201
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def login():
+    """Authenticate and create a session."""
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database offline."}), 503
+
+    ip_key = f"login:{request.remote_addr}"
+    if _rate_limit(ip_key, max_requests=10, window_sec=60):
+        _log_activity("security", f"Rate-limited login attempts from {request.remote_addr}", "high")
+        return jsonify({"status": "error", "message": "Too many login attempts. Try again later."}), 429
+
+    body = request.get_json(silent=True) or {}
+    username = (body.get("username") or "").strip()
+    password = (body.get("password") or "").strip()
+
+    if not username or not password:
+        return jsonify({"status": "error", "message": "Username and password are required."}), 400
+
+    user_doc = users.find_one({"username": username})
+    if not user_doc or not check_password_hash(user_doc["password_hash"], password):
+        _log_activity("security", f"Failed login attempt for '{username}' from {request.remote_addr}", "warning")
+        return jsonify({"status": "error", "message": "Invalid credentials."}), 401
+
+    session.permanent = True
+    session["user"] = username
+    session["role"] = user_doc.get("role", "analyst")
+    _log_activity("auth", f"User '{username}' logged in from {request.remote_addr}")
+    return jsonify({"status": "complete", "message": f"Welcome, {username}.", "user": username, "role": session["role"]})
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def logout():
+    """End the current session."""
+    username = session.pop("user", "unknown")
+    session.clear()
+    _log_activity("auth", f"User '{username}' logged out")
+    return jsonify({"status": "complete", "message": "Logged out."})
+
+
+@app.route("/api/auth/session", methods=["GET"])
+def check_session():
+    """Check if the current session is authenticated."""
+    if "user" in session:
+        return jsonify({"status": "complete", "authenticated": True, "user": session["user"], "role": session.get("role", "analyst")})
+    return jsonify({"status": "complete", "authenticated": False})
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -188,8 +345,9 @@ def seed_data():
 
 
 @app.route("/api/reset-data", methods=["POST"])
+@login_required
 def reset_data():
-    """Clear operational data while preserving user accounts."""
+    """Clear operational data while preserving user accounts. Requires authentication."""
     if not check_connection():
         return jsonify({"status": "error", "message": "Database offline."}), 503
 
@@ -210,7 +368,8 @@ def reset_data():
     cache_note = " including CVE cache" if include_cache else ""
     message = f"Reset complete. Removed {cleared_total} old records{cache_note}."
 
-    _log_activity("system", "Operational data reset by 'anonymous_admin'", "high")
+    current_user = session.get("user", "unknown")
+    _log_activity("system", f"Operational data reset by '{current_user}'", "high")
     socketio.emit("data_reset", {"status": "success", "message": message, "deleted": deleted})
 
     return jsonify({
@@ -265,16 +424,17 @@ def get_threats():
 # ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/quarantine", methods=["POST"])
+@login_required
 def quarantine_host():
-    """Simulate a network-level quarantine and remediate threats."""
+    """Simulate a network-level quarantine and remediate threats. Requires authentication."""
     if not check_connection():
         return jsonify({"status": "error", "message": "Database unavailable"}), 503
 
     body = request.get_json(silent=True) or {}
-    host = (body.get("host") or "").strip()
-
-    if not host:
-        return jsonify({"status": "error", "message": "Host IP is required."}), 400
+    try:
+        host = _validate_host(body.get("host"))
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
 
     # Quarantine logic: Update all active threats for this host
     result = threats.update_many(
@@ -286,14 +446,15 @@ def quarantine_host():
     )
 
     if result.modified_count > 0:
-        _log_activity("security", f"Host {host} quarantined by anonymous_admin", "critical")
+        current_user = session.get("user", "unknown")
+        _log_activity("security", f"Host {host} quarantined by {current_user}", "critical")
         
         # Trigger risk score recalculation
         try:
             from ai_logic import compute_risk_scores # type: ignore
             compute_risk_scores()
         except BaseException as e:
-            print(f"[!] Warning: Risk recalculation failed post-quarantine: {e}")
+            logger.warning("Risk recalculation failed post-quarantine: %s", e)
 
         # Broadcast update
         socketio.emit("quarantine_complete", {
@@ -457,8 +618,9 @@ def get_timeline():
 ALLOWED_SCAN_TYPES = {"quick", "default", "deep", "stealth", "udp", "vuln", "os", "ssl", "full"}
 
 @app.route("/api/scan", methods=["POST"])
+@login_required
 def trigger_scan():
-    """Trigger a network scan. Accepts JSON: {target, ports, scan_type}."""
+    """Trigger a network scan. Accepts JSON: {target, ports, scan_type}. Requires authentication."""
     if not check_connection():
         return jsonify({"status": "error", "message": "Database is offline. Please start MongoDB."}), 503
 
@@ -524,7 +686,8 @@ def trigger_scan():
         return jsonify({"status": "error", "message": str(exc)}), 400
     except Exception as e:
         _log_activity("scan_error", f"Scan failed: {str(e)}", "error")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        logger.error("Scan trigger error: %s", e)
+        return jsonify({"status": "error", "message": "An internal error occurred. Check server logs."}), 500
 
 
 @app.route("/api/scan/status", methods=["GET"])
@@ -534,7 +697,8 @@ def scan_status():
         from scanner import get_scan_status  # type: ignore
         return jsonify({"status": "complete", **get_scan_status()})
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        logger.error("Scan status check error: %s", e)
+        return jsonify({"status": "error", "message": "An internal error occurred."}), 500
 
 
 @app.route("/api/scan/nmap-check", methods=["GET"])
@@ -626,8 +790,9 @@ def host_scan_history(ip):
 # ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/analyze", methods=["POST"])
+@login_required
 def trigger_analysis():
-    """Run AI analysis on scan data and merge duplicates."""
+    """Run AI analysis on scan data and merge duplicates. Requires authentication."""
     if not check_connection():
         return jsonify({"status": "error", "message": "Database is offline. Please start MongoDB."}), 503
 
@@ -660,7 +825,8 @@ def trigger_analysis():
         }), 202
     except Exception as e:
         _log_activity("analysis_error", f"Failed to start analysis thread: {str(e)}", "error")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        logger.error("Analysis trigger error: %s", e)
+        return jsonify({"status": "error", "message": "An internal error occurred. Check server logs."}), 500
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -668,8 +834,9 @@ def trigger_analysis():
 # ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/train", methods=["POST"])
+@login_required
 def trigger_training():
-    """Trigger AI Machine Learning model training."""
+    """Trigger AI Machine Learning model training. Requires authentication."""
     if not check_connection():
         return jsonify({"status": "error", "message": "Database is offline. Please start MongoDB."}), 503
 
@@ -699,7 +866,8 @@ def trigger_training():
         }), 202
     except Exception as e:
         _log_activity("analysis_error", f"Failed to start ML training thread: {str(e)}", "error")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        logger.error("Training trigger error: %s", e)
+        return jsonify({"status": "error", "message": "An internal error occurred. Check server logs."}), 500
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -1082,16 +1250,21 @@ def api_generate_exploit_rc():
 
 
 @app.route("/api/exploit/execute", methods=["POST"])
+@login_required
 def api_execute_exploit():
-    """Trigger live Metasploit execution via RPC."""
+    """Trigger live Metasploit execution via RPC. Requires authentication."""
     if not check_connection():
         return jsonify({"status": "error", "message": "Database unavailable"}), 503
 
-    data = request.get_json() or {}
-    host = data.get("host")
-    
-    if not host:
-        return jsonify({"status": "error", "message": "Host is required"}), 400
+    ip_key = f"exploit:{request.remote_addr}"
+    if _rate_limit(ip_key, max_requests=5, window_sec=60):
+        return jsonify({"status": "error", "message": "Rate limit exceeded for exploit execution."}), 429
+
+    data = request.get_json(silent=True) or {}
+    try:
+        host = _validate_host(data.get("host"))
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
         
     query = {"host": host, "severity": {"$in": ["high", "critical"]}}
     docs = list(threats.find(query))
@@ -1121,7 +1294,8 @@ def api_execute_exploit():
         _log_activity("exploit_launched", f"Launched {module_to_run} against {host}", "warning")
         return jsonify(result)
     except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+        logger.error("Exploit execution error: %s", e)
+        return jsonify({"status": "error", "message": "An internal error occurred. Check server logs."}), 500
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -1537,33 +1711,13 @@ if __name__ == "__main__":
     print("   Dashboard -> http://127.0.0.1:5000")
     print("=" * 58)
     _log_activity("system", "NexShield platform started")
-    socketio.run(app, debug=True, host="0.0.0.0", port=5000, allow_unsafe_werkzeug=True)
+    debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
+    socketio.run(app, debug=debug_mode, host="0.0.0.0", port=5000, allow_unsafe_werkzeug=debug_mode)
 
 
 # ═════════════════════════════════════════════════════════════════════
-#  API — Analysis & Utility Endpoints
+#  API — Single Threat Lookup
 # ═════════════════════════════════════════════════════════════════════
-
-@app.route("/api/run-analysis", methods=["POST"]) 
-def run_analysis():
-    """Trigger the AI analysis pipeline in a background thread."""
-    if not check_connection():
-        return jsonify({"status": "error", "message": "Database unavailable"}), 503
-
-    def _task():
-        try:
-            from ai_logic import analyze_scan_results, compute_risk_scores, merge_duplicates  # type: ignore
-            created = analyze_scan_results()
-            scores = compute_risk_scores()
-            removed = merge_duplicates()
-            socketio.emit("analysis_complete", {"created": created, "removed": removed})
-        except Exception as e:
-            socketio.emit("analysis_error", {"error": str(e)})
-
-    _start_background_task(_task)
-    _log_activity("system", "Manual analysis pipeline started", "info")
-    return jsonify({"status": "accepted", "message": "Analysis started"}), 202
-
 
 @app.route("/api/threat/<tid>", methods=["GET"])
 def get_threat(tid):
@@ -1579,17 +1733,3 @@ def get_threat(tid):
         return jsonify({"status": "error", "message": "Not found"}), 404
 
     return jsonify({"status": "complete", "threat": _serialize(doc)})
-
-
-@app.route("/api/train-ml", methods=["POST"])
-def train_ml_endpoint():
-    """Trigger ML training in background (if sklearn available)."""
-    def _train():
-        try:
-            from ai_logic import train_ml_model  # type: ignore
-            train_ml_model()
-        except Exception as e:
-            print(f"[!] ML training failed: {e}")
-
-    _start_background_task(_train)
-    return jsonify({"status": "accepted", "message": "ML training started in background"}), 202

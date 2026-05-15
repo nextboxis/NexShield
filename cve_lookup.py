@@ -4,6 +4,7 @@ Queries the NVD 2.0 API for CVE details and caches results in MongoDB.
 Supports multiple query types: CVE ID, CPE Name, CVE Tags, CVSS v2 metrics/severity.
 """
 
+import os
 import requests  # type: ignore
 from datetime import datetime, timezone, timedelta
 from config import cve_cache, check_connection  # type: ignore
@@ -13,8 +14,8 @@ from config import cve_cache, check_connection  # type: ignore
 # ═════════════════════════════════════════════════════════════════════
 
 NVD_API = "https://services.nvd.nist.gov/rest/json/cves/2.0"
-NVD_API_KEY = "1e2b3133-a633-46f8-9c6f-d98791213a66"
-NVD_HEADERS = {"apiKey": NVD_API_KEY}
+NVD_API_KEY = os.environ.get("NVD_API_KEY", "")
+NVD_HEADERS = {"apiKey": NVD_API_KEY} if NVD_API_KEY else {}
 CACHE_DAYS = 7  # Re-fetch after 7 days
 
 
