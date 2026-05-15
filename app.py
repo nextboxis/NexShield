@@ -1743,29 +1743,92 @@ def download_report_rc():
 #  Run
 # ═════════════════════════════════════════════════════════════════════
 
-if __name__ == "__main__":
-    print("=" * 58)
-    print("   NexShield — AI-Powered Threat Intelligence Platform")
-    print("   Dashboard -> http://127.0.0.1:5000")
-    print("=" * 58)
-    _log_activity("system", "NexShield platform started")
-    
-    # Pre-provision default admin user if missing
+def _provision_admin_user():
+    """Initialize default admin user if not present."""
     try:
-        if check_connection() and not users.find_one({"username": "admin"}):
-            users.insert_one({
-                "username": "admin",
-                "password_hash": generate_password_hash("admin"),
-                "role": "admin",
-                "created_at": datetime.now(timezone.utc),
-            })
-            print("   [+] Default 'admin' account provisioned (password: admin)")
-            _log_activity("auth", "Default admin account created")
+        if not check_connection():
+            logger.warning("Cannot provision admin: Database unavailable")
+            return False
+        
+        if users.find_one({"username": "admin"}):
+            logger.info("Admin user already exists")
+            return True
+        
+        default_password = os.environ.get("ADMIN_PASSWORD", "admin")
+        users.insert_one({
+            "username": "admin",
+            "password_hash": generate_password_hash(default_password),
+            "role": "admin",
+            "created_at": datetime.now(timezone.utc),
+        })
+        logger.info("Default admin account created (change password in production!)")
+        _log_activity("auth", "Default admin account created")
+        return True
     except Exception as e:
-        print(f"   [!] Failed to provision admin account: {e}")
+        logger.error(f"Failed to provision admin account: {e}", exc_info=True)
+        return False
 
-    debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
-    socketio.run(app, debug=debug_mode, host="0.0.0.0", port=5000, allow_unsafe_werkzeug=True)
+
+def _startup_banner():
+    """Display startup information."""
+    is_prod = os.environ.get("FLASK_ENV") == "production"
+    environment = "PRODUCTION" if is_prod else "DEVELOPMENT"
+    
+    print("\n" + "=" * 70)
+    print("   NexShield — AI-Powered Threat Intelligence Platform")
+    print(f"   Environment: {environment}")
+    print("   Dashboard: http://127.0.0.1:5000 (localhost only)")
+    print("   Docs: https://github.com/your-repo/NexShield")
+    print("=" * 70 + "\n")
+    
+    logger.info(f"NexShield starting in {environment} mode")
+
+
+if __name__ == "__main__":
+    import sys
+    
+    # Configure logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+        handlers=[
+            logging.StreamHandler(sys.stdout),
+            logging.FileHandler("nexshield.log", encoding="utf-8")
+        ]
+    )
+    
+    _startup_banner()
+    
+    # Provision admin user
+    _provision_admin_user()
+    
+    # Log startup
+    _log_activity("system", "NexShield platform started", "info")
+    
+    # Production vs Development mode
+    is_production = os.environ.get("FLASK_ENV", "development") == "production"
+    
+    if is_production:
+        logger.warning("⚠️  Running in PRODUCTION mode. Use a proper WSGI server (Gunicorn/Waitress).")
+        logger.warning("   Example: gunicorn -w 4 -b 127.0.0.1:5000 'app:app'")
+        # For production, the app should be run with gunicorn/waitress
+        # This fallback uses the development server with warnings disabled
+        socketio.run(
+            app,
+            debug=False,
+            host="127.0.0.1",
+            port=int(os.environ.get("PORT", 5000)),
+            use_reloader=False,
+            use_debugger=False,
+        )
+    else:
+        logger.info("⚠️  Running in DEVELOPMENT mode (localhost only)")
+        socketio.run(
+            app,
+            debug=os.environ.get("FLASK_DEBUG", "false").lower() == "true",
+            host="127.0.0.1",
+            port=5000,
+        )
 
 
 # ═════════════════════════════════════════════════════════════════════

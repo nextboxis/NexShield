@@ -113,12 +113,19 @@ celerybeat.pid
 
 # Environments
 .env
+.env.local
 .venv
 env/
 venv/
 ENV/
 env.bak/
 venv.bak/
+
+# NexShield specific
+nexshield.log
+threat_ml_model.pkl
+threat_ml_vect.pkl
+*.pkl
 
 # Spyder project settings
 .spyderproject

@@ -188,22 +188,142 @@ mongod --dbpath /data/db
 python app.py
 ```
 
-Open your browser to **http://localhost:5000** to access Mission Control.
+Open your browser to **http://127.0.0.1:5000** (localhost only - safe for local development).
+
+---
+
+## 🚨 Production Deployment
+
+### ⚠️ Important: Development vs Production
+
+The development server warning you see when running `python app.py` is a **Werkzeug security warning**. This server is designed for development only and should **NEVER** be used in production.
+
+#### Development Mode (Testing/Local Development)
+
+Run the development server with:
+
+```bash
+# Windows
+run_development.bat
+
+# Linux/macOS
+export FLASK_ENV=development
+export FLASK_DEBUG=true
+python app.py
+```
+
+#### Production Mode (Deployment)
+
+For production, you **must** use a production WSGI server like **Gunicorn** or **Waitress**.
+
+**Option 1: Using Gunicorn** (Recommended)
+
+```bash
+# Windows
+run_production.bat
+
+# Linux/macOS
+export FLASK_ENV=production
+gunicorn -w 4 -b 127.0.0.1:5000 --timeout 120 wsgi:app
+```
+
+**Option 2: Using Waitress**
+
+```bash
+waitress-serve --host=127.0.0.1 --port=5000 wsgi:app
+```
+
+**Option 3: Using uWSGI**
+
+```bash
+uwsgi --http 0.0.0.0:5000 --wsgi-file wsgi.py --callable app --processes 4 --threads 2
+```
+
+### Configuration for Production
+
+1. **Create `.env` file from template:**
+```bash
+cp .env.example .env
+```
+
+2. **Edit `.env` with your settings:**
+```ini
+FLASK_ENV=production
+FLASK_DEBUG=false
+FLASK_SECRET_KEY=your-super-secret-key-change-this
+ADMIN_PASSWORD=change-me-immediately
+MONGO_URI=mongodb://user:password@your-mongo-host:27017/
+ALLOWED_ORIGINS=https://yourdomain.com,https://www.yourdomain.com
+```
+
+3. **Proxy Configuration (Nginx)**
+
+Place behind a reverse proxy for SSL/TLS termination:
+
+```nginx
+upstream nexshield {
+    server 127.0.0.1:5000;
+}
+
+server {
+    listen 443 ssl http2;
+    server_name nexshield.yourdomain.com;
+
+    ssl_certificate /path/to/cert.pem;
+    ssl_certificate_key /path/to/key.pem;
+
+    location / {
+        proxy_pass http://nexshield;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_redirect off;
+        proxy_buffering off;
+    }
+}
+```
+
+### Performance Tuning
+
+- **Worker processes**: Set to (2 × CPU cores) + 1
+- **Timeout**: Increase to 180s for long scans
+- **Database**: Ensure MongoDB indexes are optimized
+- **Logging**: Redirect logs to a file, not stdout
 
 ---
 
 ## ⚙️ Environment Variables
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `MONGO_URI` | `mongodb://localhost:27017/` | MongoDB connection string |
-| `WS_TOKEN` | *(auto-generated)* | WebSocket authentication token. If not set, a secure random token is generated at startup |
+| Variable | Default | Description | Required |
+|----------|---------|-------------|----------|
+| `FLASK_ENV` | `development` | Environment mode: `development` or `production` | ✓ |
+| `FLASK_DEBUG` | `false` | Enable debug mode (development only) | ✗ |
+| `FLASK_SECRET_KEY` | *(auto-generated)* | Session encryption key - **MUST change in production** | ✓ |
+| `ADMIN_PASSWORD` | `admin` | Default admin user password - **MUST change in production** | ✓ |
+| `MONGO_URI` | `mongodb://localhost:27017/` | MongoDB connection string | ✓ |
+| `MONGO_DB` | `threat_intel` | Database name | ✓ |
+| `PORT` | `5000` | Server listen port | ✗ |
+| `ALLOWED_ORIGINS` | `http://127.0.0.1:5000,http://localhost:5000` | CORS allowed origins (comma-separated) | ✗ |
+| `MSF_RPC_HOST` | `127.0.0.1` | Metasploit RPC host | ✗ |
+| `MSF_RPC_PORT` | `55553` | Metasploit RPC port | ✗ |
+| `LOG_LEVEL` | `INFO` | Logging level | ✗ |
 
-Set these before running `app.py`:
+Set these before running the application:
 
 ```bash
-export MONGO_URI="mongodb://localhost:27017/"
-export WS_TOKEN="your-secret-token"    # Optional
+# Linux/macOS
+export FLASK_ENV=production
+export MONGO_URI="mongodb://your-host:27017/"
+
+# Windows (PowerShell)
+$env:FLASK_ENV="production"
+$env:MONGO_URI="mongodb://your-host:27017/"
+
+# Or use .env file (see .env.example)
 ```
 
 ---
@@ -213,18 +333,28 @@ export WS_TOKEN="your-secret-token"    # Optional
 ```
 nexshield-v5/
 ├── app.py                  # Flask backend — API routes, WebSocket, background tasks
-├── ai_logic.py             # 16-engine AI analysis pipeline & ML model training
+├── wsgi.py                 # Production WSGI entry point for Gunicorn/Waitress
 ├── config.py               # MongoDB connection management & configuration
+├── ai_logic.py             # 16-engine AI analysis pipeline & ML model training
 ├── msf_rpc.py              # Metasploit RPC client for exploit execution
 ├── exploit_cli.py          # CLI interface for exploit operations
-├── requirements.txt        # Python dependencies
+├── scanner.py              # Network scanning engine (Nmap wrapper)
+├── cve_lookup.py           # CVE database and NVD API integration
+├── requirements.txt        # Python dependencies (pinned to stable versions)
+├── .env.example            # Environment variable template
+├── run_production.bat       # Windows production startup script
+├── run_development.bat      # Windows development startup script
+├── install.bat             # Windows automated installation
+├── install.sh              # Linux/macOS automated installation
 ├── README.md               # This file
+├── SECURITY.md             # Security guidelines
 ├── templates/
-│   ├── index.html          # Mission Control dashboard
-│   └── report.html         # Pentest intelligence report
+│   ├── index.html          # Mission Control dashboard (WebSocket real-time)
+│   ├── login.html          # Authentication page
+│   └── report.html         # Pentest intelligence report (PDF export)
 └── static/
     ├── css/
-    │   └── style.css       # Complete UI design system
+    │   └── style.css       # Complete UI design system with animations
     └── js/
         └── script.js       # Dashboard logic, charts, real-time updates
 ```
