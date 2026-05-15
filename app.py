@@ -10,6 +10,7 @@ import logging
 import threading
 import time as _time
 from collections import defaultdict
+from typing import Any  # type: ignore
 import requests # type: ignore
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response, make_response # type: ignore
 from flask_pymongo import PyMongo # type: ignore
@@ -23,7 +24,6 @@ from datetime import datetime, timezone, timedelta, date
 # Internal Logic Modules
 from ai_logic import compute_risk_scores # type: ignore
 from config import threats, network_scans, activity_log, users, cve_cache, ip_geo_cache, scan_jobs, check_connection # type: ignore
-from exploit_cli import MSF_MAPPINGS # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -173,7 +173,7 @@ def login_required(f):
     return decorated
 
 
-def _validate_host(host_str: str) -> str:
+def _validate_host(host_str: str | None) -> str:
     """Validate and sanitize a host IP or hostname."""
     candidate = (host_str or "").strip()
     if not candidate:
@@ -1188,7 +1188,7 @@ EXPLOIT_DATABASE = {
 }
 
 # Legacy mapping for backwards compatibility
-MSF_MAPPINGS = {k: v["module"] for k, v in EXPLOIT_DATABASE.items()}
+MSF_MAPPINGS: dict[str, str] = {str(k): str(v["module"]) for k, v in EXPLOIT_DATABASE.items()}
 MSF_MAPPINGS.update({
     "tomcat": "exploit/multi/http/tomcat_mgr_upload",
     "smb": "auxiliary/scanner/smb/smb_version",
@@ -1228,7 +1228,7 @@ def api_generate_exploit_rc():
 
     host = request.args.get("host")
     preview = request.args.get("preview") == "true"
-    query = {"severity": {"$in": ["high", "critical"]}}
+    query: dict[str, Any] = {"severity": {"$in": ["high", "critical"]}}
     if host:
         query["host"] = host
         
