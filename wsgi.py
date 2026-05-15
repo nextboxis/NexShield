@@ -46,13 +46,13 @@ app = init_app()
 if __name__ == "__main__":
     # Fallback for direct execution (not recommended for production)
     logger.warning("⚠️  Direct execution detected. Use Gunicorn or Waitress instead!")
-    logger.warning("    Example: gunicorn -w 4 -b 127.0.0.1:5000 --timeout 120 wsgi:app")
+    logger.warning("    Example: gunicorn -w 4 -b 0.0.0.0:5000 --timeout 120 wsgi:app")
     
     port = int(os.environ.get("PORT", 5000))
     socketio.run(
         app,
         debug=False,
-        host="127.0.0.1",
+        host="0.0.0.0",
         port=port,
         use_reloader=False,
         use_debugger=False,

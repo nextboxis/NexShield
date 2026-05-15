@@ -188,7 +188,7 @@ mongod --dbpath /data/db
 python app.py
 ```
 
-Open your browser to **http://127.0.0.1:5000** (localhost only - safe for local development).
+Open your browser to **http://localhost:5000** to access Mission Control.
 
 ---
 
@@ -224,13 +224,13 @@ run_production.bat
 
 # Linux/macOS
 export FLASK_ENV=production
-gunicorn -w 4 -b 127.0.0.1:5000 --timeout 120 wsgi:app
+gunicorn -w 4 -b 0.0.0.0:5000 --timeout 120 wsgi:app
 ```
 
 **Option 2: Using Waitress**
 
 ```bash
-waitress-serve --host=127.0.0.1 --port=5000 wsgi:app
+waitress-serve --host=0.0.0.0 --port=5000 wsgi:app
 ```
 
 **Option 3: Using uWSGI**

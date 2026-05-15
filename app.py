@@ -1777,7 +1777,7 @@ def _startup_banner():
     print("\n" + "=" * 70)
     print("   NexShield — AI-Powered Threat Intelligence Platform")
     print(f"   Environment: {environment}")
-    print("   Dashboard: http://127.0.0.1:5000 (localhost only)")
+    print("   Dashboard: http://0.0.0.0:5000")
     print("   Docs: https://github.com/your-repo/NexShield")
     print("=" * 70 + "\n")
     
@@ -1810,23 +1810,23 @@ if __name__ == "__main__":
     
     if is_production:
         logger.warning("⚠️  Running in PRODUCTION mode. Use a proper WSGI server (Gunicorn/Waitress).")
-        logger.warning("   Example: gunicorn -w 4 -b 127.0.0.1:5000 'app:app'")
+        logger.warning("   Example: gunicorn -w 4 -b 0.0.0.0:5000 'app:app'")
         # For production, the app should be run with gunicorn/waitress
         # This fallback uses the development server with warnings disabled
         socketio.run(
             app,
             debug=False,
-            host="127.0.0.1",
+            host="0.0.0.0",
             port=int(os.environ.get("PORT", 5000)),
             use_reloader=False,
             use_debugger=False,
         )
     else:
-        logger.info("⚠️  Running in DEVELOPMENT mode (localhost only)")
+        logger.info("⚠️  Running in DEVELOPMENT mode")
         socketio.run(
             app,
             debug=os.environ.get("FLASK_DEBUG", "false").lower() == "true",
-            host="127.0.0.1",
+            host="0.0.0.0",
             port=5000,
         )
 

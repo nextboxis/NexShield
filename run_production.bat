@@ -28,16 +28,6 @@ if not defined VIRTUAL_ENV (
     )
 )
 
-REM Check if .env exists
-if not exist .env (
-    echo [!] .env file not found
-    if exist .env.example (
-        echo Creating .env from .env.example...
-        copy .env.example .env
-        echo [+] .env created. Please update with your configuration.
-    )
-)
-
 REM Install/update requirements
 echo [*] Checking dependencies...
 pip install --quiet -r requirements.txt
@@ -50,14 +40,14 @@ echo [+] Dependencies ready
 REM Start Gunicorn with SocketIO support
 echo.
 echo [*] Starting NexShield production server...
-echo     URL: http://127.0.0.1:5000
+echo     URL: http://0.0.0.0:5000
 echo     Press Ctrl+C to stop
 echo.
 
 REM Use 4 worker processes by default (adjust based on CPU cores)
 REM Timeout set to 120 seconds for long-running scans
-REM Binding to localhost (127.0.0.1) - change to 0.0.0.0 for network access if needed
-gunicorn -w 4 -b 127.0.0.1:5000 --timeout 120 ^
+REM Binding to all interfaces (0.0.0.0)
+gunicorn -w 4 -b 0.0.0.0:5000 --timeout 120 ^
     --access-logfile - --error-logfile - ^
     --log-level info ^
     wsgi:app
