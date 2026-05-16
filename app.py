@@ -609,29 +609,32 @@ def get_timeline():
     days = _normalize_limit(request.args.get("days", 7, type=int), 7, 30)
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
-    pipeline = [
-        {"$match": {"detected_at": {"$gte": cutoff}}},
-        {"$group": {
-            "_id": {
-                "day": {"$dateToString": {"format": "%Y-%m-%d", "date": "$detected_at"}},
-                "severity": "$severity",
-            },
-            "count": {"$sum": 1},
-        }},
-        {"$sort": {"_id.day": 1}},
-    ]
+    docs = threats.find({"detected_at": {"$gte": cutoff}})
 
-    results = list(threats.aggregate(pipeline))
-
-    # Build a structured response: { "2026-03-15": { "critical": 2, "high": 5, ... }, ... }
     timeline = {}
-    for r in results:
-        day = r["_id"]["day"]
-        sev = r["_id"]["severity"]
+    for doc in docs:
+        dt_val = doc.get("detected_at")
+        if not dt_val:
+            continue
+
+        if isinstance(dt_val, str):
+            try:
+                # Replace 'Z' with '+00:00' to ensure fromisoformat works on older Python
+                dt_str = dt_val.replace('Z', '+00:00')
+                dt = datetime.fromisoformat(dt_str)
+                day = dt.strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+        elif isinstance(dt_val, datetime):
+            day = dt_val.strftime("%Y-%m-%d")
+        else:
+            continue
+
+        sev = doc.get("severity")
         if day not in timeline:
             timeline[day] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
         if sev in timeline[day]:
-            timeline[day][sev] = r["count"]
+            timeline[day][sev] += 1
 
     # Fill in missing days with zeros
     all_days = []
