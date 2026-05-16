@@ -990,8 +990,10 @@
         };
 
         function badge(s) {
-            const cls = s.toLowerCase();
-            return `<span class="badge badge--${cls.substring(0,4)}">${s.toUpperCase()}</span>`;
+            const cls = String(s || '').toLowerCase();
+            const map = { 'critical': 'crit', 'high': 'high', 'medium': 'med', 'low': 'low' };
+            const key = map[cls] || cls.substring(0,4);
+            return `<span class="badge badge--${key}">${String(s || '').toUpperCase()}</span>`;
         }
 
         function observeSections() {
