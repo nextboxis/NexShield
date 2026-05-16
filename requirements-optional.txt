@@ -1,0 +1,24 @@
+# ═══════════════════════════════════════════════════════════════
+#  NexShield v5 — Optional / Advanced Dependencies
+# ═══════════════════════════════════════════════════════════════
+#  These are NOT required for local use. Only install if you
+#  need MongoDB, Metasploit RPC, or production WSGI servers.
+#
+#  Install: pip install -r requirements-optional.txt
+# ═══════════════════════════════════════════════════════════════
+
+# ── MongoDB (alternative to built-in TinyDB) ──────────────────
+pymongo>=4.5
+Flask-PyMongo>=3.0
+dnspython>=2.4
+
+# ── Metasploit RPC (for exploit execution) ────────────────────
+pymetasploit3>=1.0
+msgpack>=1.0
+
+# ── Production WSGI Servers ───────────────────────────────────
+# gunicorn>=21.0       # Linux/macOS only (uncomment if on Linux)
+waitress>=2.1          # Windows-compatible production server
+
+# ── MongoDB Mock (for testing without MongoDB) ────────────────
+mongomock>=4.1

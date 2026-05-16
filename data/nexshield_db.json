@@ -1,0 +1,872 @@
+{
+  "users": {
+    "1": {
+      "username": "admin",
+      "password_hash": "scrypt:32768:8:1$lKiacF3R8P8xkcja$3a5b5e5bc8e737c599f6fe5c9d8d68d34fd899d52e884294c6d9f16dd2e57f26a9d2f70427ec428bee87df58421e64446f59a19f9d4f119eef66db2d9fbcf319",
+      "role": "admin",
+      "created_at": "2026-05-16T12:52:25.971411+00:00",
+      "_id": "620c3a5b1d91f8261b6f2b0a"
+    }
+  },
+  "activity_log": {
+    "1": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T12:52:26.161715+00:00",
+      "_id": "3522ef299df29d18af044156"
+    },
+    "2": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T12:52:27.616211+00:00",
+      "_id": "d2274cc764faa6db0b310621"
+    },
+    "3": {
+      "type": "auth",
+      "message": "User 'admin' logged in from 127.0.0.1",
+      "severity": "info",
+      "timestamp": "2026-05-16T12:52:38.877227+00:00",
+      "_id": "335f6bcb0bbf9523071ec071"
+    },
+    "4": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T12:53:31.269840+00:00",
+      "_id": "7e65e713eccf920b09010a79"
+    },
+    "5": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T12:54:44.338426+00:00",
+      "_id": "fe059d3efefecb892ad474b9"
+    },
+    "6": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T12:54:45.787162+00:00",
+      "_id": "c6a4eefa06fc43deede52e6a"
+    },
+    "7": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T12:56:07.236192+00:00",
+      "_id": "8f72dd69e0ff2054b4f21776"
+    },
+    "8": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T12:56:52.312501+00:00",
+      "_id": "bd94e96a3fbc232d9f7c0463"
+    },
+    "9": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T12:56:53.653994+00:00",
+      "_id": "87e70ea4fa852281884d1780"
+    },
+    "10": {
+      "type": "scan_start",
+      "message": "[DEFAULT] Scan initiated on kali.org (ports: 22,80,443,8080,8443,3306,5432,6379,27017,21,25,53,110,143)",
+      "severity": "info",
+      "timestamp": "2026-05-16T12:57:17.960634+00:00",
+      "_id": "410c49c50de6b62987bbb577"
+    },
+    "11": {
+      "type": "scan_complete",
+      "message": "Scan complete: 1 host(s) found on kali.org [default]",
+      "severity": "success",
+      "timestamp": "2026-05-16T12:57:59.507306+00:00",
+      "_id": "cf1daa31ec26b76758177b8d"
+    },
+    "12": {
+      "type": "analysis_start",
+      "message": "AI multi-model analysis initiated (9 engines) in background",
+      "severity": "info",
+      "timestamp": "2026-05-16T12:58:21.435855+00:00",
+      "_id": "bbc1aa13991f1b9c544eff46"
+    },
+    "13": {
+      "type": "scan_start",
+      "message": "[VULN] Scan initiated on kali.org (ports: 22,80,443,8080,8443,3306,5432,6379,27017,21,25,53,110,143)",
+      "severity": "info",
+      "timestamp": "2026-05-16T12:58:31.805516+00:00",
+      "_id": "aa80f781b889f0014a13461d"
+    },
+    "14": {
+      "type": "analysis_complete",
+      "message": "Pipeline done: 17 threats, 1 hosts scored, 0 deduped",
+      "severity": "success",
+      "timestamp": "2026-05-16T12:58:41.417427+00:00",
+      "_id": "6f6dd3e7a5f31a700e5229d0"
+    },
+    "15": {
+      "type": "analysis_start",
+      "message": "AI multi-model analysis initiated (9 engines) in background",
+      "severity": "info",
+      "timestamp": "2026-05-16T13:01:35.372583+00:00",
+      "_id": "e014e2ce28d6b0fc47871990"
+    },
+    "16": {
+      "type": "analysis_error",
+      "message": "Analysis failed: Object of type datetime is not JSON serializable",
+      "severity": "error",
+      "timestamp": "2026-05-16T13:01:37.341813+00:00",
+      "_id": "719c7dba24b1dc841abecc53"
+    },
+    "17": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T13:07:05.959359+00:00",
+      "_id": "c30c5adf947701e77a91511f"
+    },
+    "18": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T13:07:07.561981+00:00",
+      "_id": "f5ec2d0d64af9b6a82b9b235"
+    }
+  },
+  "network_scans": {
+    "1": {
+      "scan_id": "20260516_125718",
+      "target": "kali.org",
+      "ports": "22,80,443,8080,8443,3306,5432,6379,27017,21,25,53,110,143",
+      "scan_type": "default",
+      "scan_args": "-sV -T4",
+      "host": "104.18.4.159",
+      "hostname": "kali.org",
+      "state": "up",
+      "protocols": [
+        {
+          "protocol": "tcp",
+          "ports": [
+            {
+              "port": 21,
+              "state": "filtered",
+              "service": "ftp",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 22,
+              "state": "filtered",
+              "service": "ssh",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 25,
+              "state": "filtered",
+              "service": "smtp",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 53,
+              "state": "filtered",
+              "service": "domain",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 80,
+              "state": "open",
+              "service": "http",
+              "version": "",
+              "product": "Cloudflare http proxy",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "syn-ack"
+            },
+            {
+              "port": 110,
+              "state": "filtered",
+              "service": "pop3",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 143,
+              "state": "filtered",
+              "service": "imap",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 443,
+              "state": "open",
+              "service": "http",
+              "version": "",
+              "product": "Cloudflare http proxy",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "syn-ack"
+            },
+            {
+              "port": 3306,
+              "state": "filtered",
+              "service": "mysql",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 5432,
+              "state": "filtered",
+              "service": "postgresql",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 6379,
+              "state": "filtered",
+              "service": "redis",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 8080,
+              "state": "open",
+              "service": "http",
+              "version": "",
+              "product": "Cloudflare http proxy",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "syn-ack"
+            },
+            {
+              "port": 8443,
+              "state": "open",
+              "service": "http",
+              "version": "",
+              "product": "Cloudflare http proxy",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "syn-ack"
+            },
+            {
+              "port": 27017,
+              "state": "filtered",
+              "service": "mongod",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            }
+          ]
+        }
+      ],
+      "open_port_count": 4,
+      "services_detected": [
+        "http"
+      ],
+      "scan_duration_sec": 41.43,
+      "nmap_version": "7.99",
+      "scanned_at": "2026-05-16T12:57:59.505073+00:00",
+      "_id": "3b4ba518ee5b1ba06dbae771"
+    }
+  },
+  "threats": {
+    "1": {
+      "name": "HTTP Unencrypted",
+      "severity": "low",
+      "host": "104.18.4.159",
+      "cve_id": "SCAN-80-104_18_4_159",
+      "source": "PortRisk-Engine-v2",
+      "detail": "Port 80/tcp open \u2014 http Cloudflare http proxy",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T12:58:21.440524+00:00",
+      "_id": "c95ab9860ac16b5a812a514c",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "2": {
+      "name": "Unknown Version: Cloudflare http proxy",
+      "severity": "medium",
+      "host": "104.18.4.159",
+      "cve_id": "VER-80-104_18_4_159",
+      "source": "VersionVuln-Engine-v3",
+      "detail": "Cloudflare http proxy on port 80 has no version \u2014 may be outdated.",
+      "tags": [
+        "version",
+        "patch"
+      ],
+      "detected_at": "2026-05-16T12:58:21.440586+00:00",
+      "_id": "b245c6972a46ac0414c822cb",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "3": {
+      "name": "ATT&CK: Application Layer Protocol: Web",
+      "severity": "medium",
+      "host": "104.18.4.159",
+      "cve_id": "MITRE-T1071.001-104_18_4_159",
+      "source": "MitreMap-Engine-v1",
+      "detail": "Port 80/tcp enables MITRE ATT&CK technique T1071.001 (Application Layer Protocol: Web). Service: http Cloudflare http proxy",
+      "tags": [
+        "mitre",
+        "attack",
+        "T1071.001"
+      ],
+      "detected_at": "2026-05-16T12:58:21.444047+00:00",
+      "_id": "c48d99a62dee21a021fe8e4d",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "4": {
+      "name": "AI Predicted: Critical Risk (Moderate Confidence)",
+      "severity": "critical",
+      "host": "104.18.4.159",
+      "cve_id": "AI-80-104_18_4_159",
+      "source": "ML-Predict-Engine-v4",
+      "detail": "Advanced ML Engine predicted critical risk with 64.2% calibrated confidence. Service: Cloudflare http proxy ",
+      "tags": [
+        "machine_learning",
+        "ai_predicted",
+        "confidence_moderate"
+      ],
+      "detected_at": "2026-05-16T12:58:40.184649+00:00",
+      "_id": "65b89242ade7acde5989d812",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "5": {
+      "name": "Unencrypted: HTTP without TLS",
+      "severity": "high",
+      "host": "104.18.4.159",
+      "cve_id": "ENC-80-104_18_4_159",
+      "source": "Encryption-Engine-v1",
+      "detail": "HTTP without TLS on port 80. Upgrade to port 443 or enable TLS. Unencrypted traffic can be intercepted via MITM attacks.",
+      "tags": [
+        "encryption",
+        "hardening",
+        "cleartext"
+      ],
+      "detected_at": "2026-05-16T12:58:40.188432+00:00",
+      "_id": "29ade0f1cd5c546b4a71e154",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "6": {
+      "name": "HTTPS Service",
+      "severity": "info",
+      "host": "104.18.4.159",
+      "cve_id": "SCAN-443-104_18_4_159",
+      "source": "PortRisk-Engine-v2",
+      "detail": "Port 443/tcp open \u2014 http Cloudflare http proxy",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T12:58:40.188539+00:00",
+      "_id": "ca0ca131e6d66452b67b7af2",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "7": {
+      "name": "Unknown Version: Cloudflare http proxy",
+      "severity": "medium",
+      "host": "104.18.4.159",
+      "cve_id": "VER-443-104_18_4_159",
+      "source": "VersionVuln-Engine-v3",
+      "detail": "Cloudflare http proxy on port 443 has no version \u2014 may be outdated.",
+      "tags": [
+        "version",
+        "patch"
+      ],
+      "detected_at": "2026-05-16T12:58:40.188558+00:00",
+      "_id": "b1f1d238fa5f3e4559d23c45",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "8": {
+      "name": "AI Predicted: Critical Risk (Moderate Confidence)",
+      "severity": "critical",
+      "host": "104.18.4.159",
+      "cve_id": "AI-443-104_18_4_159",
+      "source": "ML-Predict-Engine-v4",
+      "detail": "Advanced ML Engine predicted critical risk with 74.4% calibrated confidence. Service: Cloudflare http proxy ",
+      "tags": [
+        "machine_learning",
+        "ai_predicted",
+        "confidence_moderate"
+      ],
+      "detected_at": "2026-05-16T12:58:40.553479+00:00",
+      "_id": "a5f6f9a9a3688712204f6971",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "9": {
+      "name": "HTTP-Alt Exposed",
+      "severity": "medium",
+      "host": "104.18.4.159",
+      "cve_id": "SCAN-8080-104_18_4_159",
+      "source": "PortRisk-Engine-v2",
+      "detail": "Port 8080/tcp open \u2014 http Cloudflare http proxy",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T12:58:40.557891+00:00",
+      "_id": "66fd02a671436ff343355c12",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "10": {
+      "name": "Unknown Version: Cloudflare http proxy",
+      "severity": "medium",
+      "host": "104.18.4.159",
+      "cve_id": "VER-8080-104_18_4_159",
+      "source": "VersionVuln-Engine-v3",
+      "detail": "Cloudflare http proxy on port 8080 has no version \u2014 may be outdated.",
+      "tags": [
+        "version",
+        "patch"
+      ],
+      "detected_at": "2026-05-16T12:58:40.557913+00:00",
+      "_id": "469d97b5932b8a9b1a2f6f9d",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "11": {
+      "name": "AI Predicted: Critical Risk (High Confidence)",
+      "severity": "critical",
+      "host": "104.18.4.159",
+      "cve_id": "AI-8080-104_18_4_159",
+      "source": "ML-Predict-Engine-v4",
+      "detail": "Advanced ML Engine predicted critical risk with 81.6% calibrated confidence. Service: Cloudflare http proxy ",
+      "tags": [
+        "machine_learning",
+        "ai_predicted",
+        "confidence_high"
+      ],
+      "detected_at": "2026-05-16T12:58:40.958131+00:00",
+      "_id": "d141bc43e9675fe76df4f5cc",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "12": {
+      "name": "High Exposure: Http (version-unknown)",
+      "severity": "high",
+      "host": "104.18.4.159",
+      "cve_id": "EXPO-8080-104_18_4_159",
+      "source": "ExposureScore-Engine-v1",
+      "detail": "Port 8080/tcp has elevated attack surface. Factors: [version-unknown]. Service: Cloudflare http proxy . Review network segmentation and access controls.",
+      "tags": [
+        "exposure",
+        "attack_surface",
+        "version-unknown"
+      ],
+      "detected_at": "2026-05-16T12:58:40.963117+00:00",
+      "_id": "1878783d01c646413a5ad761",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "13": {
+      "name": "Persistence Vector: Web Shell via Http",
+      "severity": "high",
+      "host": "104.18.4.159",
+      "cve_id": "PERSIST-8080-104_18_4_159",
+      "source": "PersistenceAudit-Engine-v1",
+      "detail": "Port 8080/tcp (http) enables MITRE ATT&CK T1505.003 (Web Shell). HTTP-Alt (Tomcat/Jenkins) enables web shell upload via manager. Service: Cloudflare http proxy . Audit for unauthorized scheduled tasks, cron jobs, or web shells.",
+      "tags": [
+        "persistence",
+        "mitre",
+        "T1505.003",
+        "audit"
+      ],
+      "detected_at": "2026-05-16T12:58:40.963157+00:00",
+      "_id": "be2e9255949f76c0c3e5cb18",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "14": {
+      "name": "HTTPS-Alt Exposed",
+      "severity": "low",
+      "host": "104.18.4.159",
+      "cve_id": "SCAN-8443-104_18_4_159",
+      "source": "PortRisk-Engine-v2",
+      "detail": "Port 8443/tcp open \u2014 http Cloudflare http proxy",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T12:58:40.963210+00:00",
+      "_id": "33fbc7481ef0edb58f1a0589",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "15": {
+      "name": "Unknown Version: Cloudflare http proxy",
+      "severity": "medium",
+      "host": "104.18.4.159",
+      "cve_id": "VER-8443-104_18_4_159",
+      "source": "VersionVuln-Engine-v3",
+      "detail": "Cloudflare http proxy on port 8443 has no version \u2014 may be outdated.",
+      "tags": [
+        "version",
+        "patch"
+      ],
+      "detected_at": "2026-05-16T12:58:40.963224+00:00",
+      "_id": "9bbe08080b0c4e77131cacf9",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "16": {
+      "name": "AI Predicted: Critical Risk (High Confidence)",
+      "severity": "critical",
+      "host": "104.18.4.159",
+      "cve_id": "AI-8443-104_18_4_159",
+      "source": "ML-Predict-Engine-v4",
+      "detail": "Advanced ML Engine predicted critical risk with 81.4% calibrated confidence. Service: Cloudflare http proxy ",
+      "tags": [
+        "machine_learning",
+        "ai_predicted",
+        "confidence_high"
+      ],
+      "detected_at": "2026-05-16T12:58:41.381911+00:00",
+      "_id": "93f3ba4d1212dea1879cfae1",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "17": {
+      "name": "High Exposure: Http (version-unknown)",
+      "severity": "high",
+      "host": "104.18.4.159",
+      "cve_id": "EXPO-8443-104_18_4_159",
+      "source": "ExposureScore-Engine-v1",
+      "detail": "Port 8443/tcp has elevated attack surface. Factors: [version-unknown]. Service: Cloudflare http proxy . Review network segmentation and access controls.",
+      "tags": [
+        "exposure",
+        "attack_surface",
+        "version-unknown"
+      ],
+      "detected_at": "2026-05-16T12:58:41.387588+00:00",
+      "_id": "8b751e8042ecb3d822f10638",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "18": {
+      "name": "HTTP Unencrypted",
+      "severity": "low",
+      "host": "104.18.4.159",
+      "cve_id": "SCAN-80-104_18_4_159",
+      "source": "PortRisk-Engine-v2",
+      "detail": "Port 80/tcp open \u2014 http Cloudflare http proxy",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T13:01:35.377883+00:00",
+      "_id": "1fa61320651db719a705388d",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "19": {
+      "name": "Unknown Version: Cloudflare http proxy",
+      "severity": "medium",
+      "host": "104.18.4.159",
+      "cve_id": "VER-80-104_18_4_159",
+      "source": "VersionVuln-Engine-v3",
+      "detail": "Cloudflare http proxy on port 80 has no version \u2014 may be outdated.",
+      "tags": [
+        "version",
+        "patch"
+      ],
+      "detected_at": "2026-05-16T13:01:35.377922+00:00",
+      "_id": "a3690c74f6bfac10bae64f51",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "20": {
+      "name": "ATT&CK: Application Layer Protocol: Web",
+      "severity": "medium",
+      "host": "104.18.4.159",
+      "cve_id": "MITRE-T1071.001-104_18_4_159",
+      "source": "MitreMap-Engine-v1",
+      "detail": "Port 80/tcp enables MITRE ATT&CK technique T1071.001 (Application Layer Protocol: Web). Service: http Cloudflare http proxy",
+      "tags": [
+        "mitre",
+        "attack",
+        "T1071.001"
+      ],
+      "detected_at": "2026-05-16T13:01:35.378053+00:00",
+      "_id": "4d32be0fb9dd599533c128b8",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "21": {
+      "name": "AI Predicted: Critical Risk (Moderate Confidence)",
+      "severity": "critical",
+      "host": "104.18.4.159",
+      "cve_id": "AI-80-104_18_4_159",
+      "source": "ML-Predict-Engine-v4",
+      "detail": "Advanced ML Engine predicted critical risk with 64.2% calibrated confidence. Service: Cloudflare http proxy ",
+      "tags": [
+        "machine_learning",
+        "ai_predicted",
+        "confidence_moderate"
+      ],
+      "detected_at": "2026-05-16T13:01:35.828099+00:00",
+      "_id": "254ecf7068ede13c7436290c",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "22": {
+      "name": "Unencrypted: HTTP without TLS",
+      "severity": "high",
+      "host": "104.18.4.159",
+      "cve_id": "ENC-80-104_18_4_159",
+      "source": "Encryption-Engine-v1",
+      "detail": "HTTP without TLS on port 80. Upgrade to port 443 or enable TLS. Unencrypted traffic can be intercepted via MITM attacks.",
+      "tags": [
+        "encryption",
+        "hardening",
+        "cleartext"
+      ],
+      "detected_at": "2026-05-16T13:01:35.832863+00:00",
+      "_id": "f90d2d70f508b2908f169a1f",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "23": {
+      "name": "HTTPS Service",
+      "severity": "info",
+      "host": "104.18.4.159",
+      "cve_id": "SCAN-443-104_18_4_159",
+      "source": "PortRisk-Engine-v2",
+      "detail": "Port 443/tcp open \u2014 http Cloudflare http proxy",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T13:01:35.832958+00:00",
+      "_id": "f10f812926f2d551598da08b",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "24": {
+      "name": "Unknown Version: Cloudflare http proxy",
+      "severity": "medium",
+      "host": "104.18.4.159",
+      "cve_id": "VER-443-104_18_4_159",
+      "source": "VersionVuln-Engine-v3",
+      "detail": "Cloudflare http proxy on port 443 has no version \u2014 may be outdated.",
+      "tags": [
+        "version",
+        "patch"
+      ],
+      "detected_at": "2026-05-16T13:01:35.832971+00:00",
+      "_id": "45af730ff5c2f2f4222b4ca8",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "25": {
+      "name": "AI Predicted: Critical Risk (Moderate Confidence)",
+      "severity": "critical",
+      "host": "104.18.4.159",
+      "cve_id": "AI-443-104_18_4_159",
+      "source": "ML-Predict-Engine-v4",
+      "detail": "Advanced ML Engine predicted critical risk with 74.4% calibrated confidence. Service: Cloudflare http proxy ",
+      "tags": [
+        "machine_learning",
+        "ai_predicted",
+        "confidence_moderate"
+      ],
+      "detected_at": "2026-05-16T13:01:36.313460+00:00",
+      "_id": "7bbe996154443ec5c3ec820a",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "26": {
+      "name": "HTTP-Alt Exposed",
+      "severity": "medium",
+      "host": "104.18.4.159",
+      "cve_id": "SCAN-8080-104_18_4_159",
+      "source": "PortRisk-Engine-v2",
+      "detail": "Port 8080/tcp open \u2014 http Cloudflare http proxy",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T13:01:36.319373+00:00",
+      "_id": "83ad4fefdd053e556535acf9",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "27": {
+      "name": "Unknown Version: Cloudflare http proxy",
+      "severity": "medium",
+      "host": "104.18.4.159",
+      "cve_id": "VER-8080-104_18_4_159",
+      "source": "VersionVuln-Engine-v3",
+      "detail": "Cloudflare http proxy on port 8080 has no version \u2014 may be outdated.",
+      "tags": [
+        "version",
+        "patch"
+      ],
+      "detected_at": "2026-05-16T13:01:36.319399+00:00",
+      "_id": "71f5c37bde7941f26e6dda78",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "28": {
+      "name": "AI Predicted: Critical Risk (High Confidence)",
+      "severity": "critical",
+      "host": "104.18.4.159",
+      "cve_id": "AI-8080-104_18_4_159",
+      "source": "ML-Predict-Engine-v4",
+      "detail": "Advanced ML Engine predicted critical risk with 81.6% calibrated confidence. Service: Cloudflare http proxy ",
+      "tags": [
+        "machine_learning",
+        "ai_predicted",
+        "confidence_high"
+      ],
+      "detected_at": "2026-05-16T13:01:36.817706+00:00",
+      "_id": "580e6f463de1acb0f11997f3",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "29": {
+      "name": "High Exposure: Http (version-unknown)",
+      "severity": "high",
+      "host": "104.18.4.159",
+      "cve_id": "EXPO-8080-104_18_4_159",
+      "source": "ExposureScore-Engine-v1",
+      "detail": "Port 8080/tcp has elevated attack surface. Factors: [version-unknown]. Service: Cloudflare http proxy . Review network segmentation and access controls.",
+      "tags": [
+        "exposure",
+        "attack_surface",
+        "version-unknown"
+      ],
+      "detected_at": "2026-05-16T13:01:36.822395+00:00",
+      "_id": "c420bba974a9bb2f934ed710",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "30": {
+      "name": "Persistence Vector: Web Shell via Http",
+      "severity": "high",
+      "host": "104.18.4.159",
+      "cve_id": "PERSIST-8080-104_18_4_159",
+      "source": "PersistenceAudit-Engine-v1",
+      "detail": "Port 8080/tcp (http) enables MITRE ATT&CK T1505.003 (Web Shell). HTTP-Alt (Tomcat/Jenkins) enables web shell upload via manager. Service: Cloudflare http proxy . Audit for unauthorized scheduled tasks, cron jobs, or web shells.",
+      "tags": [
+        "persistence",
+        "mitre",
+        "T1505.003",
+        "audit"
+      ],
+      "detected_at": "2026-05-16T13:01:36.822445+00:00",
+      "_id": "17c854bd730ad812e0222364",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "31": {
+      "name": "HTTPS-Alt Exposed",
+      "severity": "low",
+      "host": "104.18.4.159",
+      "cve_id": "SCAN-8443-104_18_4_159",
+      "source": "PortRisk-Engine-v2",
+      "detail": "Port 8443/tcp open \u2014 http Cloudflare http proxy",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T13:01:36.822516+00:00",
+      "_id": "63a641f82cb3962cef988cbe",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "32": {
+      "name": "Unknown Version: Cloudflare http proxy",
+      "severity": "medium",
+      "host": "104.18.4.159",
+      "cve_id": "VER-8443-104_18_4_159",
+      "source": "VersionVuln-Engine-v3",
+      "detail": "Cloudflare http proxy on port 8443 has no version \u2014 may be outdated.",
+      "tags": [
+        "version",
+        "patch"
+      ],
+      "detected_at": "2026-05-16T13:01:36.822535+00:00",
+      "_id": "fe69d131f1d9312b7d8954e6",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "33": {
+      "name": "AI Predicted: Critical Risk (High Confidence)",
+      "severity": "critical",
+      "host": "104.18.4.159",
+      "cve_id": "AI-8443-104_18_4_159",
+      "source": "ML-Predict-Engine-v4",
+      "detail": "Advanced ML Engine predicted critical risk with 81.4% calibrated confidence. Service: Cloudflare http proxy ",
+      "tags": [
+        "machine_learning",
+        "ai_predicted",
+        "confidence_high"
+      ],
+      "detected_at": "2026-05-16T13:01:37.267297+00:00",
+      "_id": "395aa85176d3464f9a880042",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    },
+    "34": {
+      "name": "High Exposure: Http (version-unknown)",
+      "severity": "high",
+      "host": "104.18.4.159",
+      "cve_id": "EXPO-8443-104_18_4_159",
+      "source": "ExposureScore-Engine-v1",
+      "detail": "Port 8443/tcp has elevated attack surface. Factors: [version-unknown]. Service: Cloudflare http proxy . Review network segmentation and access controls.",
+      "tags": [
+        "exposure",
+        "attack_surface",
+        "version-unknown"
+      ],
+      "detected_at": "2026-05-16T13:01:37.273051+00:00",
+      "_id": "4bce1d13034ad4f3aed87778",
+      "host_risk_score": 339.8,
+      "host_risk_level": "critical"
+    }
+  }
+}

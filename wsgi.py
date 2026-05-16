@@ -13,7 +13,6 @@ Usage:
 import os
 import sys
 import logging
-from app import app, socketio, _startup_banner, _provision_admin_user, _log_activity
 
 # Configure production logging
 logging.basicConfig(
@@ -29,6 +28,9 @@ os.environ.setdefault("FLASK_DEBUG", "false")
 
 # Suppress Werkzeug development server warning
 os.environ["WERKZEUG_RUN_MAIN"] = "true"
+
+# Import after env setup
+from app import app, socketio, _startup_banner, _provision_admin_user, _log_activity  # type: ignore
 
 
 def init_app():
@@ -52,8 +54,9 @@ if __name__ == "__main__":
     socketio.run(
         app,
         debug=False,
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=port,
         use_reloader=False,
         use_debugger=False,
+        allow_unsafe_werkzeug=True,
     )

@@ -13,13 +13,18 @@ from collections import defaultdict
 from typing import Any  # type: ignore
 import requests # type: ignore
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response, make_response # type: ignore
-from flask_pymongo import PyMongo # type: ignore
 from flask_cors import CORS # type: ignore
 from flask_socketio import SocketIO, emit # type: ignore
 from werkzeug.security import generate_password_hash, check_password_hash # type: ignore
 from functools import wraps
-from bson import ObjectId, json_util # type: ignore
 from datetime import datetime, timezone, timedelta, date
+
+# Optional BSON support (only available with MongoDB/pymongo)
+try:
+    from bson import ObjectId, json_util  # type: ignore
+    _HAS_BSON = True
+except ImportError:
+    _HAS_BSON = False
 
 # Internal Logic Modules
 from ai_logic import compute_risk_scores # type: ignore
@@ -52,10 +57,30 @@ PORTS_RE = re.compile(r"^[0-9,\-\s]*$")
 
 def _serialize(doc):
     """
-    Standardizes MongoDB document serialization.
-    Handles BSON types (ObjectId, datetime) for JSON-safe API delivery.
+    Standardizes document serialization for JSON-safe API delivery.
+    Handles BSON types (ObjectId, datetime) when using MongoDB,
+    or plain dict/list serialization when using TinyDB.
     """
-    return json.loads(json_util.dumps(doc))
+    if _HAS_BSON:
+        return json.loads(json_util.dumps(doc))
+
+    # TinyDB fallback: manual serialization
+    def _convert(obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        if isinstance(obj, date):
+            return obj.isoformat()
+        if isinstance(obj, dict):
+            return {k: _convert(v) for k, v in obj.items()}
+        if isinstance(obj, (list, tuple)):
+            return [_convert(i) for i in obj]
+        return obj
+
+    if isinstance(doc, (list, tuple)):
+        return [_convert(d) for d in doc]
+    if isinstance(doc, dict):
+        return _convert(doc)
+    return doc
 
 
 def _log_activity(event_type, message, severity="info"):
@@ -968,8 +993,12 @@ def export_threats():
         )
 
     # Default: JSON
+    if _HAS_BSON:
+        json_data = json_util.dumps(docs, indent=2)
+    else:
+        json_data = json.dumps(_serialize(docs), indent=2, default=str)
     return Response(
-        json_util.dumps(docs, indent=2),
+        json_data,
         mimetype="application/json",
         headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
@@ -1774,11 +1803,12 @@ def _startup_banner():
     is_prod = os.environ.get("FLASK_ENV") == "production"
     environment = "PRODUCTION" if is_prod else "DEVELOPMENT"
     
+    port = os.environ.get("PORT", "5000")
     print("\n" + "=" * 70)
     print("   NexShield — AI-Powered Threat Intelligence Platform")
     print(f"   Environment: {environment}")
-    print("   Dashboard: http://0.0.0.0:5000")
-    print("   Docs: https://github.com/your-repo/NexShield")
+    print(f"   Dashboard: http://127.0.0.1:{port}")
+    print("   Docs: https://github.com/nextboxis/NexShield")
     print("=" * 70 + "\n")
     
     logger.info(f"NexShield starting in {environment} mode")
@@ -1816,18 +1846,20 @@ if __name__ == "__main__":
         socketio.run(
             app,
             debug=False,
-            host="0.0.0.0",
+            host="127.0.0.1",
             port=int(os.environ.get("PORT", 5000)),
             use_reloader=False,
             use_debugger=False,
+            allow_unsafe_werkzeug=True,
         )
     else:
         logger.info("⚠️  Running in DEVELOPMENT mode")
         socketio.run(
             app,
             debug=os.environ.get("FLASK_DEBUG", "false").lower() == "true",
-            host="0.0.0.0",
-            port=5000,
+            host="127.0.0.1",
+            port=int(os.environ.get("PORT", 5000)),
+            allow_unsafe_werkzeug=True,
         )
 
 
@@ -1837,14 +1869,18 @@ if __name__ == "__main__":
 
 @app.route("/api/threat/<tid>", methods=["GET"])
 def get_threat(tid):
-    """Return a single threat document by ObjectId."""
-    from bson import ObjectId
-    try:
-        oid = ObjectId(tid)
-    except Exception:
-        return jsonify({"status": "error", "message": "Invalid id"}), 400
+    """Return a single threat document by ID."""
+    if _HAS_BSON:
+        from bson import ObjectId  # type: ignore
+        try:
+            oid = ObjectId(tid)
+        except Exception:
+            return jsonify({"status": "error", "message": "Invalid id"}), 400
+        doc = threats.find_one({"_id": oid})
+    else:
+        # TinyDB: search by string _id
+        doc = threats.find_one({"_id": tid})
 
-    doc = threats.find_one({"_id": oid})
     if not doc:
         return jsonify({"status": "error", "message": "Not found"}), 404
 
