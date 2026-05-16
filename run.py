@@ -192,7 +192,7 @@ def provision_admin():
             "role": "admin",
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
-        print_status("+", f"Admin user created (password: {password})")
+        print_status("+", "Admin user created")
         return True
     except Exception as e:
         print_status("!", f"Admin provisioning: {e}")
