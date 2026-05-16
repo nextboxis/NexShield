@@ -609,7 +609,7 @@ def get_timeline():
     days = _normalize_limit(request.args.get("days", 7, type=int), 7, 30)
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
-    docs = threats.find({"detected_at": {"$gte": cutoff}})
+    docs = threats.find({})
 
     timeline = {}
     for doc in docs:
@@ -622,13 +622,20 @@ def get_timeline():
                 # Replace 'Z' with '+00:00' to ensure fromisoformat works on older Python
                 dt_str = dt_val.replace('Z', '+00:00')
                 dt = datetime.fromisoformat(dt_str)
-                day = dt.strftime("%Y-%m-%d")
             except ValueError:
                 continue
         elif isinstance(dt_val, datetime):
-            day = dt_val.strftime("%Y-%m-%d")
+            dt = dt_val
         else:
             continue
+
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        if dt < cutoff:
+            continue
+
+        day = dt.strftime("%Y-%m-%d")
 
         sev = doc.get("severity")
         if day not in timeline:
