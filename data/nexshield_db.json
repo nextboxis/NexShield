@@ -183,6 +183,34 @@
       "severity": "info",
       "timestamp": "2026-05-16T13:28:10.327298+00:00",
       "_id": "9f9b27f914451539a8076790"
+    },
+    "26": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T13:29:49.090796+00:00",
+      "_id": "16185525d488d91014f78e9f"
+    },
+    "27": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T13:29:49.156996+00:00",
+      "_id": "d0263579f967b3763243d47d"
+    },
+    "28": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T13:30:41.244178+00:00",
+      "_id": "40736c8fd02e56fb612d4c86"
+    },
+    "29": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T13:30:41.302342+00:00",
+      "_id": "1a75cad004315a2c05ec5e5c"
     }
   },
   "network_scans": {
