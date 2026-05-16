@@ -30,9 +30,34 @@ from datetime import datetime, timezone
 import hashlib
 import logging
 import re
+from typing import Any, Optional
 from config import threats, network_scans, cve_cache, check_connection  # type: ignore
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_datetime(value: Any) -> Optional[datetime]:
+    """Normalize TinyDB/Mongo date values for scoring math."""
+    if isinstance(value, datetime):
+        return value if value.tzinfo else value.replace(tzinfo=timezone.utc)
+    if isinstance(value, str):
+        try:
+            parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+            return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return None
+    return None
+
+
+def _coerce_port(port_value: Any) -> Optional[int]:
+    """Parse scan port values safely (H4)."""
+    try:
+        port = int(port_value)
+    except (TypeError, ValueError):
+        return None
+    if 1 <= port <= 65535:
+        return port
+    return None
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -314,13 +339,30 @@ def analyze_scan_results():
     scans = list(network_scans.find({"scan_id": scan_id}))
     new_threats = []
     seen_hashes = set()  # Deduplicate within the same analysis run
+    _ENGINE_CHAIN = [
+        _engine_port_risk,
+        _engine_version_vuln,
+        _engine_service_fp,
+        _engine_default_creds,
+        _engine_mitre_map,
+        _engine_ml_predict,
+        _engine_cve_correlation,
+        _engine_encryption,
+        _engine_exposure_score,
+        _engine_credential_dump,
+        _engine_persistence_audit,
+        _engine_dll_hijack,
+        _engine_zero_day_heuristics,
+    ]
 
     for scan in scans:
         host = scan.get("host", "unknown")
         for proto_block in scan.get("protocols", []):
             protocol = str(proto_block.get("protocol", "tcp"))
             for port_info in proto_block.get("ports", []):
-                port = port_info["port"]
+                port = _coerce_port(port_info.get("port"))
+                if port is None:
+                    continue
                 state = port_info.get("state", "")
                 service = str(port_info.get("service", ""))
                 product = str(port_info.get("product", ""))
@@ -334,23 +376,13 @@ def analyze_scan_results():
                     "service": service, "product": product, "version": version,
                 }
 
-                # Run each engine and collect threats
-                for engine_fn in [
-                    _engine_port_risk,
-                    _engine_version_vuln,
-                    _engine_service_fp,
-                    _engine_default_creds,
-                    _engine_mitre_map,
-                    _engine_ml_predict,
-                    _engine_cve_correlation,
-                    _engine_encryption,
-                    _engine_exposure_score,
-                    _engine_credential_dump,
-                    _engine_persistence_audit,
-                    _engine_dll_hijack,
-                    _engine_zero_day_heuristics,
-                ]:
-                    for t in engine_fn(ctx):  # type: ignore
+                for engine_fn in _ENGINE_CHAIN:
+                    try:
+                        engine_results = engine_fn(ctx)  # type: ignore
+                    except Exception as exc:
+                        logger.warning("Engine %s failed on %s:%s: %s", engine_fn.__name__, host, port, exc)
+                        continue
+                    for t in engine_results:
                         h = _threat_hash(t)
                         if h not in seen_hashes:
                             seen_hashes.add(h)
@@ -597,7 +629,6 @@ VECTORIZER_PATH = "threat_ml_vect.pkl"
 
 def extract_is_sensitive_port(X):
     import numpy as np
-    from ai_logic import SENSITIVE_PORTS
     return np.array([[1 if p in SENSITIVE_PORTS else 0] for p in X.iloc[:, 0]])
 
 def train_ml_model():
@@ -791,7 +822,7 @@ def _engine_ml_predict(ctx):
                 tags=["machine_learning", "ai_predicted", f"confidence_{confidence_label.lower().replace(' ', '_')}"]
             )]
     except Exception as e:
-        print(f"ML Predict Error: {e}")
+        logger.warning("ML predict failed for %s:%s: %s", ctx.get("host"), ctx.get("port"), e)
     return []
 
 
@@ -1275,18 +1306,16 @@ def compute_risk_scores(persist=True):
 
         # 5. Recency boost — threats detected recently score higher
         recency_boost = 0
-        latest = group.get("latest")
-        if latest:
-            try:
-                age_hours = (datetime.now(timezone.utc) - latest).total_seconds() / 3600
-                if age_hours < 1:
-                    recency_boost = 8   # Last hour
-                elif age_hours < 24:
-                    recency_boost = 5   # Last day
-                elif age_hours < 168:
-                    recency_boost = 2   # Last week
-            except Exception:
-                pass
+        latest_raw = group.get("latest")
+        latest_dt = _parse_datetime(latest_raw)
+        if latest_dt:
+            age_hours = (datetime.now(timezone.utc) - latest_dt).total_seconds() / 3600
+            if age_hours < 1:
+                recency_boost = 8   # Last hour
+            elif age_hours < 24:
+                recency_boost = 5   # Last day
+            elif age_hours < 168:
+                recency_boost = 2   # Last week
 
         raw_total = sev_score + engine_bonus + volume_factor + recency_boost
         total = round(raw_total * critical_multiplier, 1)
@@ -1379,8 +1408,11 @@ def merge_duplicates():
             }},
         )
 
-        threats.delete_many({"_id": {"$in": discard_ids}})
-        removed += len(discard_ids)
+        try:
+            threats.delete_many({"_id": {"$in": discard_ids}})
+            removed += len(discard_ids)
+        except Exception as exc:
+            logger.warning("Dedup delete failed for group %s: %s", group.get("_id"), exc)
 
     return removed
 

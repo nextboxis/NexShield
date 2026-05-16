@@ -73,7 +73,10 @@ echo.
 echo       python run.py
 echo.
 echo   That's it! No database setup needed.
-echo   Dashboard will open at: http://127.0.0.1:5000
+echo   Page flow: Login -^> Dashboard -^> Report
+echo   1. Login:     http://127.0.0.1:5000/login
+echo   2. Dashboard: http://127.0.0.1:5000/index
+echo   3. Report:    http://127.0.0.1:5000/report
 echo.
 echo   Optional: Install nmap for network scanning:
 echo       https://nmap.org/download.html
