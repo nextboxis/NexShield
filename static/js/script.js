@@ -169,6 +169,21 @@ function updateSystemStatus(text, dotClass) {
     }
 }
 
+async function parseResponseJson(response) {
+    if (response.status === 0) {
+        throw new Error("Server unreachable. Start NexShield with python app.py.");
+    }
+    const text = await response.text();
+    if (!text.trim()) {
+        throw new Error("Server unreachable. Start NexShield with python app.py.");
+    }
+    try {
+        return JSON.parse(text);
+    } catch {
+        throw new Error("Invalid server response. Check that NexShield is running.");
+    }
+}
+
 async function fetchJson(url, options = {}) {
     const response = await fetch(url, {
         headers: {
@@ -184,7 +199,7 @@ async function fetchJson(url, options = {}) {
         throw new Error("Session expired. Redirecting to login...");
     }
 
-    const data = await response.json();
+    const data = await parseResponseJson(response);
 
     if (!response.ok) {
         throw new Error(data.message || `Request failed (${response.status})`);
@@ -466,7 +481,10 @@ async function fetchTimeline() {
         const data = await fetchJson("/api/timeline?days=7");
         lastTimelineData = data;
         drawTimeline(data.days, data.timeline);
-    } catch (err) { console.error("Timeline fail:", err); }
+    } catch (err) {
+        console.error("Timeline fail:", err);
+        updateTimelineEmptyState(false, "TIMELINE_UNAVAILABLE", "Check system link and refresh telemetry");
+    }
 }
 
 // ── Host Risk Heatmap ──────────────────────────────────────────────
@@ -575,9 +593,10 @@ function renderHostsGrid(hosts) {
     grid.innerHTML = hosts.map(h => {
         const riskColor = h.threat_count > 5 ? "var(--red)" : h.threat_count > 2 ? "var(--orange)" : h.threat_count > 0 ? "var(--yellow)" : "var(--green)";
         const svcList = (h.services || []).slice(0, 4).join(", ") || "no services";
+        const quarantineBadge = h.quarantined ? `<span class="host-card__quarantine">QUARANTINED</span>` : "";
         return `
             <div class="host-card" onclick="showHostReport('${escapeHtml(h.host)}')" style="border-left-color: ${riskColor}">
-                <div class="host-card__ip">${escapeHtml(h.host)}</div>
+                <div class="host-card__ip">${escapeHtml(h.host)} ${quarantineBadge}</div>
                 <div class="host-card__meta">
                     ${h.hostname ? `<span class="host-card__hostname">${escapeHtml(h.hostname)}</span>` : ""}
                     ${h.os_name ? `<span class="host-card__os">💻 ${escapeHtml(h.os_name)}</span>` : ""}
@@ -708,6 +727,24 @@ function quarantineHost(host) {
     }).then((data) => {
         showToast(data.message, data.status || "success");
         closeModal();
+    }).catch((error) => {
+        showToast(error.message, "error");
+    });
+}
+
+function releaseHost(host) {
+    const approved = window.confirm(`Release node [${host}] from quarantine?`);
+    if (!approved) return;
+
+    showToast(`Releasing quarantine controls for ${host}...`, "info");
+    fetchJson("/api/quarantine/release", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ host })
+    }).then((data) => {
+        showToast(data.message, data.status || "success");
+        closeModal();
+        syncIntelligence();
     }).catch((error) => {
         showToast(error.message, "error");
     });
@@ -874,6 +911,10 @@ async function showHostReport(host) {
             }
         }
 
+        const responseButton = data.quarantined
+            ? `<button class="btn-console" style="border-color: var(--green); color: var(--green);" onclick="releaseHost('${escapeHtml(host)}')">RELEASE_NODE</button>`
+            : `<button class="btn-console" style="border-color: var(--red); color: var(--red);" onclick="quarantineHost('${escapeHtml(host)}')">⚡ QUARANTINE_NODE</button>`;
+
         body.innerHTML = `
             <div style="font-family: var(--font-mono); font-size: 0.85rem;">
                 <div style="display: grid; grid-template-columns: 120px 1fr; gap: 10px; padding-bottom: 1rem;">
@@ -884,7 +925,7 @@ async function showHostReport(host) {
                 </div>
                 ${portsTable}
                 <div style="margin-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 10px;">
-                    <button class="btn-console" style="border-color: var(--red); color: var(--red);" onclick="quarantineHost('${escapeHtml(host)}')">⚡ QUARANTINE_NODE</button>
+                    ${responseButton}
                     <button class="btn-console" style="color: var(--orange); border-color: var(--orange);" onclick="targetScanHost('${escapeHtml(host)}')">⚡ TARGETED_SCAN</button>
                     <button class="btn-console" onclick="exportReport('csv', { host: '${escapeHtml(host)}' })">EXPORT_THREATS_CSV</button>
                     ${data.footprint ? `<button class="btn-console" onclick="window.location.href='/api/export-scan?host=${encodeURIComponent(host)}'">EXPORT_FOOTPRINT_JSON</button>` : ''}
@@ -918,6 +959,9 @@ function openModal(threat) {
     if (!overlay || !title || !body || !threat) return;
 
     title.innerText = `THREAT::${(threat.name || "Unknown").toUpperCase()}`;
+    const responseButton = threat.quarantined
+        ? `<button class="btn-console" style="border-color: var(--green); color: var(--green);" onclick="releaseHost('${escapeHtml(threat.host || "")}')">RELEASE</button>`
+        : `<button class="btn-console" style="border-color: var(--red); color: var(--red);" onclick="quarantineHost('${escapeHtml(threat.host || "")}')">QUARANTINE</button>`;
     body.innerHTML = `
         <div style="font-family: var(--font-mono); font-size: 0.85rem;">
             <p style="margin-bottom: 1rem; color: #8892a4;">[SUMMARY]: ${escapeHtml(threat.detail || "No summary available.")}</p>
@@ -931,7 +975,7 @@ function openModal(threat) {
             <div style="margin-top: 2rem; display: flex; flex-wrap: wrap; gap: 10px;">
                 <button class="btn-console" onclick="exportReport('csv', { host: '${threat.host || ""}' })">EXPORT_CSV</button>
                 <button class="btn-console" onclick="lookupCVE('${threat.cve_id || ""}')">LOOKUP_CVE</button>
-                <button class="btn-console" style="border-color: var(--red); color: var(--red);" onclick="quarantineHost('${escapeHtml(threat.host || "")}')">QUARANTINE</button>
+                ${responseButton}
             </div>
         </div>
     `;
@@ -1165,54 +1209,119 @@ function renderDonutCanvas(canvas, data) {
     draw();
 }
 
+function drawRoundedRectPath(ctx, x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + width - r, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+    ctx.lineTo(x + width, y + height - r);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+    ctx.lineTo(x + r, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+}
+
+function updateTimelineEmptyState(hasIncidents, label = "NO_INCIDENTS_LOGGED", hint = "Timeline will populate after scans detect threats") {
+    const empty = document.getElementById("timelineEmpty");
+    if (!empty) return;
+
+    empty.classList.toggle("is-hidden", hasIncidents);
+
+    const labelEl = empty.querySelector(".timeline-empty__label");
+    const hintEl = empty.querySelector(".timeline-empty__hint");
+    if (labelEl) labelEl.textContent = label;
+    if (hintEl) hintEl.textContent = hint;
+}
+
 function drawTimeline(days, timeline) {
     const canvas = document.getElementById("timelineChart");
     if (!canvas) return;
 
+    const safeDays = Array.isArray(days) && days.length ? days : Array.from({ length: 7 }, (_, i) => {
+        const d = new Date();
+        d.setDate(d.getDate() - (6 - i));
+        return d.toISOString().slice(0, 10);
+    });
+    const safeTimeline = timeline && typeof timeline === "object" ? timeline : {};
     const dpr = window.devicePixelRatio || 1;
     const parent = canvas.parentElement;
     const rect = parent.getBoundingClientRect();
+    const width = Math.max(1, Math.floor(rect.width || parent.clientWidth || 320));
+    const height = Math.max(220, Math.floor(rect.height || parent.clientHeight || 220));
 
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `${rect.height}px`;
+    canvas.width = width * dpr;
+    canvas.height = height * dpr;
+    canvas.style.width = `${width}px`;
+    canvas.style.height = `${height}px`;
 
     const ctx = canvas.getContext("2d");
     ctx.scale(dpr, dpr);
 
-    const w = rect.width;
-    const h = rect.height;
-    const margin = 50;
-    const bottomPadding = 40;
-    const chartH = h - bottomPadding - 30;
+    const w = width;
+    const h = height;
+    const margin = Math.min(54, Math.max(26, w * 0.07));
+    const bottomPadding = 38;
+    const chartTop = 24;
+    const chartH = h - bottomPadding - chartTop;
     const chartW = w - (margin * 2);
+    const totals = safeDays.map(day => {
+        const counts = safeTimeline[day] || {};
+        return ['critical', 'high', 'medium', 'low'].reduce((sum, sev) => sum + (Number(counts[sev]) || 0), 0);
+    });
+    const hasIncidents = totals.some(total => total > 0);
+    updateTimelineEmptyState(hasIncidents);
 
     ctx.clearRect(0, 0, w, h);
 
+    const bg = ctx.createLinearGradient(0, 0, 0, h);
+    bg.addColorStop(0, "rgba(0, 240, 255, 0.035)");
+    bg.addColorStop(1, "rgba(0, 0, 0, 0)");
+    ctx.fillStyle = bg;
+    ctx.fillRect(margin, chartTop, chartW, chartH);
+
     // 1. Grid lines
-    ctx.strokeStyle = "rgba(0, 240, 255, 0.05)";
+    ctx.strokeStyle = "rgba(0, 240, 255, 0.12)";
     ctx.lineWidth = 1;
     for (let i = 0; i <= 4; i++) {
-        const py = 20 + (chartH / 4) * i;
+        const py = chartTop + (chartH / 4) * i;
         ctx.beginPath();
         ctx.moveTo(margin, py);
         ctx.lineTo(w - margin, py);
         ctx.stroke();
     }
 
-    // 2. Bars
-    const maxVal = Math.max(...Object.values(timeline).map(v => Object.values(v).reduce((a, b) => a + b, 0)), 5);
-    const barW = Math.min(35, (chartW / days.length) * 0.5);
-    const spacing = (chartW - (days.length * barW)) / (days.length + 1);
+    ctx.strokeStyle = "rgba(0, 240, 255, 0.24)";
+    ctx.beginPath();
+    ctx.moveTo(margin, h - bottomPadding);
+    ctx.lineTo(w - margin, h - bottomPadding);
+    ctx.stroke();
 
-    days.forEach((day, i) => {
-        const counts = timeline[day] || {};
+    // 2. Bars
+    const maxVal = Math.max(...totals, 5);
+    const barW = Math.min(38, Math.max(16, (chartW / safeDays.length) * 0.48));
+    const spacing = (chartW - (safeDays.length * barW)) / (safeDays.length + 1);
+
+    safeDays.forEach((day, i) => {
+        const counts = safeTimeline[day] || {};
         const px = margin + spacing + (i * (barW + spacing));
         let currentY = h - bottomPadding;
 
+        if (!hasIncidents) {
+            const ghostH = 18 + ((i % 3) * 8);
+            const py = currentY - ghostH;
+            ctx.fillStyle = "rgba(0, 240, 255, 0.08)";
+            ctx.strokeStyle = "rgba(0, 240, 255, 0.16)";
+            ctx.lineWidth = 1;
+            drawRoundedRectPath(ctx, px, py, barW, ghostH, 4);
+            ctx.fill();
+            ctx.stroke();
+        }
+
         ['low', 'medium', 'high', 'critical'].forEach(sev => {
-            const val = counts[sev] || 0;
+            const val = Number(counts[sev]) || 0;
             if (val > 0) {
                 const segH = (val / maxVal) * chartH;
                 const py = currentY - segH;
@@ -1254,6 +1363,19 @@ function drawTimeline(days, timeline) {
         ctx.textAlign = "center";
         ctx.fillText(day.split("-").pop(), px + barW / 2, h - 15);
     });
+
+    if (!hasIncidents) {
+        ctx.save();
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "rgba(0, 240, 255, 0.82)";
+        ctx.font = "bold 13px 'Share Tech Mono'";
+        ctx.fillText("NO_INCIDENTS_LOGGED", w / 2, chartTop + chartH * 0.42);
+        ctx.fillStyle = "rgba(136, 146, 164, 0.75)";
+        ctx.font = "11px 'Share Tech Mono'";
+        ctx.fillText("Timeline will populate after scans detect threats", w / 2, chartTop + chartH * 0.42 + 22);
+        ctx.restore();
+    }
 }
 // ── v5 UI Expansion ────────────────────────────────────────────────
 function updateHudVitals() {
@@ -1296,17 +1418,7 @@ function setupMissionMapZoomControls() {
     if (mapZoomHandlersBound) return;
 
     const canvas = document.getElementById("missionMap");
-    const zoomInBtn = document.getElementById("mapZoomIn");
-    const zoomOutBtn = document.getElementById("mapZoomOut");
-    const zoomResetBtn = document.getElementById("mapZoomReset");
-    if (!canvas || !zoomInBtn || !zoomOutBtn || !zoomResetBtn) return;
-
-    zoomInBtn.addEventListener("click", () => adjustMissionMapZoom(missionMapView.step));
-    zoomOutBtn.addEventListener("click", () => adjustMissionMapZoom(-missionMapView.step));
-    zoomResetBtn.addEventListener("click", () => {
-        missionMapView.zoom = 1;
-        updateMissionMapHud();
-    });
+    if (!canvas) return;
 
     canvas.addEventListener("wheel", (event) => {
         event.preventDefault();

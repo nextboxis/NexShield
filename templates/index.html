@@ -27,12 +27,13 @@
     <!-- ── Liquid Glass Navigation ───────────────────── -->
     <header class="liquid-nav-shell">
         <nav class="liquid-nav" aria-label="Primary Navigation">
-            <a href="/" class="liquid-nav__brand" aria-label="NexShield Dashboard">
+            <a href="/index" class="liquid-nav__brand" aria-label="NexShield Dashboard">
                 <span class="liquid-nav__glyph" aria-hidden="true">🛡</span>
                 <span>NexShield</span>
             </a>
             <div class="liquid-nav__links">
-                <a href="/" class="liquid-nav__link liquid-nav__link--active">Dashboard</a>
+                <a href="/login" class="liquid-nav__link">Login</a>
+                <a href="/index" class="liquid-nav__link liquid-nav__link--active">Dashboard</a>
                 <a href="#statsGrid" class="liquid-nav__link">Summary</a>
                 <a href="#manualScan" class="liquid-nav__link">Scanner</a>
                 <a href="#hostsGrid" class="liquid-nav__link">Assets</a>
@@ -135,11 +136,6 @@
                             <div class="hud-line">THREAT_PULSE: <span id="mapPulse">STABLE</span></div>
                             <div class="hud-line">ZOOM: <span id="mapZoomValue">100%</span></div>
                         </div>
-                        <div class="map-zoom-controls" role="group" aria-label="Mission Map Zoom Controls">
-                            <button type="button" class="map-zoom-btn" id="mapZoomOut" aria-label="Zoom out">-</button>
-                            <button type="button" class="map-zoom-btn map-zoom-btn--reset" id="mapZoomReset" aria-label="Reset zoom">100%</button>
-                            <button type="button" class="map-zoom-btn" id="mapZoomIn" aria-label="Zoom in">+</button>
-                        </div>
                     </div>
                 </div>
                 
@@ -207,6 +203,10 @@
                     <div class="quad-header">📊 7-DAY_INCIDENT_TIMELINE</div>
                     <div class="timeline-container">
                         <canvas id="timelineChart"></canvas>
+                        <div class="timeline-empty" id="timelineEmpty">
+                            <span class="timeline-empty__label">NO_INCIDENTS_LOGGED</span>
+                            <span class="timeline-empty__hint">Timeline will populate after scans detect threats</span>
+                        </div>
                     </div>
                 </div>
             </div>

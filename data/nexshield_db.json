@@ -1,0 +1,2310 @@
+{
+  "users": {
+    "1": {
+      "username": "Admin",
+      "password_hash": "scrypt:32768:8:1$TC1xKSfh0bYYF7Zz$bb3bb5dcb47652b754ddaa371e8c39eb1abf0d313a5a5282c9f80e8ce9f367c27cda8ba86ee7973dc5a09bae8de10294b881ad645b7164a486772ae647b9f9d2",
+      "role": "admin",
+      "created_at": "2026-05-16T12:52:25.971411+00:00",
+      "_id": "620c3a5b1d91f8261b6f2b0a"
+    },
+    "2": {
+      "username": "testuser",
+      "password_hash": "scrypt:32768:8:1$EVCvupjdSuZT0aHB$40ed024d1f67de6cd974e5895ab444f8a985dbdc3df48660e56543bdfc52f6202f6e3e010fc9f6ea6d033b7caf56b7738587a4f60058ca3452a8308346e1fca4",
+      "role": "analyst",
+      "created_at": "2026-05-16T15:29:00.143185+00:00",
+      "_id": "755a013bf54c195e6c85daae"
+    },
+    "3": {
+      "username": "newop",
+      "password_hash": "scrypt:32768:8:1$mxgsN2kYFyMQfWDo$50cb9dea93e5154e0f9ed66c54b721fbb4ec3f1c3a60b259ff124a6635264d9bce853277111d72cf40b6957ffa90f95766ddb7cb10f2a852f502583df8b8e178",
+      "role": "analyst",
+      "created_at": "2026-05-16T16:30:56.229785+00:00",
+      "_id": "b13d418131b3ceb587fdd44b"
+    }
+  },
+  "activity_log": {
+    "1": {
+      "type": "system",
+      "message": "Operational data reset by 'admin'",
+      "severity": "high",
+      "timestamp": "2026-05-16T14:41:23.376908+00:00",
+      "_id": "f2c524a999efd75913f28598"
+    },
+    "2": {
+      "type": "scan_start",
+      "message": "[SSL] Scan initiated on google.com (ports: 22,80,443,8080,8443,3306,5432,6379,27017,21,25,53,110,143)",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:42:50.613992+00:00",
+      "_id": "a04f9a5244021d4aa55ddc9e"
+    },
+    "3": {
+      "type": "scan_complete",
+      "message": "Scan complete: 1 host(s) found on google.com [ssl]",
+      "severity": "success",
+      "timestamp": "2026-05-16T14:44:10.233943+00:00",
+      "_id": "afb7c0223bcd18a4a3295289"
+    },
+    "4": {
+      "type": "analysis_start",
+      "message": "AI multi-model analysis initiated (9 engines) in background",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:44:17.901211+00:00",
+      "_id": "67d9d682354cb201cad52b3d"
+    },
+    "5": {
+      "type": "analysis_complete",
+      "message": "Pipeline done: 8 threats, 1 hosts scored, 0 deduped",
+      "severity": "success",
+      "timestamp": "2026-05-16T14:44:21.676102+00:00",
+      "_id": "9e74d954933f6c7a9f8b432e"
+    },
+    "6": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:46:30.052570+00:00",
+      "_id": "b7466a50a247b68e09c8cde0"
+    },
+    "7": {
+      "type": "report",
+      "message": "Pentest report generated: 8 threats, 1 hosts",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:46:35.275839+00:00",
+      "_id": "54a8e79673331fc2933fce63"
+    },
+    "8": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:46:53.488848+00:00",
+      "_id": "35aa613ea7e41bc75c54ad3d"
+    },
+    "9": {
+      "type": "report",
+      "message": "Pentest report generated: 8 threats, 1 hosts",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:47:13.261163+00:00",
+      "_id": "d56894d596f5442c875b5d84"
+    },
+    "10": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:47:57.503760+00:00",
+      "_id": "a83bb8bc8ddbf439f3bf58c8"
+    },
+    "11": {
+      "type": "scan_start",
+      "message": "[DEFAULT] Scan initiated on gemini.google.com (ports: 22,80,443,8080,8443,3306,5432,6379,27017,21,25,53,110,143)",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:48:39.939463+00:00",
+      "_id": "4dbc8d67118ab67ce21a532d"
+    },
+    "12": {
+      "type": "analysis_start",
+      "message": "AI multi-model analysis initiated (9 engines) in background",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:49:02.598489+00:00",
+      "_id": "95b3b43de98b908ecfdb715c"
+    },
+    "13": {
+      "type": "analysis_complete",
+      "message": "Pipeline done: 8 threats, 1 hosts scored, 8 deduped",
+      "severity": "success",
+      "timestamp": "2026-05-16T14:49:06.378756+00:00",
+      "_id": "e876897ab05b07272749aebf"
+    },
+    "14": {
+      "type": "scan_complete",
+      "message": "Scan complete: 1 host(s) found on gemini.google.com [default]",
+      "severity": "success",
+      "timestamp": "2026-05-16T14:49:56.364946+00:00",
+      "_id": "90f953ded0df7c5272903a9e"
+    },
+    "15": {
+      "type": "analysis_start",
+      "message": "AI multi-model analysis initiated (9 engines) in background",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:50:01.127564+00:00",
+      "_id": "fa979262a6f1db9f113ead07"
+    },
+    "16": {
+      "type": "analysis_complete",
+      "message": "Pipeline done: 8 threats, 2 hosts scored, 0 deduped",
+      "severity": "success",
+      "timestamp": "2026-05-16T14:50:01.897920+00:00",
+      "_id": "d3753985d783eff0fbec0c1a"
+    },
+    "17": {
+      "type": "report",
+      "message": "Pentest report generated: 16 threats, 2 hosts",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:50:08.940521+00:00",
+      "_id": "9531917af9a871a5ef1f38d5"
+    },
+    "18": {
+      "type": "scan_start",
+      "message": "[VULN] Scan initiated on claude.ai (ports: 22,80,443,8080,8443,3306,5432,6379,27017,21,25,53,110,143)",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:50:43.488319+00:00",
+      "_id": "a9ff8e9cda3c49642ee32099"
+    },
+    "19": {
+      "type": "security",
+      "message": "Host 142.251.156.2 quarantined by admin",
+      "severity": "critical",
+      "timestamp": "2026-05-16T14:51:59.685424+00:00",
+      "_id": "aaaff322506f334b509d614d"
+    },
+    "20": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:52:54.918963+00:00",
+      "_id": "6759fb2297042e5b16318d60"
+    },
+    "21": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:52:56.365232+00:00",
+      "_id": "2a92eb1431c603e9541ad267"
+    },
+    "22": {
+      "type": "report",
+      "message": "Pentest report generated: 16 threats, 2 hosts",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:54:43.731142+00:00",
+      "_id": "124cebaa7eb076f3f0225ad6"
+    },
+    "23": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:55:13.628819+00:00",
+      "_id": "d73cb4bb1266990de9d6adc5"
+    },
+    "24": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:55:15.046055+00:00",
+      "_id": "8a1ff412a80b0b0e8dc41f9b"
+    },
+    "25": {
+      "type": "analysis_start",
+      "message": "AI multi-model analysis initiated (9 engines) in background",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:56:13.371832+00:00",
+      "_id": "bb9d769838d4ce6bee9ea3fa"
+    },
+    "26": {
+      "type": "analysis_complete",
+      "message": "Pipeline done: 8 threats, 2 hosts scored, 8 deduped",
+      "severity": "success",
+      "timestamp": "2026-05-16T14:56:17.343421+00:00",
+      "_id": "9c98bed00c6b5f0294609d01"
+    },
+    "27": {
+      "type": "scan_start",
+      "message": "[DEFAULT] Scan initiated on tryhackeme.com (ports: 22,80,443,8080,8443,3306,5432,6379,27017,21,25,53,110,143)",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:56:30.914623+00:00",
+      "_id": "b0a41c574f4e91e58d164354"
+    },
+    "28": {
+      "type": "report",
+      "message": "Pentest report generated: 16 threats, 2 hosts",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:56:52.024907+00:00",
+      "_id": "816366b89e93bc58ff989caa"
+    },
+    "29": {
+      "type": "security",
+      "message": "Host 142.251.156.2 quarantined by admin",
+      "severity": "critical",
+      "timestamp": "2026-05-16T14:57:31.645363+00:00",
+      "_id": "6439052455bd1c99ebbc9488"
+    },
+    "30": {
+      "type": "scan_complete",
+      "message": "Scan complete: 1 host(s) found on tryhackeme.com [default]",
+      "severity": "success",
+      "timestamp": "2026-05-16T14:57:41.696090+00:00",
+      "_id": "acc9e0cf645cb6e9f61db279"
+    },
+    "31": {
+      "type": "analysis_start",
+      "message": "AI multi-model analysis initiated (9 engines) in background",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:58:55.639209+00:00",
+      "_id": "207eff63584b7a100500457e"
+    },
+    "32": {
+      "type": "analysis_complete",
+      "message": "Pipeline done: 12 threats, 3 hosts scored, 0 deduped",
+      "severity": "success",
+      "timestamp": "2026-05-16T14:58:56.892769+00:00",
+      "_id": "9e09f9cd96c91026737ce623"
+    },
+    "33": {
+      "type": "analysis_start",
+      "message": "ML model training initiated in background",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:59:27.588611+00:00",
+      "_id": "3c23a1036db87c232c062a60"
+    },
+    "34": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T14:59:55.584099+00:00",
+      "_id": "3c2d7b9f871463ccccfca166"
+    },
+    "35": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:00:15.820452+00:00",
+      "_id": "2ef25a36cba3cb52e975f59f"
+    },
+    "36": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:00:39.726575+00:00",
+      "_id": "1f307ecb32ddfe01def5a16d"
+    },
+    "37": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:00:48.324934+00:00",
+      "_id": "9abe19de3813adc49380891e"
+    },
+    "38": {
+      "type": "scan_start",
+      "message": "[DEFAULT] Scan initiated on facebook.com (ports: 22,80,443,8080,8443,3306,5432,6379,27017,21,25,53,110,143)",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:01:05.364781+00:00",
+      "_id": "93701679c442fd45210c7f1a"
+    },
+    "39": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:01:27.917472+00:00",
+      "_id": "256ea3d3a376a02b2c55d881"
+    },
+    "40": {
+      "type": "analysis_start",
+      "message": "AI multi-model analysis initiated (9 engines) in background",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:02:30.285253+00:00",
+      "_id": "e65313a138a133e6d5abfd52"
+    },
+    "41": {
+      "type": "analysis_complete",
+      "message": "Pipeline done: 12 threats, 3 hosts scored, 12 deduped",
+      "severity": "success",
+      "timestamp": "2026-05-16T15:02:34.827926+00:00",
+      "_id": "03c6e1fc7527b207bbbec2e0"
+    },
+    "42": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:03:38.373649+00:00",
+      "_id": "925374baddb2bfa55b7e4f2d"
+    },
+    "43": {
+      "type": "security",
+      "message": "Host 142.251.156.2 released from quarantine by admin",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:03:46.288458+00:00",
+      "_id": "9e77697a1db90309a6d8967a"
+    },
+    "44": {
+      "type": "report",
+      "message": "Pentest report generated: 28 threats, 3 hosts",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:04:46.878124+00:00",
+      "_id": "fd117d8b0223c5d447a1fe94"
+    },
+    "45": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:08:00.744706+00:00",
+      "_id": "44cdd87cb075b48ae69b0fb4"
+    },
+    "46": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:08:02.303065+00:00",
+      "_id": "8668e5fb36c968818f90456e"
+    },
+    "47": {
+      "type": "analysis_start",
+      "message": "ML model training initiated in background",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:10:32.975172+00:00",
+      "_id": "034e741b3e4d48bafd57b685"
+    },
+    "48": {
+      "type": "analysis_complete",
+      "message": "ML model successfully trained on historical data",
+      "severity": "success",
+      "timestamp": "2026-05-16T15:11:04.510601+00:00",
+      "_id": "6312b768ec2d5df3b78595d8"
+    },
+    "49": {
+      "type": "scan_start",
+      "message": "[DEFAULT] Scan initiated on github.com (ports: 22,80,443,8080,8443,3306,5432,6379,27017,21,25,53,110,143)",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:11:12.193694+00:00",
+      "_id": "1fd81bec730be7bf87bdbedb"
+    },
+    "50": {
+      "type": "scan_complete",
+      "message": "Scan complete: 1 host(s) found on github.com [default]",
+      "severity": "success",
+      "timestamp": "2026-05-16T15:11:41.806167+00:00",
+      "_id": "1d56213fef886d53772d8a48"
+    },
+    "51": {
+      "type": "analysis_start",
+      "message": "AI multi-model analysis initiated (9 engines) in background",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:12:03.428945+00:00",
+      "_id": "ae5254446aee187352961b87"
+    },
+    "52": {
+      "type": "analysis_complete",
+      "message": "Pipeline done: 11 threats, 4 hosts scored, 0 deduped",
+      "severity": "success",
+      "timestamp": "2026-05-16T15:12:04.860465+00:00",
+      "_id": "65849f1048b2977ab8a1e536"
+    },
+    "53": {
+      "type": "analysis_start",
+      "message": "ML model training initiated in background",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:12:08.843397+00:00",
+      "_id": "be389b4d95b4321e17768561"
+    },
+    "54": {
+      "type": "analysis_complete",
+      "message": "ML model successfully trained on historical data",
+      "severity": "success",
+      "timestamp": "2026-05-16T15:12:38.257871+00:00",
+      "_id": "1e97b543d1ded25e283e4486"
+    },
+    "55": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:13:15.282439+00:00",
+      "_id": "a2f60b3e62e20acfaa122d05"
+    },
+    "56": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:13:16.811641+00:00",
+      "_id": "2144cbb227654c04b0dc2137"
+    },
+    "57": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:16:37.902566+00:00",
+      "_id": "5eba230442d71a82cc9801ed"
+    },
+    "58": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:16:37.971725+00:00",
+      "_id": "3e4e324449d50d423364045c"
+    },
+    "59": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:16:58.514461+00:00",
+      "_id": "997768564167676a9d93dd26"
+    },
+    "60": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:17:00.087219+00:00",
+      "_id": "c45f2a61be25a5edd03bcecd"
+    },
+    "61": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:24:27.182520+00:00",
+      "_id": "f64d4f27e4477183b1446135"
+    },
+    "62": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:24:28.768039+00:00",
+      "_id": "dc6dbf6a0c0ae2c2e5eb873f"
+    },
+    "63": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:27:19.373877+00:00",
+      "_id": "5a30bf15b2759df86a9f09b0"
+    },
+    "64": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:27:20.956043+00:00",
+      "_id": "6099c8a6bb1197eb3faf8120"
+    },
+    "65": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:27:52.126001+00:00",
+      "_id": "431282e257f7e19b70101cd4"
+    },
+    "66": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:27:53.842770+00:00",
+      "_id": "24d812371bd9b5507ef01dba"
+    },
+    "67": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:32:02.169392+00:00",
+      "_id": "c50eb4896433c5145e1f6c9e"
+    },
+    "68": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:32:02.214199+00:00",
+      "_id": "ca2764115c8bc5b2ebdce861"
+    },
+    "69": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:32:15.167443+00:00",
+      "_id": "bc6a30762842519643a66a0e"
+    },
+    "70": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:32:15.211098+00:00",
+      "_id": "6f4773799e37a35e51668978"
+    },
+    "71": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:32:54.644336+00:00",
+      "_id": "3ffd5c3cbadf9fb33e5bffe8"
+    },
+    "72": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:32:54.686623+00:00",
+      "_id": "5273b55b64a0131e5a7ba865"
+    },
+    "73": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:34:52.894314+00:00",
+      "_id": "a6b23dcb4ce3de12cf7ad304"
+    },
+    "74": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T15:34:52.935476+00:00",
+      "_id": "e67ba6f5a66a7aa378ba4816"
+    },
+    "75": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:13:21.924051+00:00",
+      "_id": "6cd4dc976c1c59ada20574d0"
+    },
+    "76": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:13:23.657497+00:00",
+      "_id": "3a3e144b0500254a70e466e8"
+    },
+    "77": {
+      "type": "auth",
+      "message": "User 'admin' logged in from 127.0.0.1",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:13:26.351667+00:00",
+      "_id": "8244ba6c3d492f858270ea8f"
+    },
+    "78": {
+      "type": "security",
+      "message": "Failed login attempt for 'admin' from 127.0.0.1",
+      "severity": "warning",
+      "timestamp": "2026-05-16T16:13:35.059799+00:00",
+      "_id": "2b6db38fc804127c6c8f1608"
+    },
+    "79": {
+      "type": "security",
+      "message": "Failed login attempt for 'admin' from 127.0.0.1",
+      "severity": "warning",
+      "timestamp": "2026-05-16T16:13:42.409459+00:00",
+      "_id": "343ee26636104c1d6ceaaa60"
+    },
+    "80": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:16:28.764638+00:00",
+      "_id": "9d9284b7556e05123ca3f428"
+    },
+    "81": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:16:33.028610+00:00",
+      "_id": "73bc6bf529d683dc60f3528a"
+    },
+    "82": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:16:36.124267+00:00",
+      "_id": "ab3f8033f975ebb38ef9130f"
+    },
+    "83": {
+      "type": "security",
+      "message": "Blocked unauthorized WebSocket connection (IP: 127.0.0.1)",
+      "severity": "high",
+      "timestamp": "2026-05-16T16:17:00.042276+00:00",
+      "_id": "f14f7a3aa954ae99bc9fb412"
+    },
+    "84": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:17:02.132252+00:00",
+      "_id": "a2eb8aec5b1560a8c3924975"
+    },
+    "85": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:17:07.370805+00:00",
+      "_id": "827feb83c5f1567ec0964999"
+    },
+    "86": {
+      "type": "auth",
+      "message": "User 'admin' logged in from 127.0.0.1",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:17:15.852072+00:00",
+      "_id": "afa1a5303ef7ca8b8f804a75"
+    },
+    "87": {
+      "type": "auth",
+      "message": "User 'admin' logged in from 127.0.0.1",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:17:16.101058+00:00",
+      "_id": "4a4a7bb1ca5cdef9c1f9864b"
+    },
+    "88": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:22:29.173276+00:00",
+      "_id": "3d8b5298acbf29bae6b342f8"
+    },
+    "89": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:22:32.941495+00:00",
+      "_id": "0596e5df5f009ad19d03a911"
+    },
+    "90": {
+      "type": "security",
+      "message": "Blocked unauthorized WebSocket connection (IP: 127.0.0.1)",
+      "severity": "high",
+      "timestamp": "2026-05-16T16:22:33.130508+00:00",
+      "_id": "6809543cbea931798cb2d92e"
+    },
+    "91": {
+      "type": "auth",
+      "message": "User 'admin' logged in from 127.0.0.1",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:22:38.104491+00:00",
+      "_id": "31ca76f0b9c4e4d7c5cdb681"
+    },
+    "92": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:22:40.983955+00:00",
+      "_id": "10b6053cff957fe6dceeff44"
+    },
+    "93": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:22:45.677797+00:00",
+      "_id": "520582b73f072eba04bc0d88"
+    },
+    "94": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:22:49.763242+00:00",
+      "_id": "8b97d721a005dc39fecaaa18"
+    },
+    "95": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:23:01.519949+00:00",
+      "_id": "85f75fca59c44c1ab33b3957"
+    },
+    "96": {
+      "type": "auth",
+      "message": "User 'Admin' logged in from 127.0.0.1",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:23:01.831510+00:00",
+      "_id": "620fcfeaa4cc2caf0d5d16c2"
+    },
+    "97": {
+      "type": "auth",
+      "message": "User 'Admin' logged in from 127.0.0.1",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:23:09.435739+00:00",
+      "_id": "676b99b0a04fd33ffa00ea88"
+    },
+    "98": {
+      "type": "auth",
+      "message": "User 'admin' logged in from 127.0.0.1",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:23:09.938113+00:00",
+      "_id": "94357353c63863fe02bc4620"
+    },
+    "99": {
+      "type": "test",
+      "message": "test 0",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:23:19.063222+00:00",
+      "_id": "b9597a999f5b03c45b264efc"
+    },
+    "100": {
+      "type": "test",
+      "message": "test 1",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:23:19.070175+00:00",
+      "_id": "5905cd549aea462ae5d9554f"
+    },
+    "101": {
+      "type": "test",
+      "message": "test 2",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:23:19.073816+00:00",
+      "_id": "574361d05cf77e06327c1787"
+    },
+    "102": {
+      "type": "test",
+      "message": "test 3",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:23:19.076916+00:00",
+      "_id": "49085c29dd76fe4a1b3d9e7b"
+    },
+    "103": {
+      "type": "test",
+      "message": "test 4",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:23:19.079817+00:00",
+      "_id": "e4441833217aa92cc11968f2"
+    },
+    "104": {
+      "type": "analysis_complete",
+      "message": "Pipeline done: 10 threats, 4 hosts scored, 10 deduped",
+      "severity": "success",
+      "timestamp": "2026-05-16T16:25:57.220806+00:00",
+      "_id": "5d09158708a754c918df547e"
+    },
+    "105": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:27:01.333762+00:00",
+      "_id": "e071f8dd04bd72ae0728a156"
+    },
+    "106": {
+      "type": "security",
+      "message": "Blocked unauthorized WebSocket connection (IP: 127.0.0.1)",
+      "severity": "high",
+      "timestamp": "2026-05-16T16:27:01.459826+00:00",
+      "_id": "2c91cb81bd17342a80629656"
+    },
+    "107": {
+      "type": "security",
+      "message": "Blocked unauthorized WebSocket connection (IP: 127.0.0.1)",
+      "severity": "high",
+      "timestamp": "2026-05-16T16:27:01.467273+00:00",
+      "_id": "ef01f6c3009baf69d05ac1e5"
+    },
+    "108": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:27:11.986757+00:00",
+      "_id": "30644fe16f08d791525a6d05"
+    },
+    "109": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:27:15.694158+00:00",
+      "_id": "07fd820e141bd55c8ca05c90"
+    },
+    "110": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:27:21.404744+00:00",
+      "_id": "8c3757d15b76d2248675d9fa"
+    },
+    "111": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:27:25.466117+00:00",
+      "_id": "cddb2dfc50e588d499051a17"
+    },
+    "112": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:27:45.263078+00:00",
+      "_id": "2f3e01f8b7c9e607d82e24a2"
+    },
+    "113": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:28:59.309048+00:00",
+      "_id": "0d6566b27fab86872f656ca7"
+    },
+    "114": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:29:02.956814+00:00",
+      "_id": "40f3ebba1c0a1789ab2f0191"
+    },
+    "115": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:29:07.038918+00:00",
+      "_id": "77ad4704839546ef3ca1f441"
+    },
+    "116": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:29:12.454387+00:00",
+      "_id": "f15c34fdda2ef55a7894d2ac"
+    },
+    "117": {
+      "type": "auth",
+      "message": "User 'Admin' logged in from 127.0.0.1",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:29:17.351193+00:00",
+      "_id": "6faf681eebf78d93ca93fa4f"
+    },
+    "118": {
+      "type": "auth",
+      "message": "New user registered: newop",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:30:56.235919+00:00",
+      "_id": "50ee6694bd66c3d74c28aa25"
+    },
+    "119": {
+      "type": "report",
+      "message": "Pentest report generated: 39 threats, 4 hosts",
+      "severity": "info",
+      "timestamp": "2026-05-16T16:35:33.420322+00:00",
+      "_id": "dd9a9862870b07b7e831ed6e"
+    }
+  },
+  "network_scans": {
+    "1": {
+      "scan_id": "20260516_144250",
+      "target": "google.com",
+      "ports": "22,80,443,8080,8443,3306,5432,6379,27017,21,25,53,110,143",
+      "scan_type": "ssl",
+      "scan_args": "-sV --script=ssl-enum-ciphers,ssl-cert -T3",
+      "host": "142.251.222.110",
+      "hostname": "google.com",
+      "state": "up",
+      "protocols": [
+        {
+          "protocol": "tcp",
+          "ports": [
+            {
+              "port": 21,
+              "state": "filtered",
+              "service": "ftp",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 22,
+              "state": "filtered",
+              "service": "ssh",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 25,
+              "state": "filtered",
+              "service": "smtp",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 53,
+              "state": "filtered",
+              "service": "domain",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 80,
+              "state": "open",
+              "service": "http",
+              "version": "",
+              "product": "gws",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "syn-ack",
+              "scripts": {
+                "fingerprint-strings": "\n  GetRequest: \n    HTTP/1.0 200 OK\n    Content-Type: text/html; charset=ISO-8859-1\n    Date: Sat, 16 May 2026 14:43:01 GMT\n    Expires: -1\n    Cache-Control: private, max-age=0\n    Content-Security-Policy-Report-Only: object-src 'none';base-uri 'self';script-src 'nonce-4dvXIqdtUEW4h-sjnmpSTA' 'strict-dynamic' 'report-sample' 'unsafe-eval' 'unsafe-inline' https: http:;report-uri https://csp.withgoogle.com/csp/gws/other-hp\n    P3P: CP=\"This is not a P3P policy! See g.co/p3phelp for more info.\"\n  ",
+                "http-server-header": "gws"
+              }
+            },
+            {
+              "port": 110,
+              "state": "filtered",
+              "service": "pop3",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 143,
+              "state": "filtered",
+              "service": "imap",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 443,
+              "state": "open",
+              "service": "https",
+              "version": "",
+              "product": "gws",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "syn-ack",
+              "scripts": {
+                "fingerprint-strings": "\n  GetRequest: \n    HTTP/1.0 200 OK\n    Content-Type: text/html; charset=ISO-8859-1\n    Date: Sat, 16 May 2026 14:43:07 GMT\n    Expires: -1\n    Cache-Control: private, max-age=0\n    Content-Security-Policy-Report-Only: object-src 'none';base-uri 'self';script-src 'nonce-HFbvSZDEDGd2RI8c8AEYDw' 'strict-dynamic' 'report-sample' 'unsafe-eval' 'unsafe-inline' https: http:;report-uri https://csp.withgoogle.com/csp/gws/other-hp\n    Accept-CH: Sec-CH-Prefers-Color-Scheme\n    P3P: CP=\"This is not a P3P ",
+                "ssl-cert": "Subject: commonName=*.google.com\nSubject Alternative Name: DNS:*.google.com, DNS:*.appengine.google.com, DNS:*.bdn.dev, DNS:*.origin-test.bdn.dev, DNS:*.cloud.google.com, DNS:*.crowdsource.google.com, DNS:*.datacompute.google.com, DNS:*.google.ca, DNS:*.google.cl, DNS:*.google.co.in, DNS:*.google.co.jp, DNS:*.google.co.uk, DNS:*.google.com.ar, DNS:*.google.com.au, DNS:*.google.com.br, DNS:*.google.com.co, DNS:*.google.com.mx, DNS:*.google.com.tr, DNS:*.google.com.vn, DNS:*.google.de, DNS:*.googl",
+                "http-server-header": "gws",
+                "ssl-enum-ciphers": "\n  TLSv1.0: \n    ciphers: \n      TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA (ecdh_x25519) - A\n      TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA (ecdh_x25519) - A\n      TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA (ecdh_x25519) - A\n      TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA (ecdh_x25519) - A\n      TLS_RSA_WITH_AES_128_CBC_SHA (rsa 2048) - A\n      TLS_RSA_WITH_AES_256_CBC_SHA (rsa 2048) - A\n      TLS_RSA_WITH_3DES_EDE_CBC_SHA (rsa 2048) - C\n    compressors: \n      NULL\n    cipher preference: server\n    warnings: \n      64"
+              }
+            },
+            {
+              "port": 3306,
+              "state": "filtered",
+              "service": "mysql",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 5432,
+              "state": "filtered",
+              "service": "postgresql",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 6379,
+              "state": "filtered",
+              "service": "redis",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 8080,
+              "state": "filtered",
+              "service": "http-proxy",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 8443,
+              "state": "filtered",
+              "service": "https-alt",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 27017,
+              "state": "filtered",
+              "service": "mongod",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            }
+          ]
+        }
+      ],
+      "open_port_count": 2,
+      "services_detected": [
+        "http",
+        "https"
+      ],
+      "scan_duration_sec": 79.52,
+      "nmap_version": "7.99",
+      "scanned_at": "2026-05-16T14:44:10.230262+00:00",
+      "_id": "4a2e800e8e771ac2c3a747c5"
+    },
+    "2": {
+      "scan_id": "20260516_144840",
+      "target": "gemini.google.com",
+      "ports": "22,80,443,8080,8443,3306,5432,6379,27017,21,25,53,110,143",
+      "scan_type": "default",
+      "scan_args": "-sV -T4",
+      "host": "142.251.156.2",
+      "hostname": "gemini.google.com",
+      "state": "up",
+      "protocols": [
+        {
+          "protocol": "tcp",
+          "ports": [
+            {
+              "port": 21,
+              "state": "filtered",
+              "service": "ftp",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 22,
+              "state": "filtered",
+              "service": "ssh",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 25,
+              "state": "filtered",
+              "service": "smtp",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 53,
+              "state": "filtered",
+              "service": "domain",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 80,
+              "state": "open",
+              "service": "http",
+              "version": "",
+              "product": "gws",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "syn-ack"
+            },
+            {
+              "port": 110,
+              "state": "filtered",
+              "service": "pop3",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 143,
+              "state": "filtered",
+              "service": "imap",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 443,
+              "state": "open",
+              "service": "https",
+              "version": "",
+              "product": "gws",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "syn-ack"
+            },
+            {
+              "port": 3306,
+              "state": "filtered",
+              "service": "mysql",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 5432,
+              "state": "filtered",
+              "service": "postgresql",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 6379,
+              "state": "filtered",
+              "service": "redis",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 8080,
+              "state": "filtered",
+              "service": "http-proxy",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 8443,
+              "state": "filtered",
+              "service": "https-alt",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 27017,
+              "state": "filtered",
+              "service": "mongod",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            }
+          ]
+        }
+      ],
+      "open_port_count": 2,
+      "services_detected": [
+        "http",
+        "https"
+      ],
+      "scan_duration_sec": 76.33,
+      "nmap_version": "7.99",
+      "scanned_at": "2026-05-16T14:49:56.360059+00:00",
+      "_id": "9565038fd785c511aef28044"
+    },
+    "3": {
+      "scan_id": "20260516_145631",
+      "target": "tryhackeme.com",
+      "ports": "22,80,443,8080,8443,3306,5432,6379,27017,21,25,53,110,143",
+      "scan_type": "default",
+      "scan_args": "-sV -T4",
+      "host": "148.72.141.44",
+      "hostname": "tryhackeme.com",
+      "state": "up",
+      "protocols": [
+        {
+          "protocol": "tcp",
+          "ports": [
+            {
+              "port": 21,
+              "state": "filtered",
+              "service": "ftp",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 22,
+              "state": "filtered",
+              "service": "ssh",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 25,
+              "state": "filtered",
+              "service": "smtp",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 53,
+              "state": "filtered",
+              "service": "domain",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 80,
+              "state": "open",
+              "service": "http",
+              "version": "",
+              "product": "nginx",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "syn-ack"
+            },
+            {
+              "port": 110,
+              "state": "filtered",
+              "service": "pop3",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 143,
+              "state": "filtered",
+              "service": "imap",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 443,
+              "state": "open",
+              "service": "https",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "syn-ack"
+            },
+            {
+              "port": 3306,
+              "state": "filtered",
+              "service": "mysql",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 5432,
+              "state": "filtered",
+              "service": "postgresql",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 6379,
+              "state": "filtered",
+              "service": "redis",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 8080,
+              "state": "open",
+              "service": "http-proxy",
+              "version": "",
+              "product": "nginx",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "syn-ack"
+            },
+            {
+              "port": 8443,
+              "state": "filtered",
+              "service": "https-alt",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 27017,
+              "state": "filtered",
+              "service": "mongod",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            }
+          ]
+        }
+      ],
+      "open_port_count": 3,
+      "services_detected": [
+        "http",
+        "https",
+        "http-proxy"
+      ],
+      "scan_duration_sec": 70.67,
+      "nmap_version": "7.99",
+      "scanned_at": "2026-05-16T14:57:41.689425+00:00",
+      "_id": "5950cf35fcef8e644d546827"
+    },
+    "4": {
+      "scan_id": "20260516_151112",
+      "target": "github.com",
+      "ports": "22,80,443,8080,8443,3306,5432,6379,27017,21,25,53,110,143",
+      "scan_type": "default",
+      "scan_args": "-sV -T4",
+      "host": "20.207.73.82",
+      "hostname": "github.com",
+      "state": "up",
+      "protocols": [
+        {
+          "protocol": "tcp",
+          "ports": [
+            {
+              "port": 21,
+              "state": "filtered",
+              "service": "ftp",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 22,
+              "state": "open",
+              "service": "ssh",
+              "version": "",
+              "product": "",
+              "extrainfo": "protocol 2.0",
+              "cpe": "",
+              "reason": "syn-ack"
+            },
+            {
+              "port": 25,
+              "state": "filtered",
+              "service": "smtp",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 53,
+              "state": "filtered",
+              "service": "domain",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 80,
+              "state": "open",
+              "service": "http",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "syn-ack"
+            },
+            {
+              "port": 110,
+              "state": "filtered",
+              "service": "pop3",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 143,
+              "state": "filtered",
+              "service": "imap",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 443,
+              "state": "open",
+              "service": "https",
+              "version": "",
+              "product": "github.com",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "syn-ack"
+            },
+            {
+              "port": 3306,
+              "state": "filtered",
+              "service": "mysql",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 5432,
+              "state": "filtered",
+              "service": "postgresql",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 6379,
+              "state": "filtered",
+              "service": "redis",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 8080,
+              "state": "filtered",
+              "service": "http-proxy",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 8443,
+              "state": "filtered",
+              "service": "https-alt",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            },
+            {
+              "port": 27017,
+              "state": "filtered",
+              "service": "mongod",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "no-response"
+            }
+          ]
+        }
+      ],
+      "open_port_count": 3,
+      "services_detected": [
+        "ssh",
+        "http",
+        "https"
+      ],
+      "scan_duration_sec": 29.5,
+      "nmap_version": "7.99",
+      "scanned_at": "2026-05-16T15:11:41.799804+00:00",
+      "_id": "e4852788ca5b1d9e7260122c"
+    }
+  },
+  "threats": {
+    "17": {
+      "name": "HTTP Unencrypted",
+      "severity": "low",
+      "host": "142.251.222.110",
+      "cve_id": "SCAN-80-142_251_222_110",
+      "source": "PortRisk-Engine-v2",
+      "detail": "Port 80/tcp open \u2014 http gws",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T14:49:02.604777+00:00",
+      "_id": "f171f3ed669654708679edff",
+      "host_risk_score": 69.0,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T14:49:06.344539+00:00"
+    },
+    "18": {
+      "name": "Unknown Version: gws",
+      "severity": "medium",
+      "host": "142.251.222.110",
+      "cve_id": "VER-80-142_251_222_110",
+      "source": "VersionVuln-Engine-v3",
+      "detail": "gws on port 80 has no version \u2014 may be outdated.",
+      "tags": [
+        "version",
+        "patch"
+      ],
+      "detected_at": "2026-05-16T14:49:02.604893+00:00",
+      "_id": "20c97189f4871a0f16450091",
+      "host_risk_score": 69.0,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T14:49:06.348744+00:00"
+    },
+    "19": {
+      "name": "ATT&CK: Application Layer Protocol: Web",
+      "severity": "medium",
+      "host": "142.251.222.110",
+      "cve_id": "MITRE-T1071.001-142_251_222_110",
+      "source": "MitreMap-Engine-v1",
+      "detail": "Port 80/tcp enables MITRE ATT&CK technique T1071.001 (Application Layer Protocol: Web). Service: http gws",
+      "tags": [
+        "mitre",
+        "attack",
+        "T1071.001"
+      ],
+      "detected_at": "2026-05-16T14:49:02.608181+00:00",
+      "_id": "b5f166a86f5bab6b79d48769",
+      "host_risk_score": 69.0,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T14:49:06.353648+00:00"
+    },
+    "20": {
+      "name": "AI Predicted: Critical Risk (Moderate Confidence)",
+      "severity": "critical",
+      "host": "142.251.222.110",
+      "cve_id": "AI-80-142_251_222_110",
+      "source": "ML-Predict-Engine-v4",
+      "detail": "Advanced ML Engine predicted critical risk with 61.7% calibrated confidence. Service: gws ",
+      "tags": [
+        "machine_learning",
+        "ai_predicted",
+        "confidence_moderate"
+      ],
+      "detected_at": "2026-05-16T14:49:05.865811+00:00",
+      "_id": "932920705a593e3d6d7cc15b",
+      "host_risk_score": 69.0,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T14:49:06.357571+00:00"
+    },
+    "21": {
+      "name": "Unencrypted: HTTP without TLS",
+      "severity": "high",
+      "host": "142.251.222.110",
+      "cve_id": "ENC-80-142_251_222_110",
+      "source": "Encryption-Engine-v1",
+      "detail": "HTTP without TLS on port 80. Upgrade to port 443 or enable TLS. Unencrypted traffic can be intercepted via MITM attacks.",
+      "tags": [
+        "encryption",
+        "hardening",
+        "cleartext"
+      ],
+      "detected_at": "2026-05-16T14:49:05.870282+00:00",
+      "_id": "6b9b17e6eb655dc72e079d71",
+      "host_risk_score": 69.0,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T14:49:06.362004+00:00"
+    },
+    "22": {
+      "name": "HTTPS Service",
+      "severity": "info",
+      "host": "142.251.222.110",
+      "cve_id": "SCAN-443-142_251_222_110",
+      "source": "PortRisk-Engine-v2",
+      "detail": "Port 443/tcp open \u2014 https gws",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T14:49:05.870359+00:00",
+      "_id": "f04103beb66a6d57768b00fc",
+      "host_risk_score": 69.0,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T14:49:06.365838+00:00"
+    },
+    "23": {
+      "name": "Unknown Version: gws",
+      "severity": "medium",
+      "host": "142.251.222.110",
+      "cve_id": "VER-443-142_251_222_110",
+      "source": "VersionVuln-Engine-v3",
+      "detail": "gws on port 443 has no version \u2014 may be outdated.",
+      "tags": [
+        "version",
+        "patch"
+      ],
+      "detected_at": "2026-05-16T14:49:05.870372+00:00",
+      "_id": "9dc93f8fa81a720399ae7740",
+      "host_risk_score": 69.0,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T14:49:06.370725+00:00"
+    },
+    "24": {
+      "name": "AI Predicted: Critical Risk (Moderate Confidence)",
+      "severity": "critical",
+      "host": "142.251.222.110",
+      "cve_id": "AI-443-142_251_222_110",
+      "source": "ML-Predict-Engine-v4",
+      "detail": "Advanced ML Engine predicted critical risk with 63.1% calibrated confidence. Service: gws ",
+      "tags": [
+        "machine_learning",
+        "ai_predicted",
+        "confidence_moderate"
+      ],
+      "detected_at": "2026-05-16T14:49:06.308545+00:00",
+      "_id": "f1d69fc85896d96936857916",
+      "host_risk_score": 69.0,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T14:49:06.374948+00:00"
+    },
+    "33": {
+      "name": "HTTP Unencrypted",
+      "severity": "low",
+      "host": "142.251.156.2",
+      "cve_id": "SCAN-80-142_251_156_2",
+      "source": "PortRisk-Engine-v2",
+      "detail": "Port 80/tcp open \u2014 http gws",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T14:56:13.379252+00:00",
+      "_id": "5819270ae7d2686251cd4327",
+      "host_risk_score": 32.5,
+      "host_risk_level": "high",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T14:56:17.302585+00:00"
+    },
+    "34": {
+      "name": "Unknown Version: gws",
+      "severity": "low",
+      "host": "142.251.156.2",
+      "cve_id": "VER-80-142_251_156_2",
+      "source": "VersionVuln-Engine-v3",
+      "detail": "[RELEASED] Legacy quarantine marker cleared. Re-run analysis to refresh original finding detail.",
+      "tags": [
+        "version",
+        "patch"
+      ],
+      "detected_at": "2026-05-16T14:56:13.379370+00:00",
+      "_id": "404bc2d9626d0c7376255884",
+      "host_risk_score": 32.5,
+      "host_risk_level": "high",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T14:56:17.307808+00:00",
+      "quarantined": false,
+      "released_at": "2026-05-16T15:03:46.260285+00:00",
+      "released_by": "admin",
+      "response_status": "active"
+    },
+    "35": {
+      "name": "ATT&CK: Application Layer Protocol: Web",
+      "severity": "low",
+      "host": "142.251.156.2",
+      "cve_id": "MITRE-T1071.001-142_251_156_2",
+      "source": "MitreMap-Engine-v1",
+      "detail": "[RELEASED] Legacy quarantine marker cleared. Re-run analysis to refresh original finding detail.",
+      "tags": [
+        "mitre",
+        "attack",
+        "T1071.001"
+      ],
+      "detected_at": "2026-05-16T14:56:13.382315+00:00",
+      "_id": "902141ff3dd45690c4e4b07a",
+      "host_risk_score": 32.5,
+      "host_risk_level": "high",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T14:56:17.312993+00:00",
+      "quarantined": false,
+      "released_at": "2026-05-16T15:03:46.260285+00:00",
+      "released_by": "admin",
+      "response_status": "active"
+    },
+    "36": {
+      "name": "AI Predicted: Critical Risk (Moderate Confidence)",
+      "severity": "low",
+      "host": "142.251.156.2",
+      "cve_id": "AI-80-142_251_156_2",
+      "source": "ML-Predict-Engine-v4",
+      "detail": "[RELEASED] Legacy quarantine marker cleared. Re-run analysis to refresh original finding detail.",
+      "tags": [
+        "machine_learning",
+        "ai_predicted",
+        "confidence_moderate"
+      ],
+      "detected_at": "2026-05-16T14:56:16.834611+00:00",
+      "_id": "f02252a1d58ee28031a7c3c9",
+      "host_risk_score": 32.5,
+      "host_risk_level": "high",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T14:56:17.318004+00:00",
+      "quarantined": false,
+      "released_at": "2026-05-16T15:03:46.260285+00:00",
+      "released_by": "admin",
+      "response_status": "active"
+    },
+    "37": {
+      "name": "Unencrypted: HTTP without TLS",
+      "severity": "low",
+      "host": "142.251.156.2",
+      "cve_id": "ENC-80-142_251_156_2",
+      "source": "Encryption-Engine-v1",
+      "detail": "[RELEASED] Legacy quarantine marker cleared. Re-run analysis to refresh original finding detail.",
+      "tags": [
+        "encryption",
+        "hardening",
+        "cleartext"
+      ],
+      "detected_at": "2026-05-16T14:56:16.840710+00:00",
+      "_id": "58e747de8675d59a1b8a6f30",
+      "host_risk_score": 32.5,
+      "host_risk_level": "high",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T14:56:17.323061+00:00",
+      "quarantined": false,
+      "released_at": "2026-05-16T15:03:46.260285+00:00",
+      "released_by": "admin",
+      "response_status": "active"
+    },
+    "38": {
+      "name": "HTTPS Service",
+      "severity": "low",
+      "host": "142.251.156.2",
+      "cve_id": "SCAN-443-142_251_156_2",
+      "source": "PortRisk-Engine-v2",
+      "detail": "[RELEASED] Legacy quarantine marker cleared. Re-run analysis to refresh original finding detail.",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T14:56:16.840823+00:00",
+      "_id": "2ff262256fc816a440607953",
+      "host_risk_score": 32.5,
+      "host_risk_level": "high",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T14:56:17.328130+00:00",
+      "quarantined": false,
+      "released_at": "2026-05-16T15:03:46.260285+00:00",
+      "released_by": "admin",
+      "response_status": "active"
+    },
+    "39": {
+      "name": "Unknown Version: gws",
+      "severity": "low",
+      "host": "142.251.156.2",
+      "cve_id": "VER-443-142_251_156_2",
+      "source": "VersionVuln-Engine-v3",
+      "detail": "[RELEASED] Legacy quarantine marker cleared. Re-run analysis to refresh original finding detail.",
+      "tags": [
+        "version",
+        "patch"
+      ],
+      "detected_at": "2026-05-16T14:56:16.840844+00:00",
+      "_id": "d175d8d3ade36f745326b874",
+      "host_risk_score": 32.5,
+      "host_risk_level": "high",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T14:56:17.333253+00:00",
+      "quarantined": false,
+      "released_at": "2026-05-16T15:03:46.260285+00:00",
+      "released_by": "admin",
+      "response_status": "active"
+    },
+    "40": {
+      "name": "AI Predicted: Critical Risk (Moderate Confidence)",
+      "severity": "low",
+      "host": "142.251.156.2",
+      "cve_id": "AI-443-142_251_156_2",
+      "source": "ML-Predict-Engine-v4",
+      "detail": "[RELEASED] Legacy quarantine marker cleared. Re-run analysis to refresh original finding detail.",
+      "tags": [
+        "machine_learning",
+        "ai_predicted",
+        "confidence_moderate"
+      ],
+      "detected_at": "2026-05-16T14:56:17.246682+00:00",
+      "_id": "e364625e02daae652ccfdfc6",
+      "host_risk_score": 32.5,
+      "host_risk_level": "high",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T14:56:17.338832+00:00",
+      "quarantined": false,
+      "released_at": "2026-05-16T15:03:46.260285+00:00",
+      "released_by": "admin",
+      "response_status": "active"
+    },
+    "65": {
+      "name": "HTTP Unencrypted",
+      "severity": "low",
+      "host": "148.72.141.44",
+      "cve_id": "SCAN-80-148_72_141_44",
+      "source": "PortRisk-Engine-v2",
+      "detail": "Port 80/tcp open \u2014 http nginx",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T15:10:22.124134+00:00",
+      "_id": "4959c74a173253e7da5e353f",
+      "host_risk_score": 120.2,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T15:10:26.347534+00:00"
+    },
+    "66": {
+      "name": "Unknown Version: nginx",
+      "severity": "medium",
+      "host": "148.72.141.44",
+      "cve_id": "VER-80-148_72_141_44",
+      "source": "VersionVuln-Engine-v3",
+      "detail": "nginx on port 80 has no version \u2014 may be outdated.",
+      "tags": [
+        "version",
+        "patch"
+      ],
+      "detected_at": "2026-05-16T15:10:22.124189+00:00",
+      "_id": "7ded5a2b2ae7b6ba5f251bf8",
+      "host_risk_score": 120.2,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T15:10:26.357683+00:00"
+    },
+    "67": {
+      "name": "ATT&CK: Application Layer Protocol: Web",
+      "severity": "medium",
+      "host": "148.72.141.44",
+      "cve_id": "MITRE-T1071.001-148_72_141_44",
+      "source": "MitreMap-Engine-v1",
+      "detail": "Port 80/tcp enables MITRE ATT&CK technique T1071.001 (Application Layer Protocol: Web). Service: http nginx",
+      "tags": [
+        "mitre",
+        "attack",
+        "T1071.001"
+      ],
+      "detected_at": "2026-05-16T15:10:22.127779+00:00",
+      "_id": "c3b5f1a3a2b72df3222efbbc",
+      "host_risk_score": 120.2,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T15:10:26.365947+00:00"
+    },
+    "68": {
+      "name": "AI Predicted: Critical Risk (Moderate Confidence)",
+      "severity": "critical",
+      "host": "148.72.141.44",
+      "cve_id": "AI-80-148_72_141_44",
+      "source": "ML-Predict-Engine-v4",
+      "detail": "Advanced ML Engine predicted critical risk with 61.9% calibrated confidence. Service: nginx ",
+      "tags": [
+        "machine_learning",
+        "ai_predicted",
+        "confidence_moderate"
+      ],
+      "detected_at": "2026-05-16T15:10:25.410195+00:00",
+      "_id": "043383e734941807468cacb1",
+      "host_risk_score": 120.2,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T15:10:26.374501+00:00"
+    },
+    "69": {
+      "name": "Unencrypted: HTTP without TLS",
+      "severity": "high",
+      "host": "148.72.141.44",
+      "cve_id": "ENC-80-148_72_141_44",
+      "source": "Encryption-Engine-v1",
+      "detail": "HTTP without TLS on port 80. Upgrade to port 443 or enable TLS. Unencrypted traffic can be intercepted via MITM attacks.",
+      "tags": [
+        "encryption",
+        "hardening",
+        "cleartext"
+      ],
+      "detected_at": "2026-05-16T15:10:25.417985+00:00",
+      "_id": "99e8faf6336fad12238eb40d",
+      "host_risk_score": 120.2,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T15:10:26.382904+00:00"
+    },
+    "70": {
+      "name": "HTTPS Service",
+      "severity": "info",
+      "host": "148.72.141.44",
+      "cve_id": "SCAN-443-148_72_141_44",
+      "source": "PortRisk-Engine-v2",
+      "detail": "Port 443/tcp open \u2014 https",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T15:10:25.418070+00:00",
+      "_id": "ce2e4a091f09e587def0182d",
+      "host_risk_score": 120.2,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T15:10:26.390392+00:00"
+    },
+    "71": {
+      "name": "AI Predicted: Critical Risk (Moderate Confidence)",
+      "severity": "critical",
+      "host": "148.72.141.44",
+      "cve_id": "AI-443-148_72_141_44",
+      "source": "ML-Predict-Engine-v4",
+      "detail": "Advanced ML Engine predicted critical risk with 63.3% calibrated confidence. Service:  ",
+      "tags": [
+        "machine_learning",
+        "ai_predicted",
+        "confidence_moderate"
+      ],
+      "detected_at": "2026-05-16T15:10:25.806527+00:00",
+      "_id": "0049a19aa2808a17b02d49de",
+      "host_risk_score": 120.2,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T15:10:26.397854+00:00"
+    },
+    "72": {
+      "name": "HTTP-Alt Exposed",
+      "severity": "medium",
+      "host": "148.72.141.44",
+      "cve_id": "SCAN-8080-148_72_141_44",
+      "source": "PortRisk-Engine-v2",
+      "detail": "Port 8080/tcp open \u2014 http-proxy nginx",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T15:10:25.814273+00:00",
+      "_id": "a65faf4ef0b686a5e95b8154",
+      "host_risk_score": 120.2,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T15:10:26.405805+00:00"
+    },
+    "73": {
+      "name": "Unknown Version: nginx",
+      "severity": "medium",
+      "host": "148.72.141.44",
+      "cve_id": "VER-8080-148_72_141_44",
+      "source": "VersionVuln-Engine-v3",
+      "detail": "nginx on port 8080 has no version \u2014 may be outdated.",
+      "tags": [
+        "version",
+        "patch"
+      ],
+      "detected_at": "2026-05-16T15:10:25.814316+00:00",
+      "_id": "00a1e62d9a18c5f68c775ab9",
+      "host_risk_score": 120.2,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T15:10:26.412554+00:00"
+    },
+    "74": {
+      "name": "AI Predicted: Critical Risk (Moderate Confidence)",
+      "severity": "critical",
+      "host": "148.72.141.44",
+      "cve_id": "AI-8080-148_72_141_44",
+      "source": "ML-Predict-Engine-v4",
+      "detail": "Advanced ML Engine predicted critical risk with 63.9% calibrated confidence. Service: nginx ",
+      "tags": [
+        "machine_learning",
+        "ai_predicted",
+        "confidence_moderate"
+      ],
+      "detected_at": "2026-05-16T15:10:26.219746+00:00",
+      "_id": "69a7067495700eccad4123e0",
+      "host_risk_score": 120.2,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T15:10:26.420167+00:00"
+    },
+    "75": {
+      "name": "High Exposure: Http-Proxy (version-unknown)",
+      "severity": "high",
+      "host": "148.72.141.44",
+      "cve_id": "EXPO-8080-148_72_141_44",
+      "source": "ExposureScore-Engine-v1",
+      "detail": "Port 8080/tcp has elevated attack surface. Factors: [version-unknown]. Service: nginx . Review network segmentation and access controls.",
+      "tags": [
+        "exposure",
+        "attack_surface",
+        "version-unknown"
+      ],
+      "detected_at": "2026-05-16T15:10:26.225574+00:00",
+      "_id": "a105337a8ab21257f355bc79",
+      "host_risk_score": 120.2,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T15:10:26.427223+00:00"
+    },
+    "76": {
+      "name": "Persistence Vector: Web Shell via Http-Proxy",
+      "severity": "high",
+      "host": "148.72.141.44",
+      "cve_id": "PERSIST-8080-148_72_141_44",
+      "source": "PersistenceAudit-Engine-v1",
+      "detail": "Port 8080/tcp (http-proxy) enables MITRE ATT&CK T1505.003 (Web Shell). HTTP-Alt (Tomcat/Jenkins) enables web shell upload via manager. Service: nginx . Audit for unauthorized scheduled tasks, cron jobs, or web shells.",
+      "tags": [
+        "persistence",
+        "mitre",
+        "T1505.003",
+        "audit"
+      ],
+      "detected_at": "2026-05-16T15:10:26.225614+00:00",
+      "_id": "3887c995daa685c0a8715544",
+      "host_risk_score": 120.2,
+      "host_risk_level": "critical",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T15:10:26.434911+00:00"
+    },
+    "83": {
+      "name": "AI Predicted: Critical Risk (Moderate Confidence)",
+      "severity": "critical",
+      "host": "20.207.73.82",
+      "cve_id": "AI-80-20_207_73_82",
+      "source": "ML-Predict-Engine-v4",
+      "detail": "Advanced ML Engine predicted critical risk with 60.2% calibrated confidence. Service:  ",
+      "tags": [
+        "machine_learning",
+        "ai_predicted",
+        "confidence_moderate"
+      ],
+      "detected_at": "2026-05-16T15:12:04.273643+00:00",
+      "_id": "f80c50ef2b5aeda49147d445",
+      "host_risk_score": 176.8,
+      "host_risk_level": "critical"
+    },
+    "108": {
+      "name": "SSH Exposed",
+      "severity": "medium",
+      "host": "20.207.73.82",
+      "cve_id": "SCAN-22-20_207_73_82",
+      "source": "PortRisk-Engine-v2",
+      "detail": "Port 22/tcp open \u2014 ssh",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T16:27:30.939052+00:00",
+      "_id": "382ad2cd155869f55ba869f1",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T16:27:36.646488+00:00"
+    },
+    "109": {
+      "name": "ATT&CK: SSH",
+      "severity": "medium",
+      "host": "20.207.73.82",
+      "cve_id": "MITRE-T1021.004-20_207_73_82",
+      "source": "MitreMap-Engine-v1",
+      "detail": "Port 22/tcp enables MITRE ATT&CK technique T1021.004 (SSH). Service: ssh",
+      "tags": [
+        "mitre",
+        "attack",
+        "T1021.004"
+      ],
+      "detected_at": "2026-05-16T16:27:30.942966+00:00",
+      "_id": "ece5ef57fd9c01ce0926f964",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T16:27:36.660147+00:00"
+    },
+    "110": {
+      "name": "High Exposure: Ssh (remote-access)",
+      "severity": "high",
+      "host": "20.207.73.82",
+      "cve_id": "EXPO-22-20_207_73_82",
+      "source": "ExposureScore-Engine-v1",
+      "detail": "Port 22/tcp has elevated attack surface. Factors: [remote-access]. Service:  . Review network segmentation and access controls.",
+      "tags": [
+        "exposure",
+        "attack_surface",
+        "remote-access"
+      ],
+      "detected_at": "2026-05-16T16:27:35.768214+00:00",
+      "_id": "964049faf658097d9c71b79f",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T16:27:36.672202+00:00"
+    },
+    "111": {
+      "name": "Persistence Vector: Scheduled Task via Ssh",
+      "severity": "high",
+      "host": "20.207.73.82",
+      "cve_id": "PERSIST-22-20_207_73_82",
+      "source": "PersistenceAudit-Engine-v1",
+      "detail": "Port 22/tcp (ssh) enables MITRE ATT&CK T1053.005 (Scheduled Task). SSH authorized_keys injection for persistent access. Service:  . Audit for unauthorized scheduled tasks, cron jobs, or web shells.",
+      "tags": [
+        "persistence",
+        "mitre",
+        "T1053.005",
+        "audit"
+      ],
+      "detected_at": "2026-05-16T16:27:35.768275+00:00",
+      "_id": "6d743964d87b827ade1f6200",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T16:27:36.683421+00:00"
+    },
+    "112": {
+      "name": "HTTP Unencrypted",
+      "severity": "low",
+      "host": "20.207.73.82",
+      "cve_id": "SCAN-80-20_207_73_82",
+      "source": "PortRisk-Engine-v2",
+      "detail": "Port 80/tcp open \u2014 http",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T16:27:35.768317+00:00",
+      "_id": "8af87e28a997752cb0d21329",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T16:27:36.695544+00:00"
+    },
+    "113": {
+      "name": "ATT&CK: Application Layer Protocol: Web",
+      "severity": "medium",
+      "host": "20.207.73.82",
+      "cve_id": "MITRE-T1071.001-20_207_73_82",
+      "source": "MitreMap-Engine-v1",
+      "detail": "Port 80/tcp enables MITRE ATT&CK technique T1071.001 (Application Layer Protocol: Web). Service: http",
+      "tags": [
+        "mitre",
+        "attack",
+        "T1071.001"
+      ],
+      "detected_at": "2026-05-16T16:27:35.768391+00:00",
+      "_id": "03b2c276670ca3947255cfb8",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T16:27:36.707161+00:00"
+    },
+    "114": {
+      "name": "Unencrypted: HTTP without TLS",
+      "severity": "high",
+      "host": "20.207.73.82",
+      "cve_id": "ENC-80-20_207_73_82",
+      "source": "Encryption-Engine-v1",
+      "detail": "HTTP without TLS on port 80. Upgrade to port 443 or enable TLS. Unencrypted traffic can be intercepted via MITM attacks.",
+      "tags": [
+        "encryption",
+        "hardening",
+        "cleartext"
+      ],
+      "detected_at": "2026-05-16T16:27:36.208052+00:00",
+      "_id": "b4132a23530f1308f4f2e411",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T16:27:36.718781+00:00"
+    },
+    "115": {
+      "name": "HTTPS Service",
+      "severity": "info",
+      "host": "20.207.73.82",
+      "cve_id": "SCAN-443-20_207_73_82",
+      "source": "PortRisk-Engine-v2",
+      "detail": "Port 443/tcp open \u2014 https github.com",
+      "tags": [
+        "exposure",
+        "network"
+      ],
+      "detected_at": "2026-05-16T16:27:36.208125+00:00",
+      "_id": "ef5dd9fe14d988a7fae17edb",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T16:27:36.730849+00:00"
+    },
+    "116": {
+      "name": "Unknown Version: github.com",
+      "severity": "medium",
+      "host": "20.207.73.82",
+      "cve_id": "VER-443-20_207_73_82",
+      "source": "VersionVuln-Engine-v3",
+      "detail": "github.com on port 443 has no version \u2014 may be outdated.",
+      "tags": [
+        "version",
+        "patch"
+      ],
+      "detected_at": "2026-05-16T16:27:36.208140+00:00",
+      "_id": "7d1945951c7ea1eecc8093b3",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T16:27:36.745014+00:00"
+    },
+    "117": {
+      "name": "AI Predicted: Critical Risk (High Confidence)",
+      "severity": "critical",
+      "host": "20.207.73.82",
+      "cve_id": "AI-443-20_207_73_82",
+      "source": "ML-Predict-Engine-v4",
+      "detail": "Advanced ML Engine predicted critical risk with 87.4% calibrated confidence. Service: github.com  | Advanced ML Engine predicted critical risk with 87.5% calibrated confidence. Service: github.com  | Advanced ML Engine predicted critical risk with 87.4% calibrated confidence. Service: github.com  | Advanced ML Engine predicted critical risk with 87.4% calibrated confidence. Service: github.com ",
+      "tags": [
+        "machine_learning",
+        "ai_predicted",
+        "confidence_high"
+      ],
+      "detected_at": "2026-05-16T16:27:36.623391+00:00",
+      "_id": "e909cc49aea118c2cdfac8ca",
+      "merged_count": 2,
+      "merged_by": "DedupMerge-Engine-v2",
+      "merged_at": "2026-05-16T16:27:36.756408+00:00"
+    }
+  }
+}
