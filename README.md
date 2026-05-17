@@ -104,6 +104,7 @@ cp .env.example .env
 | Variable | Default | Description |
 | --- | --- | --- |
 | `PORT` | `5000` | Server port |
+| `ADMIN_USERNAME` | `admin` | Default admin username |
 | `ADMIN_PASSWORD` | `admin` | Default admin password |
 | `FLASK_DEBUG` | `true` | Enable debug mode |
 | `MONGO_URI` | *(empty)* | Set to use MongoDB instead of built-in TinyDB |
@@ -181,28 +182,27 @@ NexShield's analysis pipeline runs **16 independent engines** against scan data:
 
 ```text
 NexShield/
-├── run.py                  # ⭐ Main launcher — just run this!
-├── app.py                  # Flask backend — API routes, WebSocket
-├── config.py               # Database config (TinyDB/MongoDB auto-detection)
-├── ai_logic.py             # 16-engine AI analysis pipeline & ML training
-├── scanner.py              # Network scanning engine (Nmap wrapper)
-├── cve_lookup.py           # CVE database and NVD API integration
-├── exploit_cli.py          # CLI for exploit RC script generation
-├── msf_rpc.py              # Metasploit RPC client (optional)
-├── wsgi.py                 # Production WSGI entry point (optional)
-├── requirements.txt        # Core Python dependencies
+├── run.py                     # ⭐ Main launcher — just run this!
+├── app.py                     # Flask backend — API routes, WebSocket, auth
+├── config.py                  # Database config (TinyDB/MongoDB auto-detection)
+├── ai_logic.py                # 16-engine AI analysis pipeline & ML training
+├── scanner.py                 # Network scanning engine (Nmap wrapper)
+├── cve_lookup.py              # CVE database and NVD API integration
+├── exploit_cli.py             # CLI for exploit RC script generation
+├── msf_rpc.py                 # Metasploit RPC client (optional)
+├── wsgi.py                    # Production WSGI entry point
+├── requirements.txt           # Core Python dependencies
 ├── requirements-optional.txt  # Advanced/optional dependencies
-├── .env.example            # Configuration template
-├── install.bat             # Windows installer
-├── install.sh              # Linux/macOS installer
-├── data/                   # Database files (auto-created)
+├── .env.example               # Configuration template
+├── install.bat                # Windows installer
+├── install.sh                 # Linux/macOS installer
+├── data/                      # Database files (auto-created)
+│   └── nexshield_db.json      # TinyDB database
 ├── templates/
-│   ├── index.html          # Mission Control dashboard
-│   ├── login.html          # Authentication page
-│   └── report.html         # Pentest report page
+│   └── login.html             # Authentication page
 └── static/
-    ├── css/style.css        # UI design system
-    └── js/script.js         # Dashboard logic
+    ├── css/style.css           # UI design system
+    └── js/script.js            # Dashboard logic
 ```
 
 ---
@@ -291,8 +291,8 @@ This software is intended for **authorized security testing and research only**.
 ## Recent Improvements
 
 - **Zero-install database**: TinyDB replaces MongoDB as default — no database server needed
+- **Local-only authentication**: Auto-provisioned admin account, no registration required
 - **Unified CLI launcher**: `python run.py` auto-configures and starts everything
-- **Cross-platform**: Works on Windows, Linux, and macOS without platform-specific workarounds
+- **Cross-platform**: Works on Windows, Linux, and macOS
 - **Simplified install**: `install.bat` / `install.sh` handle everything
 - **Auto-config**: `.env` file auto-created on first run with sensible defaults
-- **Beginner-friendly**: Clear error messages, setup verification, troubleshooting guide

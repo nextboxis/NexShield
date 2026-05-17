@@ -203,26 +203,14 @@
         .login-feedback--error { color: var(--red); text-shadow: 0 0 10px rgba(255, 56, 96, 0.3); }
         .login-feedback--success { color: var(--green); text-shadow: 0 0 10px rgba(0, 255, 136, 0.3); }
 
-        .login-toggle {
+        .login-hint {
             text-align: center;
             margin-top: 1.2rem;
             font-family: var(--font-mono);
-            font-size: 0.72rem;
+            font-size: 0.68rem;
             color: #8892a4;
             letter-spacing: 0.5px;
-        }
-
-        .login-toggle a {
-            color: var(--cyan);
-            text-decoration: none;
-            border-bottom: 1px dashed rgba(0, 240, 255, 0.3);
-            transition: all 0.3s;
-            cursor: pointer;
-        }
-
-        .login-toggle a:hover {
-            color: #fff;
-            border-bottom-color: #fff;
+            opacity: 0.6;
         }
 
         /* Pulse ring behind card */
@@ -269,37 +257,17 @@
             <button type="submit" class="btn-auth" id="authBtn">AUTHENTICATE</button>
         </form>
 
-        <div class="login-toggle" id="authToggle">
-            No account? <a onclick="toggleMode()">REGISTER_NEW_OPERATOR</a>
-        </div>
+        <div class="login-hint">LOCAL_ONLY — Default: admin / admin</div>
     </div>
 
     <script>
-        let isRegisterMode = false;
-
-        function toggleMode() {
-            isRegisterMode = !isRegisterMode;
-            const btn = document.getElementById("authBtn");
-            const toggle = document.getElementById("authToggle");
-            const feedback = document.getElementById("authFeedback");
-
-            if (isRegisterMode) {
-                btn.textContent = "REGISTER";
-                toggle.innerHTML = 'Already have access? <a onclick="toggleMode()">LOGIN</a>';
-            } else {
-                btn.textContent = "AUTHENTICATE";
-                toggle.innerHTML = 'No account? <a onclick="toggleMode()">REGISTER_NEW_OPERATOR</a>';
-            }
-            feedback.textContent = "";
-            feedback.className = "login-feedback";
-        }
-
         async function handleAuth(e) {
             e.preventDefault();
             const btn = document.getElementById("authBtn");
             const feedback = document.getElementById("authFeedback");
             const username = document.getElementById("authUsername").value.trim();
             const password = document.getElementById("authPassword").value.trim();
+            const requestedNext = new URLSearchParams(window.location.search).get("next") || "/dashboard";
 
             if (!username || !password) {
                 feedback.textContent = "All fields are required.";
@@ -311,47 +279,31 @@
             btn.textContent = "TRANSMITTING...";
             feedback.textContent = "";
 
-            const endpoint = isRegisterMode ? "/api/auth/register" : "/api/auth/login";
-
             try {
-                const res = await fetch(endpoint, {
+                const res = await fetch("/api/auth/login", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ username, password }),
+                    body: JSON.stringify({ username, password, next: requestedNext }),
                 });
                 const data = await res.json();
 
                 if (res.ok) {
-                    feedback.textContent = data.message || "Success.";
+                    feedback.textContent = "ACCESS_GRANTED \u2014 Redirecting to Mission Control...";
                     feedback.className = "login-feedback login-feedback--success";
-
-                    if (isRegisterMode) {
-                        // Auto-switch to login after successful registration
-                        setTimeout(() => {
-                            isRegisterMode = false;
-                            toggleMode();
-                            toggleMode(); // Reset to login mode
-                            feedback.textContent = "Account created. Please login.";
-                            feedback.className = "login-feedback login-feedback--success";
-                        }, 1500);
-                    } else {
-                        // Redirect to dashboard after login
-                        feedback.textContent = "ACCESS_GRANTED — Redirecting to Mission Control...";
-                        setTimeout(() => {
-                            const returnTo = new URLSearchParams(window.location.search).get("next") || "/";
-                            window.location.href = returnTo;
-                        }, 800);
-                    }
+                    setTimeout(() => {
+                        const returnTo = data.redirect || "/dashboard";
+                        window.location.href = returnTo;
+                    }, 800);
                 } else {
                     feedback.textContent = data.message || "Authentication failed.";
                     feedback.className = "login-feedback login-feedback--error";
                 }
             } catch (err) {
-                feedback.textContent = "CONNECTION_FAILURE — Server unreachable.";
+                feedback.textContent = "CONNECTION_FAILURE \u2014 Server unreachable.";
                 feedback.className = "login-feedback login-feedback--error";
             } finally {
                 btn.disabled = false;
-                btn.textContent = isRegisterMode ? "REGISTER" : "AUTHENTICATE";
+                btn.textContent = "AUTHENTICATE";
             }
         }
     </script>

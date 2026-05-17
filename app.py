@@ -198,6 +198,19 @@ def login_required(f):
     return decorated
 
 
+DEFAULT_DASHBOARD_PATH = "/dashboard"
+
+
+def _safe_next_path(next_path: str | None, fallback: str = DEFAULT_DASHBOARD_PATH) -> str:
+    """Allow only local, non-login return paths after authentication."""
+    candidate = (next_path or "").strip()
+    if not candidate.startswith("/") or candidate.startswith("//"):
+        return fallback
+    if candidate.split("?", 1)[0] == "/login":
+        return fallback
+    return candidate
+
+
 def _validate_host(host_str: str | None) -> str:
     """Validate and sanitize a host IP or hostname."""
     candidate = (host_str or "").strip()
@@ -262,35 +275,8 @@ PASSWORD_RE = re.compile(r"^.{5,128}$")  # Minimum 5 characters
 
 @app.route("/api/auth/register", methods=["POST"])
 def register():
-    """Register a new user account."""
-    if not check_connection():
-        return jsonify({"status": "error", "message": "Database offline."}), 503
-
-    ip_key = f"register:{request.remote_addr}"
-    if _rate_limit(ip_key, max_requests=5, window_sec=300):
-        return jsonify({"status": "error", "message": "Too many registration attempts. Try again later."}), 429
-
-    body = request.get_json(silent=True) or {}
-    try:
-        username = _validate_username(body.get("username"))
-    except ValueError as exc:
-        return jsonify({"status": "error", "message": str(exc)}), 400
-
-    password = (body.get("password") or "").strip()
-    if not PASSWORD_RE.fullmatch(password):
-        return jsonify({"status": "error", "message": "Password must be 5-128 characters."}), 400
-
-    if users.find_one({"username": username}):
-        return jsonify({"status": "error", "message": "Username already taken."}), 409
-
-    users.insert_one({
-        "username": username,
-        "password_hash": generate_password_hash(password),
-        "role": "analyst",
-        "created_at": datetime.now(timezone.utc),
-    })
-    _log_activity("auth", f"New user registered: {username}")
-    return jsonify({"status": "complete", "message": f"User '{username}' created."}), 201
+    """Registration disabled — local-only tool. Admin account is auto-provisioned."""
+    return jsonify({"status": "error", "message": "Registration is disabled. This is a local-only tool. Use the default admin account."}), 403
 
 
 @app.route("/api/auth/login", methods=["POST"])
@@ -312,15 +298,26 @@ def login():
         return jsonify({"status": "error", "message": "Username and password are required."}), 400
 
     user_doc = users.find_one({"username": username})
+    if not user_doc:
+        # Case-insensitive fallback
+        user_doc = users.find_one({"username": {"$regex": f"^{re.escape(username)}$", "$options": "i"}})
     if not user_doc or not check_password_hash(user_doc["password_hash"], password):
         _log_activity("security", f"Failed login attempt for '{username}' from {request.remote_addr}", "warning")
         return jsonify({"status": "error", "message": "Invalid credentials."}), 401
 
+    canonical_username = user_doc.get("username", username)
+    session.clear()
     session.permanent = True
-    session["user"] = username
+    session["user"] = canonical_username
     session["role"] = user_doc.get("role", "analyst")
-    _log_activity("auth", f"User '{username}' logged in from {request.remote_addr}")
-    return jsonify({"status": "complete", "message": f"Welcome, {username}.", "user": username, "role": session["role"]})
+    _log_activity("auth", f"User '{canonical_username}' logged in from {request.remote_addr}")
+    return jsonify({
+        "status": "complete",
+        "message": f"Welcome, {canonical_username}.",
+        "user": canonical_username,
+        "role": session["role"],
+        "redirect": _safe_next_path(body.get("next")),
+    })
 
 
 @app.route("/api/auth/logout", methods=["POST"])
@@ -344,6 +341,14 @@ def check_session():
 #  Frontend
 # ═════════════════════════════════════════════════════════════════════
 
+@app.route("/")
+def root_redirect():
+    """Send users to the right frontend entry point for their session state."""
+    if "user" in session:
+        return redirect(url_for("serve_dashboard"))
+    return redirect(url_for("serve_login", next=DEFAULT_DASHBOARD_PATH))
+
+
 @app.route("/login")
 def serve_login():
     """Serve the authentication page. Always accessible."""
@@ -352,11 +357,11 @@ def serve_login():
     return render_template("login.html")
 
 
-@app.route("/")
+@app.route("/dashboard")
 def serve_dashboard():
     """Serve the NexShield Mission Control dashboard. Requires login."""
     if "user" not in session:
-        return redirect(url_for("serve_login", next="/"))
+        return redirect(url_for("serve_login", next=DEFAULT_DASHBOARD_PATH))
     return render_template("index.html")
 
 
@@ -366,6 +371,9 @@ def serve_report():
     if "user" not in session:
         return redirect(url_for("serve_login", next="/report"))
     return render_template("report.html")
+
+
+
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -415,7 +423,7 @@ def reset_data():
         "deleted": deleted,
     })
 
-# (Duplicate route removed — serve_dashboard handles "/")
+
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -1776,24 +1784,50 @@ def download_report_rc():
 # ═════════════════════════════════════════════════════════════════════
 
 def _provision_admin_user():
-    """Initialize default admin user if not present."""
+    """Initialize or sync the default admin account. Always refreshes the password hash on startup."""
     try:
         if not check_connection():
             logger.warning("Cannot provision admin: Database unavailable")
             return False
-        
-        if users.find_one({"username": "admin"}):
-            logger.info("Admin user already exists")
-            return True
-        
+
+        default_username = os.environ.get("ADMIN_USERNAME", "admin")
         default_password = os.environ.get("ADMIN_PASSWORD", "admin")
+        password_hash = generate_password_hash(default_password)
+
+        # Find existing admin user (case-insensitive)
+        existing = users.find_one({"username": default_username})
+        if not existing:
+            existing = users.find_one({"username": {"$regex": f"^{re.escape(default_username)}$", "$options": "i"}})
+
+        # Clean up any duplicate admin accounts (e.g. "Admin" + "admin")
+        all_admins = list(users.find({"role": "admin"}))
+        if len(all_admins) > 1:
+            # Keep only the first one, remove duplicates
+            for dup in all_admins[1:]:
+                users.delete_many({"username": dup["username"]})
+            logger.info("Cleaned up %d duplicate admin account(s)", len(all_admins) - 1)
+
+        if existing:
+            # Always sync username and password hash on startup
+            users.update_one(
+                {"username": existing["username"]},
+                {"$set": {
+                    "username": default_username,
+                    "password_hash": password_hash,
+                    "role": "admin",
+                }},
+            )
+            logger.info("Admin account synced: %s / %s", default_username, default_password)
+            return True
+
+        # Create fresh admin account
         users.insert_one({
-            "username": "admin",
-            "password_hash": generate_password_hash(default_password),
+            "username": default_username,
+            "password_hash": password_hash,
             "role": "admin",
             "created_at": datetime.now(timezone.utc),
         })
-        logger.info("Default admin account created (change password in production!)")
+        logger.info("Default admin account created: %s / %s", default_username, default_password)
         _log_activity("auth", "Default admin account created")
         return True
     except Exception as e:
