@@ -1,0 +1,123 @@
+{
+  "users": {
+    "1": {
+      "username": "Admin",
+      "password_hash": "scrypt:32768:8:1$LQBxQ2yKnKK82aw6$d0a37fbd9f24dfdfa19432da59fb4e53e5d9cd1a4579cc38d225c3c34fc54e95d5d89d7749a2b848a79632c791d5a423f6c6a2cbc2b5406c9013063a085c7630",
+      "role": "admin",
+      "created_at": "2026-05-17T02:38:45.521652+00:00",
+      "_id": "9fdc9f03f4407d929b59f772"
+    }
+  },
+  "activity_log": {
+    "1": {
+      "type": "auth",
+      "message": "Default admin account created: Admin",
+      "severity": "info",
+      "timestamp": "2026-05-17T02:38:45.525599+00:00",
+      "_id": "1d61868f835e3ee67b72574d"
+    },
+    "2": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-17T02:38:45.785654+00:00",
+      "_id": "291f7f814acef61b821b4554"
+    },
+    "3": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-17T02:38:47.784187+00:00",
+      "_id": "08b83e1c2f1dc9d8666aeef5"
+    },
+    "4": {
+      "type": "auth",
+      "message": "User 'Admin' logged in from 127.0.0.1",
+      "severity": "info",
+      "timestamp": "2026-05-17T02:38:58.008631+00:00",
+      "_id": "50612620ca16bec8a89737e4"
+    },
+    "5": {
+      "type": "scan_start",
+      "message": "[DEFAULT] Scan initiated on google.com (ports: 22,80,443,8080,8443,3306,5432,6379,27017,21,25,53,110,143)",
+      "severity": "info",
+      "timestamp": "2026-05-17T02:39:24.144685+00:00",
+      "_id": "c6dcfc2f1c31b76d182809e4"
+    },
+    "6": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-17T02:42:26.638306+00:00",
+      "_id": "28cf179af060c7305ec942ed",
+      "_validated": true
+    },
+    "7": {
+      "type": "system",
+      "message": "NexShield platform started",
+      "severity": "info",
+      "timestamp": "2026-05-17T02:42:28.264056+00:00",
+      "_id": "43762af9c8965a8507d1e747",
+      "_validated": true
+    },
+    "8": {
+      "type": "auth",
+      "message": "User 'Admin' logged in from 127.0.0.1",
+      "severity": "info",
+      "timestamp": "2026-05-17T02:42:57.881079+00:00",
+      "_id": "b1aef00ac07214b6e827aacf",
+      "_validated": true
+    },
+    "9": {
+      "type": "scan_start",
+      "message": "[DEFAULT] Scan initiated on 127.0.0.1 (ports: 80)",
+      "severity": "info",
+      "timestamp": "2026-05-17T02:43:39.910541+00:00",
+      "_id": "ef883dc9d802d9925538eef0",
+      "_validated": true
+    },
+    "10": {
+      "type": "scan_complete",
+      "message": "Scan complete: 1 host(s) found on 127.0.0.1 [default]",
+      "severity": "success",
+      "timestamp": "2026-05-17T02:43:43.097251+00:00",
+      "_id": "d3c90002c6832730b9b7be08",
+      "_validated": true
+    }
+  },
+  "network_scans": {
+    "1": {
+      "scan_id": "20260517_024340",
+      "target": "127.0.0.1",
+      "ports": "80",
+      "scan_type": "default",
+      "scan_args": "-sV -T4",
+      "host": "127.0.0.1",
+      "hostname": "localhost",
+      "state": "up",
+      "protocols": [
+        {
+          "protocol": "tcp",
+          "ports": [
+            {
+              "port": 80,
+              "state": "closed",
+              "service": "http",
+              "version": "",
+              "product": "",
+              "extrainfo": "",
+              "cpe": "",
+              "reason": "reset"
+            }
+          ]
+        }
+      ],
+      "open_port_count": 0,
+      "services_detected": [],
+      "scan_duration_sec": 3.07,
+      "nmap_version": "7.99",
+      "scanned_at": "2026-05-17T02:43:43.094710+00:00",
+      "_id": "91671d299b16955a79a0299e"
+    }
+  }
+}

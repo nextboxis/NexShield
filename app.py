@@ -30,6 +30,10 @@ except ImportError:
 from ai_logic import compute_risk_scores # type: ignore
 from config import threats, network_scans, activity_log, users, cve_cache, ip_geo_cache, scan_jobs, check_connection # type: ignore
 
+# Blueprints
+from routes.auth import auth_bp, login_required, WS_TOKEN, provision_admin_user
+from routes.dashboard import dashboard_bp
+
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -47,9 +51,12 @@ _ALLOWED_ORIGINS = os.environ.get(
 ).split(",")
 socketio = SocketIO(app, cors_allowed_origins=_ALLOWED_ORIGINS)
 
+# ── Register Blueprints ──────────────────────────────────────────────
+app.register_blueprint(auth_bp)
+app.register_blueprint(dashboard_bp)
+
 ALLOWED_SEVERITIES = {"critical", "high", "medium", "low"}
 ALLOWED_EXPORT_FORMATS = {"csv", "json"}
-USERNAME_RE = re.compile(r"^[A-Za-z0-9_.-]{3,32}$")
 CVE_RE = re.compile(r"^CVE-\d{4}-\d{4,}$", re.IGNORECASE)
 TARGET_RE = re.compile(r"^[A-Za-z0-9.,:/\-\s]+$")
 PORTS_RE = re.compile(r"^[0-9,\-\s]*$")
@@ -110,24 +117,7 @@ def _normalize_limit(value: int | None, default: int, maximum: int) -> int:
     return max(1, min(value, maximum))
 
 
-def _validate_username(username):
-    candidate = (username or "").strip()
-    if not USERNAME_RE.fullmatch(candidate):
-        raise ValueError("Username must be 3-32 characters and use only letters, numbers, ., _, or -.")
-    return candidate
 
-
-def _find_user_by_username(username: str):
-    """Find a user by username (case-insensitive)."""
-    candidate = (username or "").strip()
-    if not candidate:
-        return None
-    exact = users.find_one({"username": candidate})
-    if exact:
-        return exact
-    return users.find_one({
-        "username": {"$regex": f"^{re.escape(candidate)}$", "$options": "i"}
-    })
 
 
 @app.before_request
@@ -209,20 +199,6 @@ def add_security_headers(response):
 # No global CORS needed if running on same origin/proxy
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Authentication Helpers
-# ═════════════════════════════════════════════════════════════════════
-
-def login_required(f):
-    """Decorator: rejects unauthenticated requests with HTTP 401."""
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        if "user" not in session:
-            return jsonify({"status": "error", "message": "Authentication required."}), 401
-        return f(*args, **kwargs)
-    return decorated
-
-
 def _validate_host(host_str: Optional[str]) -> str:
     """Validate and sanitize a host IP or hostname."""
     candidate = (host_str or "").strip()
@@ -245,7 +221,7 @@ def _validate_host(host_str: Optional[str]) -> str:
     raise ValueError("Invalid host format.")
 
 
-# ── In-memory rate limiter ───────────────────────────────────────────
+# ── In-memory rate limiter (for API routes still in app.py) ──────────
 _rate_limit_store: dict[str, List[float]] = defaultdict(list)
 
 def _rate_limit(key: str, max_requests: int = 10, window_sec: int = 60) -> bool:
@@ -259,17 +235,8 @@ def _rate_limit(key: str, max_requests: int = 10, window_sec: int = 60) -> bool:
 
 
 # ═════════════════════════════════════════════════════════════════════
-#  Security / Authentication
+#  WebSocket Authentication (stays here — needs socketio instance)
 # ═════════════════════════════════════════════════════════════════════
-
-# Generate a secure random token for this server session
-WS_TOKEN = os.environ.get("WS_TOKEN", secrets.token_hex(16))
-
-@app.route("/api/auth/token", methods=["GET"])
-@login_required
-def get_ws_token():
-    """Returns the WebSocket authorization token. Requires authentication."""
-    return jsonify({"status": "complete", "token": WS_TOKEN})
 
 @socketio.on("connect")
 def handle_connect(auth):
@@ -278,134 +245,6 @@ def handle_connect(auth):
         _log_activity("security", f"Blocked unauthorized WebSocket connection (IP: {request.remote_addr})", "high")
         raise ConnectionRefusedError("Unauthorized: Invalid or missing token")
     # Connection accepted
-
-# ═════════════════════════════════════════════════════════════════════
-#  API — User Registration / Login / Logout
-# ═════════════════════════════════════════════════════════════════════
-
-PASSWORD_RE = re.compile(r"^.{5,128}$")  # Minimum 5 characters
-
-@app.route("/api/auth/register", methods=["POST"])
-def register():
-    """Register a new user account."""
-    if not check_connection():
-        return jsonify({"status": "error", "message": "Database offline."}), 503
-
-    ip_key = f"register:{request.remote_addr}"
-    if _rate_limit(ip_key, max_requests=5, window_sec=300):
-        return jsonify({"status": "error", "message": "Too many registration attempts. Try again later."}), 429
-
-    body = request.get_json(silent=True) or {}
-    try:
-        username = _validate_username(body.get("username"))
-    except ValueError as exc:
-        return jsonify({"status": "error", "message": str(exc)}), 400
-
-    password = (body.get("password") or "").strip()
-    if not PASSWORD_RE.fullmatch(password):
-        return jsonify({"status": "error", "message": "Password must be 5-128 characters."}), 400
-
-    if _find_user_by_username(username):
-        return jsonify({"status": "error", "message": "Username already taken."}), 409
-
-    users.insert_one({
-        "username": username,
-        "password_hash": generate_password_hash(password),
-        "role": "analyst",
-        "created_at": datetime.now(timezone.utc),
-    })
-    _log_activity("auth", f"New user registered: {username}")
-    return jsonify({"status": "complete", "message": f"User '{username}' created."}), 201
-
-
-@app.route("/api/auth/login", methods=["POST"])
-def login():
-    """Authenticate and create a session."""
-    if not check_connection():
-        return jsonify({"status": "error", "message": "Database offline."}), 503
-
-    ip_key = f"login:{request.remote_addr}"
-    if _rate_limit(ip_key, max_requests=10, window_sec=60):
-        _log_activity("security", f"Rate-limited login attempts from {request.remote_addr}", "high")
-        return jsonify({"status": "error", "message": "Too many login attempts. Try again later."}), 429
-
-    body = request.get_json(silent=True) or {}
-    username = (body.get("username") or "").strip()
-    password = (body.get("password") or "").strip()
-
-    if not username or not password:
-        return jsonify({"status": "error", "message": "Username and password are required."}), 400
-
-    user_doc = _find_user_by_username(username)
-    if not user_doc or not check_password_hash(user_doc["password_hash"], password):
-        _log_activity("security", f"Failed login attempt for '{username}' from {request.remote_addr}", "warning")
-        return jsonify({"status": "error", "message": "Invalid credentials."}), 401
-
-    session.permanent = True
-    session["user"] = user_doc["username"]
-    session["role"] = user_doc.get("role", "analyst")
-    session["_boot_id"] = app.config["BOOT_ID"]
-    _log_activity("auth", f"User '{username}' logged in from {request.remote_addr}")
-    canonical = session["user"]
-    return jsonify({
-        "status": "complete",
-        "message": f"Welcome, {canonical}.",
-        "user": canonical,
-        "role": session["role"],
-    })
-
-
-@app.route("/api/auth/logout", methods=["POST"])
-def logout():
-    """End the current session."""
-    username = session.pop("user", "unknown")
-    session.clear()
-    _log_activity("auth", f"User '{username}' logged out")
-    return jsonify({"status": "complete", "message": "Logged out."})
-
-
-@app.route("/api/auth/session", methods=["GET"])
-def check_session():
-    """Check if the current session is authenticated."""
-    if "user" in session:
-        return jsonify({"status": "complete", "authenticated": True, "user": session["user"], "role": session.get("role", "analyst")})
-    return jsonify({"status": "complete", "authenticated": False})
-
-
-# ═════════════════════════════════════════════════════════════════════
-#  Frontend
-# ═════════════════════════════════════════════════════════════════════
-
-@app.route("/")
-def serve_root():
-    """Entry point: always start at the login page."""
-    return redirect(url_for("serve_login"))
-
-
-@app.route("/login")
-def serve_login():
-    """Serve the authentication page. Always shown first on each run."""
-    return render_template(
-        "login.html",
-        default_username=DEFAULT_ADMIN_USERNAME,
-        default_password=DEFAULT_ADMIN_PASSWORD,
-    )
-
-
-@app.route("/index")
-def serve_dashboard():
-    """Serve the NexShield Mission Control dashboard. Requires login."""
-    if "user" not in session:
-        return redirect(url_for("serve_login", next="/index"))
-    return render_template("index.html")
-
-
-@app.route("/report")
-def serve_report():
-    """Serve the formatted HTML penetration testing report page. Requires login."""
-    if "user" not in session:
-        return redirect(url_for("serve_login", next="/report"))
-    return render_template("report.html")
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -1889,41 +1728,8 @@ def download_report_rc():
 # ═════════════════════════════════════════════════════════════════════
 
 def _provision_admin_user():
-    """Initialize or sync the default Admin account (Admin / ADMIN)."""
-    try:
-        if not check_connection():
-            logger.warning("Cannot provision admin: Database unavailable")
-            return False
-
-        password_hash = generate_password_hash(DEFAULT_ADMIN_PASSWORD)
-        existing = _find_user_by_username(DEFAULT_ADMIN_USERNAME)
-        if not existing:
-            existing = _find_user_by_username("admin")
-
-        if existing:
-            users.update_one(
-                {"username": existing["username"]},
-                {"$set": {
-                    "username": DEFAULT_ADMIN_USERNAME,
-                    "password_hash": password_hash,
-                    "role": "admin",
-                }},
-            )
-            logger.info("Default admin account synced (%s)", DEFAULT_ADMIN_USERNAME)
-            return True
-
-        users.insert_one({
-            "username": DEFAULT_ADMIN_USERNAME,
-            "password_hash": password_hash,
-            "role": "admin",
-            "created_at": datetime.now(timezone.utc),
-        })
-        logger.info("Default admin account created (%s)", DEFAULT_ADMIN_USERNAME)
-        _log_activity("auth", f"Default admin account created: {DEFAULT_ADMIN_USERNAME}")
-        return True
-    except Exception as e:
-        logger.error("Failed to provision admin account: %s", e, exc_info=True)
-        return False
+    """Initialize or sync the default Admin account. Delegates to routes.auth."""
+    return provision_admin_user(DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD)
 
 
 def _startup_banner():
