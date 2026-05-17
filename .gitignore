@@ -159,6 +159,8 @@ nexshield_report_*.csv
 nexshield_report_*.json
 scan_footprint_*.json
 activity_log.json
+data/nexshield_db.json
+data/backups/
 mongodb_data/
 *.rc
 
