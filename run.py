@@ -102,7 +102,7 @@ def check_pip_packages():
             print(f"        pip install -r {REQ_FILE}")
             return False
     else:
-        print_status("+", "All core packages installed")
+        print_status("✓", "All core packages installed")
     return True
 
 
@@ -142,8 +142,7 @@ def check_env_file():
             f.write("FLASK_ENV=development\n")
             f.write("FLASK_DEBUG=true\n")
             f.write("PORT=5000\n")
-            f.write("ADMIN_USERNAME=Admin\n")
-            f.write("ADMIN_PASSWORD=ADMIN\n")
+            f.write("ADMIN_PASSWORD=admin\n")
         print_status("+", "Created default .env file")
     return True
 
@@ -172,13 +171,29 @@ def check_database():
 
 
 def provision_admin():
-    """Create or sync default Admin user (Admin / ADMIN)."""
+    """Create default admin user if not exists."""
     try:
-        from app import _provision_admin_user  # type: ignore
-        if _provision_admin_user():
-            print_status("+", "Admin user ready (Admin / ADMIN)")
+        from config import users, check_connection  # type: ignore
+        if not check_connection():
+            return False
+
+        existing = users.find_one({"username": "admin"})
+        if existing:
+            print_status("+", "Admin user exists")
             return True
-        return False
+
+        from werkzeug.security import generate_password_hash  # type: ignore
+        from datetime import datetime, timezone
+
+        password = os.environ.get("ADMIN_PASSWORD", "admin")
+        users.insert_one({
+            "username": "admin",
+            "password_hash": generate_password_hash(password),
+            "role": "admin",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+        print_status("+", f"Admin user created (password: {password})")
+        return True
     except Exception as e:
         print_status("!", f"Admin provisioning: {e}")
         return False
@@ -226,19 +241,14 @@ def start_server(host="127.0.0.1", port=5000, debug=False):
     print_status("*", f"Host: {host}")
     print_status("*", f"Port: {port}")
     print_status("*", f"Debug: {'ON' if debug else 'OFF'}")
-    print_status("*", f"Login:     http://{host}:{port}/login")
-    print_status("*", f"Dashboard: http://{host}:{port}/index")
-    print_status("*", f"Report:    http://{host}:{port}/report")
+    print_status("*", f"Dashboard: http://{host}:{port}")
     print()
     print("   Press Ctrl+C to stop the server.")
     print()
 
     try:
-        from app import app, socketio, _log_activity, _open_browser_entry, _provision_admin_user  # type: ignore
-        import threading
-        _provision_admin_user()
+        from app import app, socketio, _log_activity  # type: ignore
         _log_activity("system", "NexShield platform started", "info")
-        threading.Timer(1.5, _open_browser_entry).start()
         socketio.run(
             app,
             debug=debug,

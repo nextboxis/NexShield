@@ -203,6 +203,28 @@
         .login-feedback--error { color: var(--red); text-shadow: 0 0 10px rgba(255, 56, 96, 0.3); }
         .login-feedback--success { color: var(--green); text-shadow: 0 0 10px rgba(0, 255, 136, 0.3); }
 
+        .login-toggle {
+            text-align: center;
+            margin-top: 1.2rem;
+            font-family: var(--font-mono);
+            font-size: 0.72rem;
+            color: #8892a4;
+            letter-spacing: 0.5px;
+        }
+
+        .login-toggle a {
+            color: var(--cyan);
+            text-decoration: none;
+            border-bottom: 1px dashed rgba(0, 240, 255, 0.3);
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .login-toggle a:hover {
+            color: #fff;
+            border-bottom-color: #fff;
+        }
+
         /* Pulse ring behind card */
         .pulse-ring {
             position: fixed;
@@ -234,45 +256,46 @@
             <div class="login-brand__sub">SECURE_AUTHENTICATION_PORTAL</div>
         </div>
 
-        <form class="login-form" id="authForm" onsubmit="handleAuth(event)"
-              data-default-username="{{ default_username | default('Admin') }}"
-              data-default-password="{{ default_password | default('ADMIN') }}">
+        <form class="login-form" id="authForm" onsubmit="handleAuth(event)">
             <div class="form-group">
                 <label class="form-label" for="authUsername">OPERATOR_ID</label>
-                <input type="text" id="authUsername" class="form-input" placeholder="Enter username" value="{{ default_username | default('Admin') }}" autocomplete="username" required />
+                <input type="text" id="authUsername" class="form-input" placeholder="Enter username" value="admin" autocomplete="username" required />
             </div>
             <div class="form-group">
                 <label class="form-label" for="authPassword">ACCESS_KEY</label>
-                <input type="password" id="authPassword" class="form-input" placeholder="Enter password" value="{{ default_password | default('ADMIN') }}" autocomplete="current-password" required />
+                <input type="password" id="authPassword" class="form-input" placeholder="Enter password" value="admin" autocomplete="current-password" required />
             </div>
             <div class="login-feedback" id="authFeedback"></div>
             <button type="submit" class="btn-auth" id="authBtn">AUTHENTICATE</button>
         </form>
 
+        <div class="login-toggle" id="authToggle">
+            No account? <a onclick="toggleMode()">REGISTER_NEW_OPERATOR</a>
+        </div>
     </div>
 
     <script>
-        let authLocked = false;
+        let isRegisterMode = false;
 
-        async function parseResponseJson(response) {
-            if (response.status === 0) {
-                throw new Error("Server unreachable. Start NexShield with python app.py.");
+        function toggleMode() {
+            isRegisterMode = !isRegisterMode;
+            const btn = document.getElementById("authBtn");
+            const toggle = document.getElementById("authToggle");
+            const feedback = document.getElementById("authFeedback");
+
+            if (isRegisterMode) {
+                btn.textContent = "REGISTER";
+                toggle.innerHTML = 'Already have access? <a onclick="toggleMode()">LOGIN</a>';
+            } else {
+                btn.textContent = "AUTHENTICATE";
+                toggle.innerHTML = 'No account? <a onclick="toggleMode()">REGISTER_NEW_OPERATOR</a>';
             }
-            const text = await response.text();
-            if (!text.trim()) {
-                throw new Error("Server unreachable. Start NexShield with python app.py.");
-            }
-            try {
-                return JSON.parse(text);
-            } catch {
-                throw new Error("Invalid server response. Check that NexShield is running.");
-            }
+            feedback.textContent = "";
+            feedback.className = "login-feedback";
         }
 
         async function handleAuth(e) {
             e.preventDefault();
-            if (authLocked) return;
-
             const btn = document.getElementById("authBtn");
             const feedback = document.getElementById("authFeedback");
             const username = document.getElementById("authUsername").value.trim();
@@ -284,39 +307,51 @@
                 return;
             }
 
-            authLocked = true;
             btn.disabled = true;
             btn.textContent = "TRANSMITTING...";
             feedback.textContent = "";
-            feedback.className = "login-feedback";
+
+            const endpoint = isRegisterMode ? "/api/auth/register" : "/api/auth/login";
 
             try {
-                const res = await fetch("/api/auth/login", {
+                const res = await fetch(endpoint, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ username, password }),
                 });
+                const data = await res.json();
 
-                const data = await parseResponseJson(res);
+                if (res.ok) {
+                    feedback.textContent = data.message || "Success.";
+                    feedback.className = "login-feedback login-feedback--success";
 
-                if (!res.ok) {
-                    throw new Error(data.message || "Authentication failed.");
+                    if (isRegisterMode) {
+                        // Auto-switch to login after successful registration
+                        setTimeout(() => {
+                            isRegisterMode = false;
+                            toggleMode();
+                            toggleMode(); // Reset to login mode
+                            feedback.textContent = "Account created. Please login.";
+                            feedback.className = "login-feedback login-feedback--success";
+                        }, 1500);
+                    } else {
+                        // Redirect to dashboard after login
+                        feedback.textContent = "ACCESS_GRANTED — Redirecting to Mission Control...";
+                        setTimeout(() => {
+                            const returnTo = new URLSearchParams(window.location.search).get("next") || "/";
+                            window.location.href = returnTo;
+                        }, 800);
+                    }
+                } else {
+                    feedback.textContent = data.message || "Authentication failed.";
+                    feedback.className = "login-feedback login-feedback--error";
                 }
-
-                feedback.textContent = "ACCESS_GRANTED — Redirecting to Mission Control...";
-                feedback.className = "login-feedback login-feedback--success";
-
-                setTimeout(() => {
-                    const returnTo = new URLSearchParams(window.location.search).get("next") || "/index";
-                    window.location.href = returnTo;
-                }, 800);
             } catch (err) {
-                feedback.textContent = err.message || "CONNECTION_FAILURE — Server unreachable.";
+                feedback.textContent = "CONNECTION_FAILURE — Server unreachable.";
                 feedback.className = "login-feedback login-feedback--error";
-
-                authLocked = false;
+            } finally {
                 btn.disabled = false;
-                btn.textContent = "AUTHENTICATE";
+                btn.textContent = isRegisterMode ? "REGISTER" : "AUTHENTICATE";
             }
         }
     </script>

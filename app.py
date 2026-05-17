@@ -10,7 +10,7 @@ import logging
 import threading
 import time as _time
 from collections import defaultdict
-from typing import Any, List, Optional  # type: ignore
+from typing import Any  # type: ignore
 import requests # type: ignore
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response, make_response # type: ignore
 from flask_cors import CORS # type: ignore
@@ -30,10 +30,6 @@ except ImportError:
 from ai_logic import compute_risk_scores # type: ignore
 from config import threats, network_scans, activity_log, users, cve_cache, ip_geo_cache, scan_jobs, check_connection # type: ignore
 
-# Blueprints
-from routes.auth import auth_bp, login_required, WS_TOKEN, provision_admin_user
-from routes.dashboard import dashboard_bp
-
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
@@ -41,22 +37,15 @@ app.secret_key = os.environ.get("FLASK_SECRET_KEY", secrets.token_hex(32))
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
-app.config["BOOT_ID"] = uuid.uuid4().hex
-
-DEFAULT_ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "Admin")
-DEFAULT_ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "ADMIN")
 
 _ALLOWED_ORIGINS = os.environ.get(
     "ALLOWED_ORIGINS", "http://127.0.0.1:5000,http://localhost:5000"
 ).split(",")
 socketio = SocketIO(app, cors_allowed_origins=_ALLOWED_ORIGINS)
 
-# ── Register Blueprints ──────────────────────────────────────────────
-app.register_blueprint(auth_bp)
-app.register_blueprint(dashboard_bp)
-
 ALLOWED_SEVERITIES = {"critical", "high", "medium", "low"}
 ALLOWED_EXPORT_FORMATS = {"csv", "json"}
+USERNAME_RE = re.compile(r"^[A-Za-z0-9_.-]{3,32}$")
 CVE_RE = re.compile(r"^CVE-\d{4}-\d{4,}$", re.IGNORECASE)
 TARGET_RE = re.compile(r"^[A-Za-z0-9.,:/\-\s]+$")
 PORTS_RE = re.compile(r"^[0-9,\-\s]*$")
@@ -117,15 +106,11 @@ def _normalize_limit(value: int | None, default: int, maximum: int) -> int:
     return max(1, min(value, maximum))
 
 
-
-
-
-@app.before_request
-def _invalidate_stale_session():
-    """Force re-login after each server restart."""
-    boot_id = app.config.get("BOOT_ID")
-    if "user" in session and session.get("_boot_id") != boot_id:
-        session.clear()
+def _validate_username(username):
+    candidate = (username or "").strip()
+    if not USERNAME_RE.fullmatch(candidate):
+        raise ValueError("Username must be 3-32 characters and use only letters, numbers, ., _, or -.")
+    return candidate
 
 
 def _validate_scan_inputs(target: str | None, ports: str | None, default_ports: str = "") -> tuple[str, str]:
@@ -199,7 +184,21 @@ def add_security_headers(response):
 # No global CORS needed if running on same origin/proxy
 
 
-def _validate_host(host_str: Optional[str]) -> str:
+# ═════════════════════════════════════════════════════════════════════
+#  Authentication Helpers
+# ═════════════════════════════════════════════════════════════════════
+
+def login_required(f):
+    """Decorator: rejects unauthenticated requests with HTTP 401."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "user" not in session:
+            return jsonify({"status": "error", "message": "Authentication required."}), 401
+        return f(*args, **kwargs)
+    return decorated
+
+
+def _validate_host(host_str: str | None) -> str:
     """Validate and sanitize a host IP or hostname."""
     candidate = (host_str or "").strip()
     if not candidate:
@@ -221,8 +220,8 @@ def _validate_host(host_str: Optional[str]) -> str:
     raise ValueError("Invalid host format.")
 
 
-# ── In-memory rate limiter (for API routes still in app.py) ──────────
-_rate_limit_store: dict[str, List[float]] = defaultdict(list)
+# ── In-memory rate limiter ───────────────────────────────────────────
+_rate_limit_store: dict[str, list[float]] = defaultdict(list)
 
 def _rate_limit(key: str, max_requests: int = 10, window_sec: int = 60) -> bool:
     """Returns True if rate limit is exceeded."""
@@ -235,8 +234,17 @@ def _rate_limit(key: str, max_requests: int = 10, window_sec: int = 60) -> bool:
 
 
 # ═════════════════════════════════════════════════════════════════════
-#  WebSocket Authentication (stays here — needs socketio instance)
+#  Security / Authentication
 # ═════════════════════════════════════════════════════════════════════
+
+# Generate a secure random token for this server session
+WS_TOKEN = os.environ.get("WS_TOKEN", secrets.token_hex(16))
+
+@app.route("/api/auth/token", methods=["GET"])
+@login_required
+def get_ws_token():
+    """Returns the WebSocket authorization token. Requires authentication."""
+    return jsonify({"status": "complete", "token": WS_TOKEN})
 
 @socketio.on("connect")
 def handle_connect(auth):
@@ -245,6 +253,119 @@ def handle_connect(auth):
         _log_activity("security", f"Blocked unauthorized WebSocket connection (IP: {request.remote_addr})", "high")
         raise ConnectionRefusedError("Unauthorized: Invalid or missing token")
     # Connection accepted
+
+# ═════════════════════════════════════════════════════════════════════
+#  API — User Registration / Login / Logout
+# ═════════════════════════════════════════════════════════════════════
+
+PASSWORD_RE = re.compile(r"^.{5,128}$")  # Minimum 5 characters
+
+@app.route("/api/auth/register", methods=["POST"])
+def register():
+    """Register a new user account."""
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database offline."}), 503
+
+    ip_key = f"register:{request.remote_addr}"
+    if _rate_limit(ip_key, max_requests=5, window_sec=300):
+        return jsonify({"status": "error", "message": "Too many registration attempts. Try again later."}), 429
+
+    body = request.get_json(silent=True) or {}
+    try:
+        username = _validate_username(body.get("username"))
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+
+    password = (body.get("password") or "").strip()
+    if not PASSWORD_RE.fullmatch(password):
+        return jsonify({"status": "error", "message": "Password must be 5-128 characters."}), 400
+
+    if users.find_one({"username": username}):
+        return jsonify({"status": "error", "message": "Username already taken."}), 409
+
+    users.insert_one({
+        "username": username,
+        "password_hash": generate_password_hash(password),
+        "role": "analyst",
+        "created_at": datetime.now(timezone.utc),
+    })
+    _log_activity("auth", f"New user registered: {username}")
+    return jsonify({"status": "complete", "message": f"User '{username}' created."}), 201
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def login():
+    """Authenticate and create a session."""
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database offline."}), 503
+
+    ip_key = f"login:{request.remote_addr}"
+    if _rate_limit(ip_key, max_requests=10, window_sec=60):
+        _log_activity("security", f"Rate-limited login attempts from {request.remote_addr}", "high")
+        return jsonify({"status": "error", "message": "Too many login attempts. Try again later."}), 429
+
+    body = request.get_json(silent=True) or {}
+    username = (body.get("username") or "").strip()
+    password = (body.get("password") or "").strip()
+
+    if not username or not password:
+        return jsonify({"status": "error", "message": "Username and password are required."}), 400
+
+    user_doc = users.find_one({"username": username})
+    if not user_doc or not check_password_hash(user_doc["password_hash"], password):
+        _log_activity("security", f"Failed login attempt for '{username}' from {request.remote_addr}", "warning")
+        return jsonify({"status": "error", "message": "Invalid credentials."}), 401
+
+    session.permanent = True
+    session["user"] = username
+    session["role"] = user_doc.get("role", "analyst")
+    _log_activity("auth", f"User '{username}' logged in from {request.remote_addr}")
+    return jsonify({"status": "complete", "message": f"Welcome, {username}.", "user": username, "role": session["role"]})
+
+
+@app.route("/api/auth/logout", methods=["POST"])
+def logout():
+    """End the current session."""
+    username = session.pop("user", "unknown")
+    session.clear()
+    _log_activity("auth", f"User '{username}' logged out")
+    return jsonify({"status": "complete", "message": "Logged out."})
+
+
+@app.route("/api/auth/session", methods=["GET"])
+def check_session():
+    """Check if the current session is authenticated."""
+    if "user" in session:
+        return jsonify({"status": "complete", "authenticated": True, "user": session["user"], "role": session.get("role", "analyst")})
+    return jsonify({"status": "complete", "authenticated": False})
+
+
+# ═════════════════════════════════════════════════════════════════════
+#  Frontend
+# ═════════════════════════════════════════════════════════════════════
+
+@app.route("/login")
+def serve_login():
+    """Serve the authentication page. Always accessible."""
+    if "user" in session:
+        return redirect(url_for("serve_dashboard"))
+    return render_template("login.html")
+
+
+@app.route("/")
+def serve_dashboard():
+    """Serve the NexShield Mission Control dashboard. Requires login."""
+    if "user" not in session:
+        return redirect(url_for("serve_login", next="/"))
+    return render_template("index.html")
+
+
+@app.route("/report")
+def serve_report():
+    """Serve the formatted HTML penetration testing report page. Requires login."""
+    if "user" not in session:
+        return redirect(url_for("serve_login", next="/report"))
+    return render_template("report.html")
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -294,7 +415,7 @@ def reset_data():
         "deleted": deleted,
     })
 
-# Page routes: / -> /login -> /index -> /report
+# (Duplicate route removed — serve_dashboard handles "/")
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -319,8 +440,6 @@ def get_threats():
     enriched = []
     for t in docs:
         t_serialized = _serialize(t)
-        if not isinstance(t_serialized, dict):
-            continue
         name = str(t.get("name") or "").lower()
         detail = str(t.get("detail") or "").lower()
         cve = str(t.get("cve_id") or "").lower()
@@ -341,20 +460,10 @@ def get_threats():
 #  API — Active Response (Zero-Trust)
 # ═════════════════════════════════════════════════════════════════════
 
-def _host_quarantine_query(host: str) -> dict[str, Any]:
-    return {
-        "host": host,
-        "$or": [
-            {"quarantined": True},
-            {"detail": {"$regex": r"^\[QUARANTINED\]"}},
-        ],
-    }
-
-
 @app.route("/api/quarantine", methods=["POST"])
 @login_required
 def quarantine_host():
-    """Simulate a network-level quarantine without rewriting threat evidence."""
+    """Simulate a network-level quarantine and remediate threats. Requires authentication."""
     if not check_connection():
         return jsonify({"status": "error", "message": "Database unavailable"}), 503
 
@@ -364,21 +473,17 @@ def quarantine_host():
     except ValueError as exc:
         return jsonify({"status": "error", "message": str(exc)}), 400
 
-    current_user = session.get("user", "unknown")
-    now = datetime.now(timezone.utc)
-
-    # Preserve the original findings. Quarantine is response state, not evidence mutation.
+    # Quarantine logic: Update all active threats for this host
     result = threats.update_many(
-        {"host": host, "quarantined": {"$ne": True}},
+        {"host": host, "severity": {"$ne": "low"}},
         {"$set": {
-            "quarantined": True,
-            "quarantined_at": now,
-            "quarantined_by": current_user,
-            "response_status": "quarantined",
+            "severity": "low",
+            "detail": "[QUARANTINED] Network access restricted. "
         }}
     )
 
     if result.modified_count > 0:
+        current_user = session.get("user", "unknown")
         _log_activity("security", f"Host {host} quarantined by {current_user}", "critical")
         
         # Trigger risk score recalculation
@@ -397,70 +502,13 @@ def quarantine_host():
 
         return jsonify({
             "status": "complete",
-            "message": f"Isolated {host} and marked {result.modified_count} findings as contained."
+            "message": f"Isolated {host} and neutralized {result.modified_count} threats."
         })
     else:
         return jsonify({
             "status": "info",
             "message": f"Host {host} has no active threats to quarantine."
         })
-
-
-@app.route("/api/quarantine/release", methods=["POST"])
-@login_required
-def release_quarantine():
-    """Release a host from simulated quarantine while preserving findings."""
-    if not check_connection():
-        return jsonify({"status": "error", "message": "Database unavailable"}), 503
-
-    body = request.get_json(silent=True) or {}
-    try:
-        host = _validate_host(body.get("host"))
-    except ValueError as exc:
-        return jsonify({"status": "error", "message": str(exc)}), 400
-
-    current_user = session.get("user", "unknown")
-    now = datetime.now(timezone.utc)
-    result = threats.update_many(
-        _host_quarantine_query(host),
-        {
-            "$set": {
-                "quarantined": False,
-                "released_at": now,
-                "released_by": current_user,
-                "response_status": "active",
-            },
-            "$unset": {
-                "quarantined_at": "",
-                "quarantined_by": "",
-            },
-        },
-    )
-
-    legacy_result = threats.update_many(
-        {"host": host, "detail": {"$regex": r"^\[QUARANTINED\]"}},
-        {"$set": {
-            "detail": "[RELEASED] Legacy quarantine marker cleared. Re-run analysis to refresh original finding detail.",
-        }},
-    )
-
-    modified = max(result.modified_count, legacy_result.modified_count)
-    if modified > 0:
-        _log_activity("security", f"Host {host} released from quarantine by {current_user}", "info")
-        socketio.emit("quarantine_complete", {
-            "status": "success",
-            "message": f"Host {host} released from quarantine.",
-            "host": host,
-        })
-        return jsonify({
-            "status": "complete",
-            "message": f"Released {host} from quarantine."
-        })
-
-    return jsonify({
-        "status": "info",
-        "message": f"Host {host} is not currently quarantined."
-    })
 
 # ═════════════════════════════════════════════════════════════════════
 #  API — Target Node Profiling
@@ -483,8 +531,7 @@ def get_host_profile(ip):
     return jsonify({
         "status": "complete",
         "host": ip,
-        "footprint": _serialize(scan_doc) if scan_doc else None,
-        "quarantined": threats.count_documents(_host_quarantine_query(ip)) > 0,
+        "footprint": _serialize(scan_doc) if scan_doc else None
     })
 
 @app.route("/api/export-scan", methods=["GET"])
@@ -562,29 +609,32 @@ def get_timeline():
     days = _normalize_limit(request.args.get("days", 7, type=int), 7, 30)
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
 
-    pipeline = [
-        {"$match": {"detected_at": {"$gte": cutoff}}},
-        {"$group": {
-            "_id": {
-                "day": {"$dateToString": {"format": "%Y-%m-%d", "date": "$detected_at"}},
-                "severity": "$severity",
-            },
-            "count": {"$sum": 1},
-        }},
-        {"$sort": {"_id.day": 1}},
-    ]
+    docs = threats.find({"detected_at": {"$gte": cutoff}})
 
-    results = list(threats.aggregate(pipeline))
-
-    # Build a structured response: { "2026-03-15": { "critical": 2, "high": 5, ... }, ... }
     timeline = {}
-    for r in results:
-        day = r["_id"]["day"]
-        sev = r["_id"]["severity"]
+    for doc in docs:
+        dt_val = doc.get("detected_at")
+        if not dt_val:
+            continue
+
+        if isinstance(dt_val, str):
+            try:
+                # Replace 'Z' with '+00:00' to ensure fromisoformat works on older Python
+                dt_str = dt_val.replace('Z', '+00:00')
+                dt = datetime.fromisoformat(dt_str)
+                day = dt.strftime("%Y-%m-%d")
+            except ValueError:
+                continue
+        elif isinstance(dt_val, datetime):
+            day = dt_val.strftime("%Y-%m-%d")
+        else:
+            continue
+
+        sev = doc.get("severity")
         if day not in timeline:
             timeline[day] = {"critical": 0, "high": 0, "medium": 0, "low": 0}
         if sev in timeline[day]:
-            timeline[day][sev] = r["count"]
+            timeline[day][sev] += 1
 
     # Fill in missing days with zeros
     all_days = []
@@ -737,7 +787,6 @@ def list_hosts():
             continue
         # Get threat count for this host
         threat_count = threats.count_documents({"host": ip})
-        quarantined = threats.count_documents(_host_quarantine_query(ip)) > 0
         result.append({
             "host": ip,
             "hostname": h.get("hostname", ""),
@@ -748,7 +797,6 @@ def list_hosts():
             "open_ports": h.get("open_ports", 0),
             "services": h.get("services", []),
             "threat_count": threat_count,
-            "quarantined": quarantined,
         })
 
     return jsonify({"status": "complete", "hosts": result, "total": len(result)})
@@ -791,7 +839,7 @@ def trigger_analysis():
     def background_analyze():
         try:
             from ai_logic import analyze_scan_results, merge_duplicates, compute_risk_scores  # type: ignore
-            _log_activity("analysis_start", "AI multi-model analysis initiated (16 engines) in background")
+            _log_activity("analysis_start", "AI multi-model analysis initiated (9 engines) in background")
             
             created = analyze_scan_results()
             scores = compute_risk_scores()
@@ -1728,8 +1776,29 @@ def download_report_rc():
 # ═════════════════════════════════════════════════════════════════════
 
 def _provision_admin_user():
-    """Initialize or sync the default Admin account. Delegates to routes.auth."""
-    return provision_admin_user(DEFAULT_ADMIN_USERNAME, DEFAULT_ADMIN_PASSWORD)
+    """Initialize default admin user if not present."""
+    try:
+        if not check_connection():
+            logger.warning("Cannot provision admin: Database unavailable")
+            return False
+        
+        if users.find_one({"username": "admin"}):
+            logger.info("Admin user already exists")
+            return True
+        
+        default_password = os.environ.get("ADMIN_PASSWORD", "admin")
+        users.insert_one({
+            "username": "admin",
+            "password_hash": generate_password_hash(default_password),
+            "role": "admin",
+            "created_at": datetime.now(timezone.utc),
+        })
+        logger.info("Default admin account created (change password in production!)")
+        _log_activity("auth", "Default admin account created")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to provision admin account: {e}", exc_info=True)
+        return False
 
 
 def _startup_banner():
@@ -1738,27 +1807,14 @@ def _startup_banner():
     environment = "PRODUCTION" if is_prod else "DEVELOPMENT"
     
     port = os.environ.get("PORT", "5000")
-    base = f"http://127.0.0.1:{port}"
     print("\n" + "=" * 70)
     print("   NexShield — AI-Powered Threat Intelligence Platform")
     print(f"   Environment: {environment}")
-    print("   Page flow:  Login  ->  Dashboard  ->  Report")
-    print(f"   1. Login:     {base}/login")
-    print(f"   2. Dashboard: {base}/index")
-    print(f"   3. Report:    {base}/report")
+    print(f"   Dashboard: http://127.0.0.1:{port}")
     print("   Docs: https://github.com/nextboxis/NexShield")
     print("=" * 70 + "\n")
     
     logger.info(f"NexShield starting in {environment} mode")
-
-
-def _open_browser_entry():
-    """Open the login page when the dev server starts."""
-    if os.environ.get("OPEN_BROWSER", "true").lower() in ("0", "false", "no"):
-        return
-    import webbrowser
-    port = os.environ.get("PORT", "5000")
-    webbrowser.open(f"http://127.0.0.1:{port}/login")
 
 
 if __name__ == "__main__":
@@ -1781,17 +1837,12 @@ if __name__ == "__main__":
     
     # Log startup
     _log_activity("system", "NexShield platform started", "info")
-
-    port = int(os.environ.get("PORT", 5000))
-    debug_mode = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
-    if not debug_mode or os.environ.get("WERKZEUG_RUN_MAIN") == "true":
-        threading.Timer(1.5, _open_browser_entry).start()
     
     # Production vs Development mode
     is_production = os.environ.get("FLASK_ENV", "development") == "production"
     
     if is_production:
-        logger.warning("[!] Running in PRODUCTION mode. Use a proper WSGI server (Gunicorn/Waitress).")
+        logger.warning("⚠️  Running in PRODUCTION mode. Use a proper WSGI server (Gunicorn/Waitress).")
         logger.warning("   Example: gunicorn -w 4 -b 0.0.0.0:5000 'app:app'")
         # For production, the app should be run with gunicorn/waitress
         # This fallback uses the development server with warnings disabled
@@ -1799,18 +1850,18 @@ if __name__ == "__main__":
             app,
             debug=False,
             host="127.0.0.1",
-            port=port,
+            port=int(os.environ.get("PORT", 5000)),
             use_reloader=False,
             use_debugger=False,
             allow_unsafe_werkzeug=True,
         )
     else:
-        logger.info("[!] Running in DEVELOPMENT mode")
+        logger.info("⚠️  Running in DEVELOPMENT mode")
         socketio.run(
             app,
             debug=os.environ.get("FLASK_DEBUG", "false").lower() == "true",
             host="127.0.0.1",
-            port=port,
+            port=int(os.environ.get("PORT", 5000)),
             allow_unsafe_werkzeug=True,
         )
 
