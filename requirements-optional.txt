@@ -8,12 +8,12 @@
 # ═══════════════════════════════════════════════════════════════
 
 # ── MongoDB (alternative to built-in TinyDB) ──────────────────
-pymongo>=4.5
+pymongo>=4.6.3
 Flask-PyMongo>=3.0
 dnspython>=2.4
 
 # ── Metasploit RPC (for exploit execution) ────────────────────
-pymetasploit3>=1.0
+pymetasploit3>=1.0.6
 msgpack>=1.0
 
 # ── Production WSGI Servers ───────────────────────────────────
