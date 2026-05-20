@@ -1,0 +1,38 @@
+version: '3.8'
+
+services:
+  nexshield:
+    build: .
+    container_name: nexshield_app
+    ports:
+      - "5000:5000"
+    environment:
+      - FLASK_ENV=production
+      - MONGO_URI=mongodb://mongo:27017/
+      - MSF_HOST=msfrpcd
+      - MSF_PORT=55553
+      - MSF_PASSWORD=nexshield
+    depends_on:
+      - mongo
+      - msfrpcd
+    volumes:
+      - nexshield_data:/app/data
+
+  mongo:
+    image: mongo:6.0
+    container_name: nexshield_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+
+  msfrpcd:
+    image: metasploitframework/metasploit-framework
+    container_name: nexshield_msf
+    ports:
+      - "55553:55553"
+    command: ./msfrpcd -P nexshield -U msf -n -f -a 0.0.0.0
+
+volumes:
+  nexshield_data:
+  mongo_data:

@@ -112,18 +112,18 @@ def check_nmap():
     if nmap_path:
         print_status("+", f"Nmap found: {nmap_path}")
         return True
-    else:
-        print_status("!", "Nmap NOT found (scanning will not work)")
-        os_name = platform.system()
-        if os_name == "Windows":
-            print_status("!", "Install: https://nmap.org/download.html")
-            print_status("!", "After install, add nmap to your system PATH")
-        elif os_name == "Linux":
-            print_status("!", "Install: sudo apt install nmap  (Debian/Ubuntu)")
-            print_status("!", "         sudo yum install nmap  (CentOS/RHEL)")
-        elif os_name == "Darwin":
-            print_status("!", "Install: brew install nmap")
-        return False
+        
+    print_status("!", "Nmap NOT found (scanning will not work)")
+    os_name = platform.system()
+    if os_name == "Windows":
+        print_status("!", "Install: https://nmap.org/download.html")
+        print_status("!", "After install, add nmap to your system PATH")
+    elif os_name == "Linux":
+        print_status("!", "Install: sudo apt install nmap  (Debian/Ubuntu)")
+        print_status("!", "         sudo yum install nmap  (CentOS/RHEL)")
+    elif os_name == "Darwin":
+        print_status("!", "Install: brew install nmap")
+    return False
 
 
 def check_env_file():
@@ -137,7 +137,7 @@ def check_env_file():
         print_status("+", "Created .env from .env.example")
     else:
         # Create a minimal .env
-        with open(ENV_FILE, "w") as f:
+        with open(ENV_FILE, "w", encoding="utf-8") as f:
             f.write("# NexShield Configuration\n")
             f.write("FLASK_ENV=development\n")
             f.write("FLASK_DEBUG=true\n")
@@ -162,9 +162,9 @@ def check_database():
             db_type = "MongoDB" if _using_mongodb else "TinyDB (built-in)"
             print_status("+", f"Database ready: {db_type}")
             return True
-        else:
-            print_status("X", "Database initialization failed")
-            return False
+            
+        print_status("X", "Database initialization failed")
+        return False
     except Exception as e:
         print_status("X", f"Database check error: {e}")
         return False

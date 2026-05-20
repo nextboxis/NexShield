@@ -65,6 +65,17 @@ That's it! NexShield will:
 - ✅ Create a default admin account
 - ✅ Start the web dashboard
 
+### Alternative: Docker Compose
+
+NexShield provides a multi-container Docker environment.
+```bash
+docker-compose up --build -d
+```
+This will launch:
+- The NexShield web app (port 5000)
+- A MongoDB instance (port 27017)
+- A Metasploit RPC server (port 55553)
+
 ### Step 3: Open Dashboard
 
 Open your browser to: **http://127.0.0.1:5000**
@@ -189,13 +200,16 @@ NexShield/
 ├── scanner.py                 # Network scanning engine (Nmap wrapper)
 ├── cve_lookup.py              # CVE database and NVD API integration
 ├── exploit_cli.py             # CLI for exploit RC script generation
-├── msf_rpc.py                 # Metasploit RPC client (optional)
+├── msf_utils.py               # Metasploit payload mapping and RC script logic
+├── msf_rpc.py                 # Metasploit RPC client
 ├── wsgi.py                    # Production WSGI entry point
+├── Dockerfile                 # Docker image definition
+├── docker-compose.yml         # Multi-container environment definition
 ├── requirements.txt           # Core Python dependencies
-├── requirements-optional.txt  # Advanced/optional dependencies
 ├── .env.example               # Configuration template
 ├── install.bat                # Windows installer
 ├── install.sh                 # Linux/macOS installer
+├── tests/                     # Unit tests (ai_logic, cve_lookup, scanner)
 ├── data/                      # Database files (auto-created)
 │   └── nexshield_db.json      # TinyDB database
 ├── templates/

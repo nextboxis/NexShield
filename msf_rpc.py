@@ -1,5 +1,4 @@
 import os
-import time
 import logging
 
 try:
@@ -15,6 +14,10 @@ MSF_HOST = os.environ.get("MSF_HOST", "127.0.0.1")
 MSF_PORT = int(os.environ.get("MSF_PORT", "55553"))
 
 def get_client():
+    """
+    Instantiate and return a Metasploit RPC client instance.
+    Attempts SSL first, falls back to plaintext if SSL fails.
+    """
     if not MsfRpcClient:
         raise RuntimeError("pymetasploit3 is not installed. Run: pip install pymetasploit3")
     try:
@@ -24,7 +27,7 @@ def get_client():
         try:
             return MsfRpcClient(MSF_PASSWORD, server=MSF_HOST, port=MSF_PORT, ssl=False)
         except Exception as e2:
-            raise ConnectionError(f"Failed to connect to MSF RPC on {MSF_HOST}:{MSF_PORT}. Is msfrpcd running? ({str(e2)})")
+            raise ConnectionError(f"Failed to connect to MSF RPC on {MSF_HOST}:{MSF_PORT}. Is msfrpcd running? ({str(e2)})") from e2
 
 def execute_exploit(host: str, module_name: str, lhost: str = "eth0") -> dict:
     """
@@ -32,13 +35,14 @@ def execute_exploit(host: str, module_name: str, lhost: str = "eth0") -> dict:
     """
     try:
         client = get_client()
-        logger.info(f"Connected to MSF RPC. Loading module: {module_name}")
+        logger.info("Connected to MSF RPC. Loading module: %s", module_name)
         
         # Load the exploit module
         try:
             exploit = client.modules.use('exploit', module_name.replace("exploit/", ""))
-        except Exception:
+        except Exception as mod_err:
             # Maybe it's an auxiliary module
+            logger.debug("Failed to load as exploit (%s), trying auxiliary", mod_err)
             exploit = client.modules.use('auxiliary', module_name.replace("auxiliary/", ""))
 
         # Set standard payload/options
@@ -49,7 +53,7 @@ def execute_exploit(host: str, module_name: str, lhost: str = "eth0") -> dict:
         if 'LHOST' in exploit.options:
             exploit['LHOST'] = lhost
             
-        logger.info(f"Executing {module_name} against {host}...")
+        logger.info("Executing %s against %s...", module_name, host)
         
         # Execute asynchronously
         job_info = exploit.execute()
@@ -62,7 +66,7 @@ def execute_exploit(host: str, module_name: str, lhost: str = "eth0") -> dict:
         }
         
     except Exception as e:
-        logger.error(f"Exploit execution failed: {e}")
+        logger.error("Exploit execution failed: %s", e)
         return {
             "status": "error",
             "message": str(e)

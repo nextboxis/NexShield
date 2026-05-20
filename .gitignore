@@ -160,6 +160,7 @@ nexshield_report_*.json
 scan_footprint_*.json
 activity_log.json
 mongodb_data/
+data/
 *.rc
 
 # ML Model Artifacts

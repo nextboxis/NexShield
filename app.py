@@ -12,6 +12,7 @@ import time as _time
 from collections import defaultdict
 from typing import Any  # type: ignore
 import requests # type: ignore
+from msf_utils import map_threat_to_module, generate_rc_script, EXPLOIT_DATABASE, MSF_MAPPINGS
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, Response, make_response # type: ignore
 from flask_cors import CORS # type: ignore
 from flask_socketio import SocketIO, emit # type: ignore
@@ -452,13 +453,7 @@ def get_threats():
         detail = str(t.get("detail") or "").lower()
         cve = str(t.get("cve_id") or "").lower()
         
-        module = None
-        for keyword, mod in MSF_MAPPINGS.items():
-            if keyword in name or keyword in detail or keyword in cve:
-                module = mod
-                break
-        
-        t_serialized["exploit_module"] = module
+        t_serialized["exploit_module"] = map_threat_to_module(t)
         enriched.append(t_serialized)
 
     return jsonify({"status": "complete", "threats": enriched})
@@ -1168,95 +1163,8 @@ def get_raw_threats():
 #  Exploit Intelligence Database (v5.0)
 # ═════════════════════════════════════════════════════════════════════
 
-EXPLOIT_DATABASE = {
-    "ms17-010": {
-        "module": "exploit/windows/smb/ms17_010_eternalblue",
-        "rank": "EXCELLENT",
-        "reliability": "HIGH",
-        "check": True,
-        "desc": "Remote Ring 0 kernel overflow via SMBv1. Highly unstable if target has low RAM."
-    },
-    "ms08-067": {
-        "module": "exploit/windows/smb/ms08_067_netapi",
-        "rank": "GREAT",
-        "reliability": "HIGH",
-        "check": True,
-        "desc": "Classic NetAPI overflow. Effective against older systems (XP/2003)."
-    },
-    "bluekeep": {
-        "module": "exploit/windows/rdp/cve_2019_0708_bluekeep_rce",
-        "rank": "MANUAL",
-        "reliability": "MEDIUM",
-        "check": True,
-        "desc": "RDP Use-After-Free. Requires precise kernel grooming. High risk of BSoD."
-    },
-    "log4shell": {
-        "module": "exploit/multi/http/log4shell_header_injection",
-        "rank": "EXCELLENT",
-        "reliability": "MAXIMAL",
-        "check": True,
-        "desc": "JNDI injection via Log4j. Cross-platform. One of the most critical bugs in history."
-    },
-    "pwnkit": {
-        "module": "exploit/linux/local/cve_2021_4034_pwnkit_lpe",
-        "rank": "EXCELLENT",
-        "reliability": "HIGH",
-        "check": False,
-        "desc": "Polkit pkexec Local Privilege Escalation. Reliable and silent."
-    },
-    "vsftpd 2.3.4": {
-        "module": "exploit/unix/ftp/vsftpd_234_backdoor",
-        "rank": "EXCELLENT",
-        "reliability": "MAXIMAL",
-        "check": True,
-        "desc": "Backdoor trigger via ':)' smiley in username. Instant root access."
-    },
-    "proxylogon": {
-        "module": "exploit/windows/http/exchange_proxylogon_rce",
-        "rank": "EXCELLENT",
-        "reliability": "HIGH",
-        "check": True,
-        "desc": "Exchange Server SSRF + File Write. Leads to full domain compromise."
-    },
-    "redis": {
-        "module": "exploit/linux/redis/redis_replication_cmd_exec",
-        "rank": "EXCELLENT",
-        "reliability": "HIGH",
-        "check": True,
-        "desc": "Master/Slave replication takeover. Allows arbitrary command execution."
-    }
-}
+# EXPLOIT_DATABASE and MSF_MAPPINGS have been moved to msf_utils.py
 
-# Legacy mapping for backwards compatibility
-MSF_MAPPINGS: dict[str, str] = {str(k): str(v["module"]) for k, v in EXPLOIT_DATABASE.items()}
-MSF_MAPPINGS.update({
-    "tomcat": "exploit/multi/http/tomcat_mgr_upload",
-    "smb": "auxiliary/scanner/smb/smb_version",
-    "printnightmare": "exploit/windows/dcerpc/cve_2021_34527_printnightmare",
-    "vsftpd": "exploit/unix/ftp/vsftpd_234_backdoor",
-    "ssh": "auxiliary/scanner/ssh/ssh_login",
-    "ftp": "auxiliary/scanner/ftp/ftp_login",
-    "vnc": "auxiliary/scanner/vnc/vnc_login",
-    "rdp": "auxiliary/scanner/rdp/cve_2019_0708_bluekeep",
-    "mysql": "auxiliary/scanner/mysql/mysql_login",
-    "postgresql": "auxiliary/scanner/postgres/postgres_login",
-    "mongodb": "auxiliary/scanner/mongodb/mongodb_login",
-    "redis": "exploit/linux/redis/redis_replication_cmd_exec",
-    "elasticsearch": "exploit/multi/elasticsearch/script_mvel_rce",
-    "kubernetes": "auxiliary/scanner/kubernetes/kubelet_readonly_exec",
-    "weblogic": "exploit/multi/misc/weblogic_deserialize",
-    "confluence": "exploit/multi/http/confluence_cve_2022_26134",
-    "gitlab": "exploit/multi/http/gitlab_exif_rce",
-    "jenkins": "exploit/multi/http/jenkins_script_console",
-    "docker": "exploit/linux/local/docker_runc_escape",
-    "memcache": "auxiliary/gather/memcached_extractor",
-    "spring": "exploit/multi/http/spring_cloud_function_cve_2022_22963",
-    "exchange": "exploit/windows/http/exchange_proxylogon_rce",
-    "rpcbind": "auxiliary/scanner/portmap/portmap_amp",
-    "activemq": "exploit/multi/misc/weblogic_deserialize", # placeholder
-    "grafana": "auxiliary/scanner/http/grafana_plugin_lfi",
-    "cve-2021-44228": "exploit/multi/http/log4shell_header_injection",
-})
 
 @app.route("/api/exploit/generate", methods=["GET"])
 def api_generate_exploit_rc():
