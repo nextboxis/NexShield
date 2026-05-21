@@ -27,7 +27,8 @@ def get_client():
         try:
             return MsfRpcClient(MSF_PASSWORD, server=MSF_HOST, port=MSF_PORT, ssl=False)
         except Exception as e2:
-            raise ConnectionError(f"Failed to connect to MSF RPC on {MSF_HOST}:{MSF_PORT}. Is msfrpcd running? ({str(e2)})") from e2
+            logger.error(f"MSF RPC connection error: {e2}")
+            raise ConnectionError(f"Failed to connect to MSF RPC on {MSF_HOST}:{MSF_PORT}. Is msfrpcd running?") from e2
 
 def execute_exploit(host: str, module_name: str, lhost: str = "eth0") -> dict:
     """
@@ -67,7 +68,11 @@ def execute_exploit(host: str, module_name: str, lhost: str = "eth0") -> dict:
         
     except Exception as e:
         logger.error("Exploit execution failed: %s", e)
+        if isinstance(e, (ConnectionError, RuntimeError)):
+            msg = str(e)
+        else:
+            msg = "An internal error occurred during exploit execution."
         return {
             "status": "error",
-            "message": str(e)
+            "message": msg
         }
