@@ -113,6 +113,17 @@ class TinyCollection:
             docs = self._search(query)
             count = 0
             set_fields = update.get("$set", {})
+            
+            # Convert datetime objects to ISO strings for JSON storage
+            for k, v in set_fields.items():
+                if isinstance(v, datetime):
+                    set_fields[k] = v.isoformat()
+                elif isinstance(v, list):
+                    set_fields[k] = [
+                        item.isoformat() if isinstance(item, datetime) else item
+                        for item in v
+                    ]
+
             for doc in docs:
                 doc_id = doc.get("_tinydb_id")
                 if doc_id is not None and set_fields:
@@ -130,6 +141,17 @@ class TinyCollection:
             docs = self._search(query)
             count = 0
             set_fields = update.get("$set", {})
+            
+            # Convert datetime objects to ISO strings for JSON storage
+            for k, v in set_fields.items():
+                if isinstance(v, datetime):
+                    set_fields[k] = v.isoformat()
+                elif isinstance(v, list):
+                    set_fields[k] = [
+                        item.isoformat() if isinstance(item, datetime) else item
+                        for item in v
+                    ]
+
             if docs and set_fields:
                 doc_id = docs[0].get("_tinydb_id")
                 if doc_id is not None:
