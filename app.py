@@ -205,10 +205,23 @@ DEFAULT_DASHBOARD_PATH = "/dashboard"
 def _safe_next_path(next_path: str | None, fallback: str = DEFAULT_DASHBOARD_PATH) -> str:
     """Allow only local, non-login return paths after authentication."""
     candidate = (next_path or "").strip()
-    if not candidate.startswith("/") or candidate.startswith("//"):
+    if not candidate:
         return fallback
-    if candidate.split("?", 1)[0] == "/login":
+    
+    from urllib.parse import urlparse
+    parsed = urlparse(candidate)
+    
+    # Must not have a netloc or scheme (must be a relative path)
+    if parsed.netloc or parsed.scheme:
         return fallback
+    
+    # Must start with a slash
+    if not parsed.path.startswith("/"):
+        return fallback
+        
+    if parsed.path == "/login":
+        return fallback
+        
     return candidate
 
 
@@ -432,6 +445,7 @@ def reset_data():
 # ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/threats", methods=["GET"])
+@login_required
 def get_threats():
     """Return the latest 10 threats, sorted by detection time (descending)."""
     if not check_connection():
@@ -518,6 +532,7 @@ def quarantine_host():
 # ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/host/<path:ip>", methods=["GET"])
+@login_required
 def get_host_profile(ip):
     """Retrieve deep scan results (footprint) for a particular IP."""
     if not check_connection():
@@ -538,6 +553,7 @@ def get_host_profile(ip):
     })
 
 @app.route("/api/export-scan", methods=["GET"])
+@login_required
 def export_scan():
     """Export the raw JSON scan footprint for a particular IP."""
     if not check_connection():
@@ -569,6 +585,7 @@ def export_scan():
 # ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/stats", methods=["GET"])
+@login_required
 def get_stats():
     """Return aggregate counts: total threats, scans, severity breakdown."""
     if not check_connection():
@@ -604,6 +621,7 @@ def get_stats():
 # ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/timeline", methods=["GET"])
+@login_required
 def get_timeline():
     """Return threat counts per day per severity for the last 7 days."""
     if not check_connection():
@@ -734,6 +752,7 @@ def trigger_scan():
 
 
 @app.route("/api/scan/status", methods=["GET"])
+@login_required
 def scan_status():
     """Check if a scan is currently running and its progress."""
     try:
@@ -745,6 +764,7 @@ def scan_status():
 
 
 @app.route("/api/scan/nmap-check", methods=["GET"])
+@login_required
 def nmap_check():
     """Verify nmap is installed and return version/path info."""
     try:
@@ -761,6 +781,7 @@ def nmap_check():
 
 
 @app.route("/api/hosts", methods=["GET"])
+@login_required
 def list_hosts():
     """Return all discovered hosts with aggregated stats."""
     if not check_connection():
@@ -806,6 +827,7 @@ def list_hosts():
 
 
 @app.route("/api/host/<path:ip>/history", methods=["GET"])
+@login_required
 def host_scan_history(ip):
     """Return paginated scan history for a specific host."""
     if not check_connection():
@@ -918,6 +940,7 @@ def trigger_training():
 # ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/scan-history", methods=["GET"])
+@login_required
 def get_scan_history():
     """Return the last 20 scans grouped by scan_id."""
     if not check_connection():
@@ -943,6 +966,7 @@ def get_scan_history():
 # ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/export", methods=["GET"])
+@login_required
 def export_threats():
     """Export threats as CSV or JSON, with optional filtering by host/severity."""
     if not check_connection():
@@ -1015,6 +1039,7 @@ def export_threats():
 # ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/cve/<cve_id>", methods=["GET"])
+@login_required
 def cve_detail(cve_id):
     """Look up a CVE from the NVD database."""
     try:
@@ -1031,6 +1056,7 @@ def cve_detail(cve_id):
 
 
 @app.route("/api/nvd/cpe", methods=["GET"])
+@login_required
 def nvd_cpe_lookup():
     """Search CVEs by CPE name (e.g., cpe:2.3:o:microsoft:windows_10:1607:*:*:*:*:*:*:*)."""
     cpe_name = (request.args.get("cpeName") or "").strip()
@@ -1048,6 +1074,7 @@ def nvd_cpe_lookup():
 
 
 @app.route("/api/nvd/tag", methods=["GET"])
+@login_required
 def nvd_tag_lookup():
     """Search CVEs by tag (e.g., disputed)."""
     tag = (request.args.get("cveTag") or "").strip()
@@ -1065,6 +1092,7 @@ def nvd_tag_lookup():
 
 
 @app.route("/api/nvd/cvss-v2-metrics", methods=["GET"])
+@login_required
 def nvd_cvss_v2_metrics_lookup():
     """Search CVEs by CVSS v2 vector string (e.g., AV:N/AC:H/Au:N/C:C/I:C/A:C)."""
     vector = (request.args.get("cvssV2Metrics") or "").strip()
@@ -1082,6 +1110,7 @@ def nvd_cvss_v2_metrics_lookup():
 
 
 @app.route("/api/nvd/cvss-v2-severity", methods=["GET"])
+@login_required
 def nvd_cvss_v2_severity_lookup():
     """Search CVEs by CVSS v2 severity (LOW, MEDIUM, HIGH)."""
     severity = (request.args.get("cvssV2Severity") or "").strip()
@@ -1099,6 +1128,7 @@ def nvd_cvss_v2_severity_lookup():
 
 
 @app.route("/api/nvd/search", methods=["GET"])
+@login_required
 def nvd_universal_search():
     """Universal NVD search — auto-detects query type or accepts explicit type."""
     query = (request.args.get("q") or "").strip()
@@ -1121,6 +1151,7 @@ def nvd_universal_search():
 # ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/activity", methods=["GET"])
+@login_required
 def get_activity():
     """Return the last 50 activity log entries."""
     if not check_connection():
@@ -1134,6 +1165,7 @@ def get_activity():
     return jsonify({"status": "complete", "events": _serialize(docs)})
 
 @app.route("/api/threats/raw", methods=["GET"])
+@login_required
 def get_raw_threats():
     """
     Returns raw, unpaginated threat data filtered by minimum severity.
@@ -1167,6 +1199,7 @@ def get_raw_threats():
 
 
 @app.route("/api/exploit/generate", methods=["GET"])
+@login_required
 def api_generate_exploit_rc():
     """Generate and return a Metasploit RC script for a host or all hosts."""
     from flask import Response
@@ -1289,6 +1322,7 @@ def api_execute_exploit():
 # ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/risk-scores", methods=["GET"])
+@login_required
 def get_risk_scores():
     """
     Returns composite risk scores per host.
@@ -1318,6 +1352,7 @@ def get_risk_scores():
 # ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/threat-trends", methods=["GET"])
+@login_required
 def get_threat_trends():
     """Return severity distribution and threat source breakdown."""
     if not check_connection():
@@ -1387,6 +1422,7 @@ _REMEDIATION_MAP = {
 
 
 @app.route("/api/report", methods=["GET"])
+@login_required
 def generate_report():
     """
     Generate a structured penetration testing report from live scan data.
