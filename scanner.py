@@ -219,8 +219,8 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
             progress_callback(10, "Executing nmap scan...")
 
         # ── Execute nmap ─────────────────────────────────────────
-        # For UDP and some types, ports are handled by nmap flags
-        if scan_type in ("udp",):
+        # For UDP, Quick, and Full scans, ports are handled by nmap flags directly in scan_args
+        if scan_type in ("udp", "quick", "full"):
             scanner.scan(hosts=target, arguments=scan_args)  # type: ignore
         else:
             scanner.scan(hosts=target, ports=ports, arguments=scan_args)  # type: ignore
