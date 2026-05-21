@@ -776,8 +776,9 @@ def nmap_check():
             "nmap_info": info,
             "scan_types": {k: v["label"] for k, v in SCAN_TYPES.items()},
         })
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    except Exception:
+        logger.exception("Nmap check error")
+        return jsonify({"status": "error", "message": "An internal error occurred."}), 500
 
 
 @app.route("/api/hosts", methods=["GET"])
