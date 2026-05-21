@@ -1044,11 +1044,11 @@ def export_threats():
 def cve_detail(cve_id):
     """Look up a CVE from the NVD database."""
     try:
-        if cve_id.upper().startswith("SCAN-") or cve_id.upper().startswith("AI-"):
+        if not cve_id.upper().startswith("CVE-"):
             return jsonify({
                 "status": "complete",
                 "cve_id": cve_id.upper(),
-                "description": "Internal NexShield detection. This is not a public CVE.",
+                "description": "Internal NexShield detection or non-CVE identifier. This is not a public CVE.",
                 "score": 0,
                 "severity": "unknown",
                 "references": []
