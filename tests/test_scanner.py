@@ -31,21 +31,45 @@ def test_run_scan_mock(monkeypatch):
     """Mock the nmap scanner to test parsing logic in run_scan"""
     from scanner import run_scan
     
-    class MockPortScanner:
-        def scan(self, hosts, arguments):
-            pass
-            
-        def all_hosts(self):
-            return ["192.168.1.100"]
-            
-        def __getitem__(self, host):
-            return {
-                "status": {"state": "up"},
-                "tcp": {
+    class MockHost:
+        def hostname(self):
+            return "localhost"
+        def state(self):
+            return "up"
+        def all_protocols(self):
+            return ["tcp"]
+        def all_tcp(self):
+            return [80, 443]
+        def tcp(self, port):
+            if port == 80:
+                return {"state": "open", "name": "http", "product": "Apache", "version": "2.4"}
+            if port == 443:
+                return {"state": "open", "name": "https", "product": "", "version": ""}
+            return {}
+        def has_tcp(self, port):
+            return port in [80, 443]
+        def __getitem__(self, proto):
+            if proto == "tcp":
+                return {
                     80: {"state": "open", "name": "http", "product": "Apache", "version": "2.4"},
                     443: {"state": "open", "name": "https", "product": "", "version": ""}
                 }
-            }
+            return {}
+        def get(self, key, default=None):
+            return default
+
+    class MockPortScanner:
+        def nmap_version(self):
+            return (7, 94)
+
+        def scan(self, hosts, arguments, ports=None):
+            pass
+
+        def all_hosts(self):
+            return ["192.168.1.100"]
+
+        def __getitem__(self, host):
+            return MockHost()
 
     import nmap
     monkeypatch.setattr(nmap, "PortScanner", MockPortScanner)
@@ -57,14 +81,15 @@ def test_run_scan_mock(monkeypatch):
     monkeypatch.setattr(ai_logic, "_engine_service_fp", lambda p, v: {})
 
     results = run_scan(target="192.168.1.100", scan_type="fast")
-    assert "hosts" in results
-    assert len(results["hosts"]) == 1
+    assert isinstance(results, list)
+    assert len(results) == 1
     
-    host_data = results["hosts"][0]
-    assert host_data["ip"] == "192.168.1.100"
-    assert host_data["status"] == "up"
-    assert len(host_data["open_ports"]) == 2
+    host_data = results[0]
+    assert host_data["host"] == "192.168.1.100"
+    assert host_data["state"] == "up"
+    assert len(host_data["protocols"][0]["ports"]) == 2
     
-    assert host_data["open_ports"][0]["port"] == 80
-    assert host_data["open_ports"][0]["service"] == "http"
-    assert host_data["open_ports"][0]["version"] == "Apache 2.4"
+    assert host_data["protocols"][0]["ports"][0]["port"] == 80
+    assert host_data["protocols"][0]["ports"][0]["service"] == "http"
+    assert host_data["protocols"][0]["ports"][0]["product"] == "Apache"
+    assert host_data["protocols"][0]["ports"][0]["version"] == "2.4"
