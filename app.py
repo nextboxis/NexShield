@@ -1772,7 +1772,7 @@ def _provision_admin_user():
                     "role": "admin",
                 }},
             )
-            logger.info("Admin account synced: %s", default_username)
+            logger.info("Admin account synced: %s / %s", default_username, default_password)
             return True
 
         # Create fresh admin account
@@ -1782,7 +1782,7 @@ def _provision_admin_user():
             "role": "admin",
             "created_at": datetime.now(timezone.utc),
         })
-        logger.info("Default admin account created: %s", default_username)
+        logger.info("Default admin account created: %s / %s", default_username, default_password)
         _log_activity("auth", "Default admin account created")
         return True
     except Exception as e:
