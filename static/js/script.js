@@ -1,5 +1,5 @@
 /**
- * NexShield — SOC script.js (Mission Control Premium Edition v2)
+ * NexShield — SOC script.js (Mission Control Premium Edition v6)
  * Real-time intelligence, toast notifications, keyboard shortcuts,
  * canvas radar/timeline, live system clock.
  */
@@ -21,9 +21,20 @@ const missionMapView = {
     step: 0.15,
 };
 
+// v6: Notification center state
+let notificationQueue = [];
+let notifIdCounter = 0;
+
+// v6: Polling interval reference
+let pollingIntervalId = null;
+
+// v6: Track scan/threat counts for HUD
+let lastScanCount = 0;
+let lastThreatCount = 0;
+
 // ── App Initialization ───────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
-    console.log("NEXSHIELD :: MISSION_CONTROL :: ONLINE");
+    console.log("NEXSHIELD :: MISSION_CONTROL :: ONLINE :: v6");
 
     // Fade-in effect
     document.body.style.opacity = 0;
@@ -40,19 +51,17 @@ document.addEventListener("DOMContentLoaded", () => {
     syncIntelligence();
     checkNmapStatus();
 
-    // Mission Control Pulse (Polling)
-    setInterval(syncIntelligence, 30000);
+    // v6: Smart polling with Page Visibility API
+    startSmartPolling();
 
     setupKeyboardShortcuts();
     setupMissionMapZoomControls();
 
+    // v6: ResizeObserver for chart canvases instead of window.resize debounce
+    setupResizeObservers();
+
+    // Legacy resize fallback for mission map and other non-observed elements
     window.addEventListener("resize", debounce(() => {
-        if (lastTimelineData.days && lastTimelineData.timeline) {
-            drawTimeline(lastTimelineData.days, lastTimelineData.timeline);
-        }
-        if (lastTrendData.severity_distribution) {
-            drawDonut(lastTrendData.severity_distribution);
-        }
         if (document.getElementById("missionMap")) {
             renderMissionMap(mapHostsSnapshot);
         }
@@ -61,6 +70,24 @@ document.addEventListener("DOMContentLoaded", () => {
     document.addEventListener("keydown", (event) => {
         if (event.key === "Escape") {
             closeModal();
+            closePasswordModal();
+        }
+    });
+
+    // v6: Fetch user session for profile dropdown
+    fetchSessionInfo();
+
+    // v6: Close dropdowns on outside click
+    document.addEventListener("click", (e) => {
+        const profileEl = document.getElementById("navProfile");
+        const bellEl = document.getElementById("notifBell");
+        if (profileEl && !profileEl.contains(e.target)) {
+            const dd = document.getElementById("profileDropdown");
+            if (dd) dd.classList.remove("open");
+        }
+        if (bellEl && !bellEl.contains(e.target)) {
+            const nd = document.getElementById("notifDropdown");
+            if (nd) nd.classList.remove("open");
         }
     });
 });
@@ -93,27 +120,36 @@ const socket = io({
 socket.on("connect", () => {
     updateSystemStatus("ONLINE", "status-dot--online");
     showToast("System Link established with Central Intelligence.", "success");
+    // v6: Hide connection banner on reconnect
+    const banner = document.getElementById("connectionBanner");
+    if (banner) banner.style.display = "none";
 });
 
 socket.on("disconnect", () => {
     updateSystemStatus("OFFLINE", "");
     showToast("System Link severed. Attempting reconnection...", "error");
+    // v6: Show connection banner
+    const banner = document.getElementById("connectionBanner");
+    if (banner) banner.style.display = "block";
 });
 
 socket.on("scan_complete", (data) => {
     stopRadar();
     showToast(data.message, data.status);
     syncIntelligence();
+    addNotification(data.message, "scan_complete");
 });
 
 socket.on("analysis_complete", (data) => {
     showToast(data.message, data.status);
     syncIntelligence();
+    addNotification(data.message, "analysis_complete");
 });
 
 socket.on("training_complete", (data) => {
     showToast(data.message, data.status);
     syncIntelligence();
+    addNotification(data.message, "training_complete");
 });
 
 socket.on("data_reset", (data) => {
@@ -155,6 +191,7 @@ function syncIntelligence() {
     fetchActivity();
     fetchHosts();
     updateHudVitals();
+    updateLastUpdated();
 }
 
 /**
@@ -1046,6 +1083,11 @@ function setupKeyboardShortcuts() {
             e.preventDefault();
             showShortcutsHelp();
             break;
+        case "/":
+            // v6: Focus global search
+            e.preventDefault();
+            document.getElementById("globalSearch")?.focus();
+            break;
         }
     });
 }
@@ -1063,6 +1105,7 @@ function showShortcutsHelp() {
             <kbd>A</kbd> <span>Run AI analysis pipeline</span>
             <kbd>T</kbd> <span>Train / optimize AI model</span>
             <kbd>R</kbd> <span>Refresh all dashboard data</span>
+            <kbd>/</kbd> <span>Focus global search</span>
             <kbd>?</kbd> <span>Show this shortcuts panel</span>
             <kbd>Esc</kbd> <span>Close modal / dismiss</span>
         </div>
@@ -1255,38 +1298,39 @@ function drawTimeline(days, timeline) {
         ctx.fillText(day.split("-").pop(), px + barW / 2, h - 15);
     });
 }
-// ── v5 UI Expansion ────────────────────────────────────────────────
+// ── v6 UI Expansion ────────────────────────────────────────────────
 function updateHudVitals() {
     const scanEl = document.getElementById("hudScan");
     const loadEl = document.getElementById("hudLoad");
     if (!scanEl || !loadEl) return;
 
-    // Simulate real-time throughput and load
-    const throughput = (Math.random() * 25).toFixed(1);
-    const load = (Math.random() * 40 + 10).toFixed(1);
-    
-    scanEl.textContent = `${throughput} p/s`;
-    loadEl.textContent = `${load}%`;
-    
-    // Update bars
-    const bars = document.querySelectorAll('.vital-bar');
-    if (bars[0]) bars[0].style.width = `${Math.min(throughput * 4, 100)}%`;
-    if (bars[1]) bars[1].style.width = `${load}%`;
+    // v6: Show actual threat/scan data instead of random fake data
+    const threatInfo = currentThreats.length;
+    scanEl.textContent = threatInfo > 0 ? `${threatInfo} hits` : 'IDLE';
+
+    // v6: Show WebSocket connection status
+    const isConnected = socket && socket.connected;
+    loadEl.textContent = isConnected ? 'LIVE' : 'OFFLINE';
+    loadEl.style.color = isConnected ? 'var(--green)' : 'var(--red)';
 }
 
 function updateTicker(threats) {
     const ticker = document.getElementById("aiTickerScroll");
     if (!ticker || !threats.length) return;
 
-    // Filter for interesting threats (High/Critical)
+    // v6: Show actual threat summaries instead of random confidence values
     const highThreats = threats.filter(t => t.severity === 'critical' || t.severity === 'high');
     if (highThreats.length === 0) return;
 
-    const items = highThreats.slice(0, 10).map(t => `
-        <div class="ticker-item">
-            [${t.severity.toUpperCase()}] ${t.name} detected on ${t.host} — AI Confidence: ${(Math.random() * 15 + 85).toFixed(1)}%
-        </div>
-    `).join("");
+    const items = highThreats.slice(0, 10).map(t => {
+        const source = t.source ? ` via ${t.source}` : '';
+        const cve = t.cve_id ? ` (${t.cve_id})` : '';
+        return `
+            <div class="ticker-item">
+                [${(t.severity || 'unknown').toUpperCase()}] ${t.name || 'Unknown threat'} on ${t.host || 'unknown'}${cve}${source}
+            </div>
+        `;
+    }).join("");
 
     ticker.innerHTML = items + items; // Double for seamless scroll
 }
@@ -1500,3 +1544,247 @@ document.getElementById("missionMap")?.addEventListener("click", (e) => {
         }
     });
 });
+
+// ═══════════════════════════════════════════════════════════════════
+// v6 NEW FEATURES
+// ═══════════════════════════════════════════════════════════════════
+
+// ── Smart Polling with Page Visibility API ─────────────────────
+function startSmartPolling() {
+    pollingIntervalId = setInterval(() => {
+        if (!document.hidden) {
+            syncIntelligence();
+        }
+    }, 30000);
+
+    document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) {
+            // Tab became visible — sync immediately
+            syncIntelligence();
+        }
+    });
+}
+
+// ── ResizeObserver for Chart Canvases ───────────────────────────
+function setupResizeObservers() {
+    if (typeof ResizeObserver === 'undefined') return;
+
+    const timelineCanvas = document.getElementById("timelineChart");
+    const donutCanvas = document.getElementById("donutChart");
+
+    const chartObserver = new ResizeObserver(debounce(() => {
+        if (lastTimelineData.days && lastTimelineData.timeline) {
+            drawTimeline(lastTimelineData.days, lastTimelineData.timeline);
+        }
+        if (lastTrendData.severity_distribution) {
+            drawDonut(lastTrendData.severity_distribution);
+        }
+    }, 150));
+
+    if (timelineCanvas?.parentElement) chartObserver.observe(timelineCanvas.parentElement);
+    if (donutCanvas?.parentElement) chartObserver.observe(donutCanvas.parentElement);
+}
+
+// ── Last Updated Timestamp ─────────────────────────────────────
+function updateLastUpdated() {
+    const el = document.getElementById("lastUpdated");
+    if (!el) return;
+    const now = new Date();
+    el.textContent = `SYNCED: ${now.toLocaleTimeString()}`;
+}
+
+// ── User Profile Dropdown ──────────────────────────────────────
+async function fetchSessionInfo() {
+    try {
+        const data = await fetchJson("/api/auth/session");
+        const nameEl = document.getElementById("profileName");
+        if (nameEl && data.username) {
+            nameEl.textContent = data.username;
+        }
+    } catch (err) {
+        // Session fetch failed, keep default "Operator"
+        console.warn("Session info unavailable:", err.message);
+    }
+}
+
+function toggleProfileMenu() {
+    const dd = document.getElementById("profileDropdown");
+    if (dd) dd.classList.toggle("open");
+    // Close notification dropdown
+    const nd = document.getElementById("notifDropdown");
+    if (nd) nd.classList.remove("open");
+}
+
+async function doLogout() {
+    try {
+        await fetch("/api/auth/logout", { method: "POST" });
+    } catch (err) {
+        console.error("Logout error:", err);
+    }
+    window.location.href = "/login";
+}
+
+// ── Change Password Modal ──────────────────────────────────────
+function openChangePasswordModal() {
+    const dd = document.getElementById("profileDropdown");
+    if (dd) dd.classList.remove("open");
+    const modal = document.getElementById("passwordModal");
+    if (modal) {
+        modal.style.display = "flex";
+        document.getElementById("currentPw").value = "";
+        document.getElementById("newPw").value = "";
+        document.getElementById("confirmPw").value = "";
+        document.getElementById("pwFeedback").textContent = "";
+    }
+}
+
+function closePasswordModal() {
+    const modal = document.getElementById("passwordModal");
+    if (modal) modal.style.display = "none";
+}
+
+async function submitPasswordChange() {
+    const currentPw = document.getElementById("currentPw")?.value || "";
+    const newPw = document.getElementById("newPw")?.value || "";
+    const confirmPw = document.getElementById("confirmPw")?.value || "";
+    const feedback = document.getElementById("pwFeedback");
+
+    if (!currentPw || !newPw || !confirmPw) {
+        if (feedback) {
+            feedback.textContent = "All fields are required.";
+            feedback.style.color = "var(--red)";
+        }
+        return;
+    }
+
+    if (newPw !== confirmPw) {
+        if (feedback) {
+            feedback.textContent = "New passwords do not match.";
+            feedback.style.color = "var(--red)";
+        }
+        return;
+    }
+
+    if (newPw.length < 4) {
+        if (feedback) {
+            feedback.textContent = "Password must be at least 4 characters.";
+            feedback.style.color = "var(--red)";
+        }
+        return;
+    }
+
+    try {
+        const data = await fetchJson("/api/auth/change-password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ current_password: currentPw, new_password: newPw })
+        });
+        if (feedback) {
+            feedback.textContent = data.message || "Password updated successfully.";
+            feedback.style.color = "var(--green)";
+        }
+        showToast("Password updated.", "success");
+        setTimeout(closePasswordModal, 1500);
+    } catch (err) {
+        if (feedback) {
+            feedback.textContent = err.message || "Failed to update password.";
+            feedback.style.color = "var(--red)";
+        }
+    }
+}
+
+// ── Global Search ──────────────────────────────────────────────
+function globalSearchHandler(event) {
+    const query = (event.target.value || "").trim().toLowerCase();
+    if (!query) {
+        // Reset filters
+        applyFilters();
+        return;
+    }
+
+    // Filter threats
+    const filteredThreats = currentThreats.filter(t => {
+        const haystack = [
+            t.name, t.host, t.cve_id, t.source, t.detail, t.severity
+        ].filter(Boolean).join(" ").toLowerCase();
+        return haystack.includes(query);
+    });
+    renderThreats(filteredThreats);
+}
+
+// ── Notification Center ────────────────────────────────────────
+function addNotification(message, type = "info") {
+    notifIdCounter++;
+    notificationQueue.unshift({
+        id: notifIdCounter,
+        message: message,
+        type: type,
+        time: new Date(),
+        read: false
+    });
+
+    // Cap at 50 notifications
+    if (notificationQueue.length > 50) {
+        notificationQueue = notificationQueue.slice(0, 50);
+    }
+
+    updateNotificationBadge();
+}
+
+function updateNotificationBadge() {
+    const badge = document.getElementById("notifBadge");
+    if (!badge) return;
+    const unreadCount = notificationQueue.filter(n => !n.read).length;
+    if (unreadCount > 0) {
+        badge.style.display = "flex";
+        badge.textContent = unreadCount > 99 ? "99+" : unreadCount;
+    } else {
+        badge.style.display = "none";
+    }
+}
+
+function toggleNotifications() {
+    const dd = document.getElementById("notifDropdown");
+    if (!dd) return;
+    dd.classList.toggle("open");
+
+    // Close profile dropdown
+    const pd = document.getElementById("profileDropdown");
+    if (pd) pd.classList.remove("open");
+
+    renderNotificationDropdown();
+}
+
+function renderNotificationDropdown() {
+    const dd = document.getElementById("notifDropdown");
+    if (!dd) return;
+
+    if (notificationQueue.length === 0) {
+        dd.innerHTML = '<div class="notification-dropdown__empty">NO_NOTIFICATIONS</div>';
+        return;
+    }
+
+    dd.innerHTML = notificationQueue.slice(0, 20).map(n => {
+        const timeStr = n.time.toLocaleTimeString();
+        const unreadClass = n.read ? '' : ' unread';
+        return `
+            <div class="notification-dropdown__item${unreadClass}" onclick="markNotificationRead(${n.id})">
+                <span>${escapeHtml(n.message)}</span>
+                <span class="notif-time">${timeStr}</span>
+            </div>
+        `;
+    }).join("");
+}
+
+function markNotificationRead(id) {
+    const notif = notificationQueue.find(n => n.id === id);
+    if (notif) notif.read = true;
+    updateNotificationBadge();
+    renderNotificationDropdown();
+}
+
+// ── Mobile Nav Toggle ──────────────────────────────────────────
+function toggleMobileNav() {
+    const links = document.getElementById("navLinks");
+    if (links) links.classList.toggle("nav-open");
+}

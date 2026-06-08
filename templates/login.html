@@ -229,42 +229,278 @@
             0% { transform: translate(-50%, -50%) scale(0.8); opacity: 0.6; }
             100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
         }
+
+        /* v6: Password toggle */
+        .password-wrap {
+            position: relative;
+        }
+
+        .password-wrap .form-input {
+            padding-right: 3rem;
+        }
+
+        .pw-toggle {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            color: #8892a4;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 4px;
+            transition: color 0.2s;
+            line-height: 1;
+        }
+
+        .pw-toggle:hover {
+            color: var(--cyan);
+        }
+
+        /* v6: Particle canvas */
+        #particleCanvas {
+            position: fixed;
+            inset: 0;
+            z-index: 1;
+            pointer-events: none;
+        }
+
+        /* v6: System status indicator */
+        .sys-status {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 1rem;
+            font-family: var(--font-mono);
+            font-size: 0.62rem;
+            color: #556;
+            letter-spacing: 1px;
+        }
+
+        .sys-status__dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #444;
+            transition: all 0.3s;
+        }
+
+        .sys-status__dot.online {
+            background: var(--green);
+            box-shadow: 0 0 6px var(--green);
+        }
+
+        .sys-status__dot.offline {
+            background: var(--red);
+            box-shadow: 0 0 6px var(--red);
+        }
+
+        /* v6: Shake animation */
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+            20%, 40%, 60%, 80% { transform: translateX(4px); }
+        }
+
+        .shake {
+            animation: shake 0.5s ease;
+        }
+
+        /* v6: Success fade */
+        @keyframes successFade {
+            from { opacity: 1; }
+            to { opacity: 0; transform: scale(0.96) translateY(-10px); }
+        }
+
+        .login-card--success {
+            animation: successFade 0.8s ease 0.5s forwards;
+        }
+
+        /* v6: Responsive 320px */
+        @media (max-width: 480px) {
+            .login-card {
+                max-width: calc(100vw - 24px);
+                padding: 2rem 1.5rem;
+                margin: 12px;
+                border-radius: 14px;
+            }
+
+            .login-brand__title {
+                font-size: 1.1rem;
+                letter-spacing: 2px;
+            }
+
+            .login-brand__shield {
+                font-size: 2rem;
+            }
+        }
+
+        /* v6: Prefers reduced motion */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: 0.01ms !important;
+                animation-iteration-count: 1 !important;
+                transition-duration: 0.01ms !important;
+            }
+        }
     </style>
 </head>
 <body>
     <div class="grid-bg" aria-hidden="true"></div>
-    <div class="radar-sweep" aria-hidden="true"></div>
+    <canvas id="particleCanvas" aria-hidden="true"></canvas>
     <div class="scanline-overlay" aria-hidden="true"></div>
     <div class="pulse-ring" aria-hidden="true"></div>
 
-    <div class="login-card">
+    <div class="login-card" id="loginCard">
         <div class="login-brand">
             <span class="login-brand__shield">🛡</span>
             <div class="login-brand__title">NEXSHIELD</div>
-            <div class="login-brand__sub">SECURE_AUTHENTICATION_PORTAL</div>
+            <div class="login-brand__sub" id="brandSub"></div>
         </div>
 
         <form class="login-form" id="authForm" onsubmit="handleAuth(event)">
             <div class="form-group">
                 <label class="form-label" for="authUsername">OPERATOR_ID</label>
-                <input type="text" id="authUsername" class="form-input" placeholder="Enter username" value="admin" autocomplete="username" required />
+                <input type="text" id="authUsername" class="form-input" placeholder="Enter username" value="" autocomplete="username" required />
             </div>
             <div class="form-group">
                 <label class="form-label" for="authPassword">ACCESS_KEY</label>
-                <input type="password" id="authPassword" class="form-input" placeholder="Enter password" value="admin" autocomplete="current-password" required />
+                <div class="password-wrap">
+                    <input type="password" id="authPassword" class="form-input" placeholder="Enter password" value="" autocomplete="current-password" required />
+                    <button type="button" class="pw-toggle" id="pwToggle" onclick="togglePasswordVisibility()" aria-label="Toggle password visibility">👁</button>
+                </div>
             </div>
             <div class="login-feedback" id="authFeedback"></div>
             <button type="submit" class="btn-auth" id="authBtn">AUTHENTICATE</button>
         </form>
 
-        <div class="login-hint">LOCAL_ONLY — Default: admin / admin</div>
+        <div class="sys-status" id="sysStatus">
+            <span class="sys-status__dot" id="sysStatusDot"></span>
+            <span id="sysStatusText">CHECKING_SYSTEM...</span>
+        </div>
     </div>
 
     <script>
+        // v6: Typing effect for subtitle
+        (function initTypingEffect() {
+            const subEl = document.getElementById('brandSub');
+            if (!subEl) return;
+            const text = 'SECURE_AUTHENTICATION_PORTAL';
+            let i = 0;
+            function typeChar() {
+                if (i < text.length) {
+                    subEl.textContent += text.charAt(i);
+                    i++;
+                    setTimeout(typeChar, 45 + Math.random() * 30);
+                }
+            }
+            setTimeout(typeChar, 600);
+        })();
+
+        // v6: Canvas particle background
+        (function initParticles() {
+            const canvas = document.getElementById('particleCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            let particles = [];
+            const PARTICLE_COUNT = 60;
+            const MAX_DIST = 120;
+
+            function resize() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            resize();
+            window.addEventListener('resize', resize);
+
+            for (let i = 0; i < PARTICLE_COUNT; i++) {
+                particles.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 0.4,
+                    vy: (Math.random() - 0.5) * 0.4,
+                    r: Math.random() * 1.5 + 0.5
+                });
+            }
+
+            function draw() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                for (let i = 0; i < particles.length; i++) {
+                    const p = particles[i];
+                    p.x += p.vx;
+                    p.y += p.vy;
+
+                    if (p.x < 0 || p.x > canvas.width) p.vx *= -1;
+                    if (p.y < 0 || p.y > canvas.height) p.vy *= -1;
+
+                    ctx.beginPath();
+                    ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(0, 240, 255, 0.25)';
+                    ctx.fill();
+
+                    for (let j = i + 1; j < particles.length; j++) {
+                        const q = particles[j];
+                        const dx = p.x - q.x;
+                        const dy = p.y - q.y;
+                        const dist = Math.sqrt(dx * dx + dy * dy);
+                        if (dist < MAX_DIST) {
+                            ctx.beginPath();
+                            ctx.moveTo(p.x, p.y);
+                            ctx.lineTo(q.x, q.y);
+                            ctx.strokeStyle = `rgba(0, 240, 255, ${0.08 * (1 - dist / MAX_DIST)})`;
+                            ctx.lineWidth = 0.5;
+                            ctx.stroke();
+                        }
+                    }
+                }
+
+                requestAnimationFrame(draw);
+            }
+            draw();
+        })();
+
+        // v6: System status check
+        (async function checkSystemStatus() {
+            const dot = document.getElementById('sysStatusDot');
+            const text = document.getElementById('sysStatusText');
+            if (!dot || !text) return;
+            try {
+                const res = await fetch('/api/auth/session', { method: 'GET' });
+                if (res.ok || res.status === 401) {
+                    dot.classList.add('online');
+                    text.textContent = 'SYSTEM_ONLINE';
+                } else {
+                    dot.classList.add('offline');
+                    text.textContent = 'SYSTEM_DEGRADED';
+                }
+            } catch {
+                dot.classList.add('offline');
+                text.textContent = 'SYSTEM_UNREACHABLE';
+            }
+        })();
+
+        // v6: Password visibility toggle
+        function togglePasswordVisibility() {
+            const pw = document.getElementById('authPassword');
+            const btn = document.getElementById('pwToggle');
+            if (!pw || !btn) return;
+            if (pw.type === 'password') {
+                pw.type = 'text';
+                btn.textContent = '🙈';
+            } else {
+                pw.type = 'password';
+                btn.textContent = '👁';
+            }
+        }
+
         async function handleAuth(e) {
             e.preventDefault();
             const btn = document.getElementById("authBtn");
             const feedback = document.getElementById("authFeedback");
+            const card = document.getElementById("loginCard");
             const username = document.getElementById("authUsername").value.trim();
             const password = document.getElementById("authPassword").value.trim();
             const requestedNext = new URLSearchParams(window.location.search).get("next") || "/dashboard";
@@ -272,6 +508,9 @@
             if (!username || !password) {
                 feedback.textContent = "All fields are required.";
                 feedback.className = "login-feedback login-feedback--error";
+                card.classList.remove('shake');
+                void card.offsetWidth; /* reflow to restart animation */
+                card.classList.add('shake');
                 return;
             }
 
@@ -290,6 +529,7 @@
                 if (res.ok) {
                     feedback.textContent = "ACCESS_GRANTED \u2014 Redirecting to Mission Control...";
                     feedback.className = "login-feedback login-feedback--success";
+                    card.classList.add('login-card--success');
                     setTimeout(() => {
                         const returnTo = data.redirect || "/dashboard";
                         window.location.href = returnTo;
@@ -297,10 +537,16 @@
                 } else {
                     feedback.textContent = data.message || "Authentication failed.";
                     feedback.className = "login-feedback login-feedback--error";
+                    card.classList.remove('shake');
+                    void card.offsetWidth;
+                    card.classList.add('shake');
                 }
             } catch (err) {
                 feedback.textContent = "CONNECTION_FAILURE \u2014 Server unreachable.";
                 feedback.className = "login-feedback login-feedback--error";
+                card.classList.remove('shake');
+                void card.offsetWidth;
+                card.classList.add('shake');
             } finally {
                 btn.disabled = false;
                 btn.textContent = "AUTHENTICATE";

@@ -41,7 +41,7 @@ BANNER = r"""
 |  \| |/ _ \ \/ /\___ \| '_ \| |/ _ \ |/ _` |
 | |\  |  __/>  <  ___) | | | | |  __/ | (_| |
 |_| \_|\___/_/\_\|____/|_| |_|_|\___|_|\__,_|
-                 MISSION CONTROL v5.0
+                 MISSION CONTROL v6.0
 """
 
 
@@ -192,7 +192,7 @@ def provision_admin():
             "role": "admin",
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
-        print_status("+", f"Admin user created (password: {password})")
+        print_status("+", "Admin user created (use configured ADMIN_PASSWORD)")
         return True
     except Exception as e:
         print_status("!", f"Admin provisioning: {e}")

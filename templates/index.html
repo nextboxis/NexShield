@@ -24,14 +24,15 @@
     <div class="scanline-overlay" aria-hidden="true"></div>
     <div class="radar-ping" id="radarPing"></div>
 
-    <!-- ── Liquid Glass Navigation ───────────────────── -->
+    <!-- ── Liquid Glass Navigation ───────────────── -->
     <header class="liquid-nav-shell">
         <nav class="liquid-nav" aria-label="Primary Navigation">
             <a href="/" class="liquid-nav__brand" aria-label="NexShield Dashboard">
                 <span class="liquid-nav__glyph" aria-hidden="true">🛡</span>
                 <span>NexShield</span>
             </a>
-            <div class="liquid-nav__links">
+            <button class="nav-hamburger" id="navHamburger" onclick="toggleMobileNav()" aria-label="Toggle navigation">☰</button>
+            <div class="liquid-nav__links" id="navLinks">
                 <a href="/" class="liquid-nav__link liquid-nav__link--active">Dashboard</a>
                 <a href="#statsGrid" class="liquid-nav__link">Summary</a>
                 <a href="#manualScan" class="liquid-nav__link">Scanner</a>
@@ -39,6 +40,23 @@
                 <a href="#activityFeed" class="liquid-nav__link">Operations</a>
                 <a href="/report" class="liquid-nav__link">Report</a>
                 <a href="#" class="liquid-nav__link liquid-nav__link--pill" onclick="showShortcutsHelp(); return false;">Shortcuts</a>
+            </div>
+            <div class="global-search">
+                <input type="text" id="globalSearch" placeholder="Search threats, hosts, CVEs..." onkeyup="globalSearchHandler(event)" />
+            </div>
+            <div class="notification-bell" id="notifBell" onclick="toggleNotifications()">
+                🔔<span class="notification-badge" id="notifBadge" style="display:none">0</span>
+                <div class="notification-dropdown" id="notifDropdown"></div>
+            </div>
+            <div class="liquid-nav__profile" id="navProfile">
+                <button class="profile-btn" onclick="toggleProfileMenu()">
+                    <span class="profile-avatar">👤</span>
+                    <span class="profile-name" id="profileName">Operator</span>
+                </button>
+                <div class="profile-dropdown" id="profileDropdown">
+                    <a onclick="openChangePasswordModal()">🔑 Change Password</a>
+                    <a onclick="doLogout()">🚪 Logout</a>
+                </div>
             </div>
         </nav>
     </header>
@@ -57,18 +75,24 @@
         </div>
     </div>
 
-    <!-- ── Toast Container ───────────────────────────── -->
+    <!-- ── Toast Container ─────────────────────── -->
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
+
+    <!-- ── Connection Status Banner ───────────────── -->
+    <div class="connection-banner" id="connectionBanner" style="display:none">
+        ⚠️ Connection lost. Attempting to reconnect...
+    </div>
 
     <!-- ── Content Shell ─────────────────────────────────────────── -->
     <div class="content-shell">
         <header class="top-header">
             <div class="brand">
-                <h1 class="brand__title">NEXSHIELD <span style="color:var(--cyan); opacity:0.6">v5.0</span> :: MISSION_CONTROL</h1>
+                <h1 class="brand__title">NEXSHIELD <span style="color:var(--cyan); opacity:0.6">v6.1</span> :: MISSION_CONTROL</h1>
                 <p class="brand__status">
                     <span class="status-dot" id="statusDot"></span>
                     <span id="statusText">System Link Pending...</span>
                     <span class="system-clock" id="systemClock">--:--:-- UTC</span>
+                    <span class="last-updated" id="lastUpdated"></span>
                 </p>
             </div>
             <div class="quick-tactics">
@@ -267,6 +291,21 @@
             <button class="modal-close" onclick="closeModal()" aria-label="Close Modal">&times;</button>
             <h2 class="modal-title" id="modalTitle">THREAT::DETAILS</h2>
             <div class="modal-body" id="modalBody"></div>
+        </div>
+    </div>
+
+    <!-- ── Change Password Modal ──────────────────── -->
+    <div class="modal-overlay" id="passwordModal" style="display:none">
+        <div class="modal-panel" onclick="event.stopPropagation()">
+            <button class="modal-close" onclick="closePasswordModal()">×</button>
+            <h2 class="modal-title">🔑 CHANGE_PASSWORD</h2>
+            <div class="modal-body">
+                <div class="form-group" style="margin-bottom:0.8rem"><label class="form-label" style="font-family:var(--font-mono);font-size:0.7rem;color:#8892a4;letter-spacing:1.5px">Current Password</label><input type="password" id="currentPw" class="console-input" style="width:100%" /></div>
+                <div class="form-group" style="margin-bottom:0.8rem"><label class="form-label" style="font-family:var(--font-mono);font-size:0.7rem;color:#8892a4;letter-spacing:1.5px">New Password</label><input type="password" id="newPw" class="console-input" style="width:100%" /></div>
+                <div class="form-group" style="margin-bottom:0.8rem"><label class="form-label" style="font-family:var(--font-mono);font-size:0.7rem;color:#8892a4;letter-spacing:1.5px">Confirm New Password</label><input type="password" id="confirmPw" class="console-input" style="width:100%" /></div>
+                <div class="login-feedback" id="pwFeedback" style="font-family:var(--font-mono);font-size:0.78rem;text-align:center;min-height:1.4em"></div>
+                <button class="btn btn--scan" onclick="submitPasswordChange()" style="width:100%;margin-top:10px">UPDATE_ACCESS_KEY</button>
+            </div>
         </div>
     </div>
 

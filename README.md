@@ -1,4 +1,4 @@
-# NexShield v5
+# NexShield v6
 
 ## AI-Powered Threat Intelligence & Local Security Scanner
 
@@ -9,7 +9,7 @@
 ██║╚██╗██║██╔══╝   ██╔██╗ ╚════██║██╔══██║██║██╔══╝  ██║     ██║  ██║
 ██║ ╚████║███████╗██╔╝ ██╗███████║██║  ██║██║███████╗███████╗██████╔╝
 ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝╚══════╝╚══════╝╚═════╝ 
-                           MISSION CONTROL v5.0
+                           MISSION CONTROL v6.0
 ```
 
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
@@ -161,6 +161,13 @@ python run.py --host 0.0.0.0
 | **CVE Intelligence** | Built-in CVE lookup with NVD API integration |
 | **Host Quarantine** | Zero-trust isolation of compromised nodes |
 | **Export** | CSV/JSON export, Metasploit RC scripts |
+| **Password Management** | In-app password change, session-based auth |
+| **Notification Center** | Real-time event notifications with unread badge |
+| **Bulk Actions** | Acknowledge, dismiss, or escalate multiple threats |
+| **Analyst Notes** | Annotate threats with investigation notes |
+| **Global Search** | Search across threats, hosts, and CVEs |
+| **Smart Polling** | Auto-refresh pauses when tab is hidden |
+| **Health Check API** | `/api/health` endpoint for monitoring |
 
 ---
 
@@ -302,11 +309,19 @@ This software is intended for **authorized security testing and research only**.
 
 ---
 
-## Recent Improvements
+## Recent Improvements (v6.0)
 
-- **Zero-install database**: TinyDB replaces MongoDB as default — no database server needed
-- **Local-only authentication**: Auto-provisioned admin account, no registration required
-- **Unified CLI launcher**: `python run.py` auto-configures and starts everything
-- **Cross-platform**: Works on Windows, Linux, and macOS
-- **Simplified install**: `install.bat` / `install.sh` handle everything
-- **Auto-config**: `.env` file auto-created on first run with sensible defaults
+- **Security Hardened**: Missing auth decorators fixed, password logging removed, credentials no longer pre-filled
+- **Password Management**: In-app password change via dashboard profile dropdown
+- **Notification Center**: Real-time event bell with unread count badge
+- **Bulk Threat Actions**: Acknowledge, dismiss, or escalate multiple threats at once
+- **Analyst Notes**: Add investigation notes to individual threats
+- **Dashboard Summary API**: Combined stats/threats/activity endpoint reduces API calls
+- **Health Check**: `/api/health` endpoint for monitoring and orchestration
+- **TinyDB Upsert**: CVE cache writes no longer silently fail
+- **UUID4 IDs**: Document IDs use UUID4 instead of MD5 for collision safety
+- **Modern Dependencies**: Flask 3.x, scikit-learn 1.5+, numpy 1.26+, pytest 8+
+- **Smart Polling**: Dashboard auto-refresh pauses when browser tab is hidden
+- **Skeleton Loading**: Animated placeholders during data fetches
+- **Accessibility**: Reduced motion support, keyboard navigation, focus styles
+- **Global Search**: Search across all threats, hosts, and CVEs from the navbar

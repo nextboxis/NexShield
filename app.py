@@ -250,10 +250,25 @@ def _validate_host(host_str: str | None) -> str:
 # ── In-memory rate limiter ───────────────────────────────────────────
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
 
+_rate_limit_call_count: int = 0
+
 def _rate_limit(key: str, max_requests: int = 10, window_sec: int = 60) -> bool:
     """Returns True if rate limit is exceeded."""
+    global _rate_limit_call_count
     now = _time.time()
     _rate_limit_store[key] = [t for t in _rate_limit_store[key] if now - t < window_sec]
+
+    # Periodic cleanup: every 100 calls, purge stale keys across all entries
+    _rate_limit_call_count += 1
+    if _rate_limit_call_count >= 100:
+        _rate_limit_call_count = 0
+        stale_keys = [
+            k for k, timestamps in _rate_limit_store.items()
+            if not timestamps or all(now - t >= window_sec for t in timestamps)
+        ]
+        for k in stale_keys:
+            del _rate_limit_store[k]
+
     if len(_rate_limit_store[key]) >= max_requests:
         return True
     _rate_limit_store[key].append(now)
@@ -349,6 +364,64 @@ def check_session():
     if "user" in session:
         return jsonify({"status": "complete", "authenticated": True, "user": session["user"], "role": session.get("role", "analyst")})
     return jsonify({"status": "complete", "authenticated": False})
+
+
+@app.route("/api/auth/change-password", methods=["POST"])
+@login_required
+def change_password():
+    """Change password for the currently authenticated user."""
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database offline."}), 503
+
+    body = request.get_json(silent=True) or {}
+    current_pw = (body.get("current_password") or "").strip()
+    new_pw = (body.get("new_password") or "").strip()
+    confirm_pw = (body.get("confirm_password") or "").strip()
+
+    if not current_pw or not new_pw or not confirm_pw:
+        return jsonify({"status": "error", "message": "All password fields are required."}), 400
+    if new_pw != confirm_pw:
+        return jsonify({"status": "error", "message": "New passwords do not match."}), 400
+    if len(new_pw) < 5:
+        return jsonify({"status": "error", "message": "New password must be at least 5 characters."}), 400
+    if new_pw == current_pw:
+        return jsonify({"status": "error", "message": "New password must differ from current password."}), 400
+
+    username = session.get("user")
+    user_doc = users.find_one({"username": username})
+    if not user_doc or not check_password_hash(user_doc["password_hash"], current_pw):
+        return jsonify({"status": "error", "message": "Current password is incorrect."}), 401
+
+    users.update_one(
+        {"username": username},
+        {"$set": {"password_hash": generate_password_hash(new_pw)}}
+    )
+    _log_activity("auth", f"Password changed for user '{username}'")
+    return jsonify({"status": "complete", "message": "Password updated successfully."})
+
+
+@app.route("/api/auth/profile", methods=["GET"])
+@login_required
+def get_profile():
+    """Get profile info for the currently authenticated user."""
+    username = session.get("user")
+    role = session.get("role", "analyst")
+    return jsonify({
+        "status": "complete",
+        "username": username,
+        "role": role,
+    })
+
+
+@app.route("/api/health", methods=["GET"])
+def health_check():
+    """Health check endpoint for monitoring."""
+    db_ok = check_connection()
+    return jsonify({
+        "status": "healthy" if db_ok else "degraded",
+        "database": "online" if db_ok else "offline",
+        "version": "6.0",
+    }), 200 if db_ok else 503
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -507,7 +580,7 @@ def quarantine_host():
         try:
             from ai_logic import compute_risk_scores # type: ignore
             compute_risk_scores()
-        except BaseException as e:
+        except Exception as e:
             logger.warning("Risk recalculation failed post-quarantine: %s", e)
 
         # Broadcast update
@@ -613,6 +686,48 @@ def get_stats():
         "high": high,
         "medium": medium,
         "low": low,
+    })
+
+
+@app.route("/api/dashboard/summary", methods=["GET"])
+@login_required
+def dashboard_summary():
+    """Combined dashboard data: stats + recent threats + activity. Reduces multiple API calls to one."""
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+
+    # Stats
+    total_threats = threats.count_documents({})
+    total_scans = network_scans.count_documents({})
+    critical = threats.count_documents({"severity": "critical"})
+    high = threats.count_documents({"severity": "high"})
+    medium = threats.count_documents({"severity": "medium"})
+    low = threats.count_documents({"severity": "low"})
+
+    # Recent threats
+    recent_threats = list(threats.find().sort("detected_at", -1).limit(10))
+    enriched = []
+    for t in recent_threats:
+        t_ser = _serialize(t)
+        t_ser["exploit_module"] = map_threat_to_module(t)
+        enriched.append(t_ser)
+
+    # Recent activity
+    recent_activity = list(activity_log.find().sort("timestamp", -1).limit(20))
+
+    return jsonify({
+        "status": "complete",
+        "stats": {
+            "total_threats": total_threats,
+            "total_scans": total_scans,
+            "critical": critical,
+            "high": high,
+            "medium": medium,
+            "low": low,
+            "db_online": True,
+        },
+        "recent_threats": enriched,
+        "recent_activity": _serialize(recent_activity),
     })
 
 
@@ -1406,6 +1521,90 @@ def get_threat_trends():
     })
 
 
+@app.route("/api/threat/<tid>/notes", methods=["POST"])
+@login_required
+def add_threat_note(tid):
+    """Add an analyst note to a threat."""
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+
+    body = request.get_json(silent=True) or {}
+    note_text = (body.get("note") or "").strip()
+    if not note_text or len(note_text) > 2000:
+        return jsonify({"status": "error", "message": "Note must be 1-2000 characters."}), 400
+
+    # Find the threat
+    if _HAS_BSON:
+        from bson import ObjectId
+        try:
+            query = {"_id": ObjectId(tid)}
+        except Exception:
+            return jsonify({"status": "error", "message": "Invalid threat ID."}), 400
+    else:
+        query = {"_id": tid}
+
+    doc = threats.find_one(query)
+    if not doc:
+        return jsonify({"status": "error", "message": "Threat not found."}), 404
+
+    note = {
+        "author": session.get("user", "unknown"),
+        "text": note_text,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    existing_notes = doc.get("notes", [])
+    if not isinstance(existing_notes, list):
+        existing_notes = []
+    existing_notes.append(note)
+
+    threats.update_one(query, {"$set": {"notes": existing_notes}})
+    _log_activity("analyst", f"Note added to threat {tid} by {session.get('user')}")
+
+    return jsonify({"status": "complete", "message": "Note added.", "note": note})
+
+
+@app.route("/api/threats/bulk-action", methods=["POST"])
+@login_required
+def bulk_threat_action():
+    """Perform bulk actions on multiple threats. Requires authentication."""
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+
+    body = request.get_json(silent=True) or {}
+    action = (body.get("action") or "").strip().lower()
+    threat_ids = body.get("threat_ids", [])
+
+    if action not in ("acknowledge", "dismiss", "escalate"):
+        return jsonify({"status": "error", "message": "Action must be acknowledge, dismiss, or escalate."}), 400
+    if not threat_ids or not isinstance(threat_ids, list):
+        return jsonify({"status": "error", "message": "threat_ids must be a non-empty list."}), 400
+    if len(threat_ids) > 100:
+        return jsonify({"status": "error", "message": "Maximum 100 threats per bulk action."}), 400
+
+    update_map = {
+        "acknowledge": {"$set": {"acknowledged": True, "acknowledged_by": session.get("user")}},
+        "dismiss": {"$set": {"severity": "low", "detail": "[DISMISSED] "}},
+        "escalate": {"$set": {"severity": "critical", "detail": "[ESCALATED] "}},
+    }
+
+    modified = 0
+    for tid in threat_ids:
+        try:
+            if _HAS_BSON:
+                from bson import ObjectId
+                q = {"_id": ObjectId(tid)}
+            else:
+                q = {"_id": tid}
+            result = threats.update_one(q, update_map[action])
+            modified += result.modified_count
+        except Exception:
+            continue
+
+    _log_activity("analyst", f"Bulk {action} on {modified} threats by {session.get('user')}", "info")
+    return jsonify({"status": "complete", "message": f"{action.title()}d {modified} threats.", "modified": modified})
+
+
 # ═════════════════════════════════════════════════════════════════════
 #  API — Pentest Report Generator
 # ═════════════════════════════════════════════════════════════════════
@@ -1692,6 +1891,7 @@ def generate_report():
 
 
 @app.route("/api/report/download-rc", methods=["GET"])
+@login_required
 def download_report_rc():
     """
     Generate an RC script for all weaponized threats in the database.
@@ -1786,7 +1986,7 @@ def _provision_admin_user():
         _log_activity("auth", "Default admin account created")
         return True
     except Exception as e:
-        logger.error(f"Failed to provision admin account: {e}", exc_info=True)
+        logger.error("Failed to provision admin account: %s", e, exc_info=True)
         return False
 
 
@@ -1797,7 +1997,7 @@ def _startup_banner():
     
     port = os.environ.get("PORT", "5000")
     print("\n" + "=" * 70)
-    print("   NexShield — AI-Powered Threat Intelligence Platform")
+    print("   NexShield v6.0 — AI-Powered Threat Intelligence Platform")
     print(f"   Environment: {environment}")
     print(f"   Dashboard: http://127.0.0.1:{port}")
     print("   Docs: https://github.com/nextboxis/NexShield")
@@ -1860,6 +2060,7 @@ if __name__ == "__main__":
 # ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/threat/<tid>", methods=["GET"])
+@login_required
 def get_threat(tid):
     """Return a single threat document by ID."""
     if _HAS_BSON:

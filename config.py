@@ -15,7 +15,7 @@ import os
 import re
 import sys
 import time
-import hashlib
+import uuid
 import threading
 from pathlib import Path
 from typing import Any, Optional
@@ -135,8 +135,8 @@ class TinyCollection:
                 self.modified_count = modified_count
         return _Result(count)
 
-    def update_one(self, query: dict, update: dict) -> Any:
-        """Update the first document matching query."""
+    def update_one(self, query: dict, update: dict, upsert: bool = False, **kwargs) -> Any:
+        """Update the first document matching query. Supports upsert."""
         with _db_lock:
             docs = self._search(query)
             count = 0
@@ -157,6 +157,16 @@ class TinyCollection:
                 if doc_id is not None:
                     self._table.update(set_fields, doc_ids=[doc_id])
                     count = 1
+            elif upsert and set_fields:
+                # No matching doc found — insert a new one with query fields + set_fields
+                new_doc = {}
+                for k, v in query.items():
+                    if not isinstance(v, dict):  # Skip operators like $regex
+                        new_doc[k] = v
+                new_doc.update(set_fields)
+                new_doc = self._prepare_doc(new_doc)
+                self._table.insert(new_doc)
+                count = 1
 
         class _Result:
             def __init__(self, modified_count):
@@ -258,11 +268,9 @@ class TinyCollection:
     def _prepare_doc(self, doc: dict) -> dict:
         """Prepare a document for insertion."""
         doc = dict(doc)  # Copy
-        # Generate a string _id if not present
+        # Generate a string _id if not present (UUID4 for collision safety)
         if "_id" not in doc:
-            doc["_id"] = hashlib.md5(
-                f"{time.time()}-{id(doc)}".encode()
-            ).hexdigest()[:24]
+            doc["_id"] = uuid.uuid4().hex[:24]
         # Convert datetime objects to ISO strings for JSON storage
         for k, v in doc.items():
             if isinstance(v, datetime):
