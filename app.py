@@ -1782,7 +1782,7 @@ def _provision_admin_user():
             "role": "admin",
             "created_at": datetime.now(timezone.utc),
         })
-        logger.info("Default admin account created: %s / %s", default_username, default_password)
+        logger.info("Default admin account created: %s", default_username)
         _log_activity("auth", "Default admin account created")
         return True
     except Exception as e:
