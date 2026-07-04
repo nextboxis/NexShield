@@ -1587,7 +1587,7 @@ async function submitPasswordChange() {
         const data = await fetchJson("/api/auth/change-password", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ current_password: currentPw, new_password: newPw })
+            body: JSON.stringify({ current_password: currentPw, new_password: newPw, confirm_password: confirmPw })
         });
         if (feedback) {
             feedback.textContent = data.message || "Password updated successfully.";
