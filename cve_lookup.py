@@ -6,6 +6,7 @@ Supports multiple query types: CVE ID, CPE Name, CVE Tags, CVSS v2 metrics/sever
 
 import os
 import json
+import re
 import requests  # type: ignore
 from pathlib import Path
 from datetime import datetime, timezone, timedelta
@@ -274,9 +275,15 @@ def _query_nvd(params: dict, timeout: int = 30) -> dict:
 
 from typing import Optional
 
+_LOCAL_CVE_RE = re.compile(r"^CVE-\d{4}-\d{4,}$", re.IGNORECASE)
+
 def _parse_cvelist_v5(cve_id: str) -> Optional[dict]:
     """Reads and parses a CVE from the local cvelistV5-main directory."""
     try:
+        cve_id = (cve_id or "").strip().upper()
+        if not _LOCAL_CVE_RE.fullmatch(cve_id):
+            return None
+
         parts = cve_id.split("-")
         if len(parts) != 3:
             return None
@@ -286,11 +293,16 @@ def _parse_cvelist_v5(cve_id: str) -> Optional[dict]:
             block = seq[:-3] + "xxx"
         else:
             block = "0xxx"
-            
-        cve_path = CVELIST_DIR / year / block / f"{cve_id}.json"
+
+        base_dir = CVELIST_DIR.resolve()
+        cve_path = (base_dir / year / block / f"{cve_id}.json").resolve()
+        try:
+            cve_path.relative_to(base_dir)
+        except ValueError:
+            return None
         if not cve_path.exists():
             return None
-            
+
         with open(cve_path, "r", encoding="utf-8") as f:
             data = json.load(f)
             
