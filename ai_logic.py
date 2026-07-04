@@ -640,9 +640,10 @@ def train_ml_model():
     past_threats = list(threats.find({"source": {"$ne": MODELS["ml_predict"]}}))
 
     # Load real CVE data patterns from local cvelistV5 directory for training
-    from pathlib import Path
     import json
-    cves_dir = Path(r"j:\PROGRAM\NexShield\cvelistV5-main\cvelistV5-main\cves")
+    from cve_lookup import CVELIST_DIR  # type: ignore
+
+    cves_dir = CVELIST_DIR
     local_cve_threats = []
     if cves_dir.exists():
         print(f"[*] Extracting real CVE pattern data from {cves_dir}...")
