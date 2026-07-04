@@ -6,9 +6,11 @@ scan types, IP validation, OS detection, and concurrency control.
 import nmap  # type: ignore
 import ipaddress
 import logging
+import re
 import shutil
 import threading
 import time
+import random
 from datetime import datetime, timezone
 from config import network_scans, check_connection  # type: ignore
 
@@ -140,9 +142,13 @@ def validate_target(target: str) -> dict:
     except ValueError:
         pass
 
+    # Reject invalid 4-octet IPs before falling back to hostname check
+    if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", target):
+        return {"valid": False, "type": None, "value": target, "error": "Invalid IP address format."}
+
     # Treat as hostname (basic validation)
-    import re
-    hostname_re = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z]{2,})+$")
+    # Allows valid FQDNs and single-label hosts like 'localhost'
+    hostname_re = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$")
     if hostname_re.match(target):
         return {"valid": True, "type": "hostname", "value": target, "error": None}
 
@@ -191,6 +197,27 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
     if not _scan_lock.acquire(blocking=False):
         raise RuntimeError("SCAN_LOCKED: Another scan is already running. Wait for it to finish.")
 
+    def update_progress(percent, message):
+        with _status_lock:
+            _active_scan["progress"] = percent
+        if progress_callback:
+            try:
+                progress_callback(percent, message)
+            except Exception:
+                pass
+
+    stop_fluctuation = threading.Event()
+
+    def fluctuate_progress():
+        current_pct = 10
+        while not stop_fluctuation.is_set():
+            if stop_fluctuation.wait(timeout=random.uniform(1.0, 3.0)):
+                break
+            if current_pct < 59:
+                increment = random.choice([1, 2, 3])
+                current_pct = min(59, current_pct + increment)
+                update_progress(current_pct, "Executing nmap scan...")
+
     try:
         with _status_lock:
             _active_scan.update({
@@ -199,8 +226,7 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
                 "progress": 0, "scan_type": scan_type,
             })
 
-        if progress_callback:
-            progress_callback(5, f"Initializing {scan_type} scan on {target}...")
+        update_progress(5, f"Initializing {scan_type} scan on {target}...")
 
         # ── Resolve scan arguments ───────────────────────────────
         preset = SCAN_TYPES.get(scan_type, SCAN_TYPES["default"])
@@ -215,22 +241,27 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
         logger.info("    nmap args: %s", scan_args)
         logger.info("    nmap version: %s  path: %s", nmap_info['version'], nmap_info['path'])
 
-        if progress_callback:
-            progress_callback(10, "Executing nmap scan...")
+        update_progress(10, "Executing nmap scan...")
 
-        # ── Execute nmap ─────────────────────────────────────────
-        # For UDP, Quick, and Full scans, ports are handled by nmap flags directly in scan_args
-        if scan_type in ("udp", "quick", "full"):
-            scanner.scan(hosts=target, arguments=scan_args)  # type: ignore
-        else:
-            scanner.scan(hosts=target, ports=ports, arguments=scan_args)  # type: ignore
+        # ── Execute nmap with fluctuating progress ───────────────
+        fluctuation_thread = threading.Thread(target=fluctuate_progress, daemon=True)
+        fluctuation_thread.start()
+
+        try:
+            # For UDP, Quick, and Full scans, ports are handled by nmap flags directly in scan_args
+            if scan_type in ("udp", "quick", "full"):
+                scanner.scan(hosts=target, arguments=scan_args)  # type: ignore
+            else:
+                scanner.scan(hosts=target, ports=ports, arguments=scan_args)  # type: ignore
+        finally:
+            stop_fluctuation.set()
+            fluctuation_thread.join(timeout=1.0)
 
         elapsed = round(time.time() - start_time, 2)
         all_hosts = scanner.all_hosts()  # type: ignore
         total_hosts = len(all_hosts)
 
-        if progress_callback:
-            progress_callback(60, f"Scan complete. Processing {total_hosts} host(s)...")
+        update_progress(60, f"Scan complete. Processing {total_hosts} host(s)...")
 
         results = []
 
@@ -309,6 +340,13 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
                         port_doc["scripts"] = {
                             k: str(v)[:500] for k, v in script_output.items()
                         }
+                        # Extract CVE IDs from Nmap script output
+                        cves_found = set()
+                        for v in script_output.values():
+                            for match in re.findall(r"CVE-\d{4}-\d+", str(v), re.IGNORECASE):
+                                cves_found.add(match.upper())
+                        if cves_found:
+                            port_doc["cves"] = list(cves_found)
 
                     ports_info.append(port_doc)
 
@@ -327,9 +365,8 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
             host_data["services_detected"] = services
             results.append(host_data)
 
-            if progress_callback:
-                pct = 60 + int((idx + 1) / max(total_hosts, 1) * 30)
-                progress_callback(pct, f"Processed {idx + 1}/{total_hosts} hosts")
+            pct = 60 + int((idx + 1) / max(total_hosts, 1) * 30)
+            update_progress(pct, f"Processed {idx + 1}/{total_hosts} hosts")
 
         # ── Persist to MongoDB ───────────────────────────────────
         if results and check_connection():
@@ -340,8 +377,7 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
         else:
             logger.warning("MongoDB unreachable — results NOT saved.")
 
-        if progress_callback:
-            progress_callback(100, f"Scan complete: {len(results)} host(s), {elapsed}s elapsed")
+        update_progress(100, f"Scan complete: {len(results)} host(s), {elapsed}s elapsed")
 
         logger.info("Scan finished in %ss — %d host(s)", elapsed, len(results))
         return results
@@ -377,3 +413,4 @@ if __name__ == "__main__":
 
     data = run_scan(target, ports, scan_type, progress_callback=on_progress)
     print(f"\n[✓] Scan complete — {len(data)} host(s) found.")
+    # End of scanner.py

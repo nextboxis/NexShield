@@ -171,11 +171,11 @@ socket.on("scan_progress", (data) => {
     const bar = document.getElementById("scanProgressBar");
     const text = document.getElementById("scanProgressText");
     const wrap = document.getElementById("scanProgress");
-    if (wrap) wrap.style.display = "block";
+    if (wrap) wrap.classList.remove("d-none");
     if (bar) bar.style.width = `${data.percent}%`;
     if (text) text.textContent = `${data.percent}% — ${data.message || ""}`;
     if (data.percent >= 100) {
-        setTimeout(() => { if (wrap) wrap.style.display = "none"; }, 3000);
+        setTimeout(() => { if (wrap) wrap.classList.add("d-none"); }, 3000);
     }
 });
 
@@ -185,11 +185,11 @@ socket.on("scan_progress", (data) => {
 function syncIntelligence() {
     fetchStats();
     fetchThreats();
-    fetchTimeline();
     fetchThreatTrends();
     fetchRiskScores();
     fetchActivity();
     fetchHosts();
+    fetchGlobalCVEs();
     updateHudVitals();
     updateLastUpdated();
 }
@@ -370,6 +370,42 @@ async function fetchThreats() {
     }
 }
 
+async function fetchGlobalCVEs() {
+    try {
+        const data = await fetchJson("/api/cve/recent?limit=50");
+        if (data && data.cves) {
+            renderTopVulnerabilities(data.cves);
+        }
+    } catch (err) {
+        console.error("Global CVEs fail:", err);
+    }
+}
+
+function renderTopVulnerabilities(cves) {
+    const list = document.getElementById("topVulnerabilitiesList");
+    if (!list) return;
+
+    if (!cves || cves.length === 0) {
+        list.innerHTML = '<div style="opacity: 0.5; font-family: var(--font-mono); font-size: 0.8rem;">NO_VULNERABILITIES_FOUND</div>';
+        return;
+    }
+
+    list.innerHTML = cves.map(t => {
+        const title = t.description || "No description";
+        const cveId = t.cve_id || "UNKNOWN";
+        const severity = t.severity || "unknown";
+        
+        return `
+            <div style="display: grid; grid-template-columns: 75px 1fr; gap: 10px; align-items: center; border-bottom: 1px solid rgba(255,255,255,0.05); padding: 4px 0;">
+                <span class="${severityClass(severity)}" style="font-size: 0.7rem;">${escapeHtml(severity.toUpperCase())}</span>
+                <span style="font-family: var(--font-mono); font-size: 0.75rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(title)}">
+                    <strong>${escapeHtml(cveId)}</strong> - <span style="opacity:0.8">${escapeHtml(title)}</span>
+                </span>
+            </div>
+        `;
+    }).join("");
+}
+
 function renderThreats(threats) {
     const body = document.getElementById("threatsBody");
     if (!body) return;
@@ -462,49 +498,24 @@ async function fetchThreatTrends() {
 }
 
 function drawDonut(dist) {
-    const canvas = document.getElementById("donutChart");
-    const legend = document.getElementById("donutLegend");
-    if (!canvas || !legend) return;
+    const container = document.getElementById("severityRadarContainer");
+    if (!container) return;
 
     const critical = dist.critical || 0;
     const high = dist.high || 0;
-    const medlow = (dist.medium || 0) + (dist.low || 0);
+    const medium = dist.medium || 0;
+    const low = dist.low || 0;
 
     const data = {
-        labels: ["Critical", "High", "Medium/Low"],
         datasets: [{
-            data: [critical, high, medlow],
-            backgroundColor: ["#ff3860", "#ff8c00", "#ffd600"],
-            borderWidth: 0,
-            hoverOffset: 15
+            data: [critical, high, medium, low]
         }]
     };
 
-    renderDonutCanvas(canvas, data);
-
-    legend.innerHTML = `
-        <div class="hud-item">
-            <span class="hud-label">CRITICAL_VULN</span>
-            <span class="hud-value hud-value--critical">${critical}</span>
-        </div>
-        <div class="hud-item">
-            <span class="hud-label">HIGH_RISK</span>
-            <span class="hud-value hud-value--high">${high}</span>
-        </div>
-        <div class="hud-item">
-            <span class="hud-label">MED_LOW</span>
-            <span class="hud-value hud-value--medlow">${medlow}</span>
-        </div>
-    `;
+    renderDonutCanvas(container, data);
 }
 
-async function fetchTimeline() {
-    try {
-        const data = await fetchJson("/api/timeline?days=7");
-        lastTimelineData = data;
-        drawTimeline(data.days, data.timeline);
-    } catch (err) { console.error("Timeline fail:", err); }
-}
+
 
 // ── Host Risk Heatmap ──────────────────────────────────────────────
 async function fetchRiskScores() {
@@ -879,12 +890,14 @@ async function showHostReport(host) {
         
         if (data.footprint && data.footprint.protocols) {
             let rows = "";
+            let totalExposed = 0;
             let openCount = 0;
             data.footprint.protocols.forEach(proto => {
                 if(proto.ports) {
                     proto.ports.forEach(p => {
                         if (p.state === "open" || p.state === "filtered") {
-                            openCount++;
+                            totalExposed++;
+                            if (p.state === "open") openCount++;
                             rows += `
                                 <tr>
                                     <td><span class="${p.state === 'open' ? 'sev-low' : 'sev-medium'}">${escapeHtml(p.state).toUpperCase()}</span></td>
@@ -898,10 +911,10 @@ async function showHostReport(host) {
                 }
             });
             
-            if (openCount > 0) {
+            if (totalExposed > 0) {
                 portsTable = `
                     <div style="margin-top: 1.5rem; border-top: 1px solid #1a2433; padding-top: 1rem;">
-                        <div style="margin-bottom: 0.8rem; color: var(--cyan); letter-spacing: 1px; font-size: 0.8rem; font-family: var(--font-mono)">[✓] ${openCount} OPEN_PORTS_DETECTED</div>
+                        <div style="margin-bottom: 0.8rem; color: var(--cyan); letter-spacing: 1px; font-size: 0.8rem; font-family: var(--font-mono)">[✓] ${totalExposed} EXPOSED_PORTS_DETECTED (${openCount} OPEN)</div>
                         <table class="data-table" style="margin-top: 0;">
                             <thead><tr><th>STATE</th><th>PORT</th><th>SERVICE</th><th>VERSION</th></tr></thead>
                             <tbody>${rows}</tbody>
@@ -1116,187 +1129,84 @@ function showShortcutsHelp() {
 // ── Advanced Canvas Rendering (Neon SOC Edition) ──────────────────
 let radarAngle = 0;
 
-function renderDonutCanvas(canvas, data) {
-    if (!canvas) return;
+function renderDonutCanvas(containerOrCanvas, data) {
+    const container = document.getElementById("severityRadarContainer") || containerOrCanvas;
+    if (!container || !data || !data.datasets) return;
+    
+    // Cancel legacy animation frame if it exists
     if (donutAnimationFrame) {
         cancelAnimationFrame(donutAnimationFrame);
         donutAnimationFrame = null;
     }
-    const dpr = window.devicePixelRatio || 1;
-    const parent = canvas.parentElement;
-    const rect = parent.getBoundingClientRect();
 
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `${rect.height}px`;
+    const b = {
+        critical: data.datasets[0].data[0] || 0,
+        high: data.datasets[0].data[1] || 0,
+        medium: data.datasets[0].data[2] || 0,
+        low: data.datasets[0].data[3] || 0
+    };
+    const total = b.critical + b.high + b.medium + b.low;
+    const pC = total ? Math.max(2, Math.round((b.critical/total)*100)) : 0;
+    const pH = total ? Math.max(2, Math.round((b.high/total)*100)) : 0;
+    const pM = total ? Math.max(2, Math.round((b.medium/total)*100)) : 0;
+    const pL = total ? Math.max(2, Math.round((b.low/total)*100)) : 0;
+    
+    let html = '<div class="stacked-bar-container" style="display:flex; width:100%; height:12px; border-radius:6px; overflow:hidden; background:rgba(255,255,255,0.05); margin:1.5rem 0 2.5rem 0; border:1px solid rgba(255,255,255,0.1);">';
+    if (b.critical) html += '<div style="height:100%; width: ' + pC + '%; background: #ff3860; box-shadow: 0 0 10px rgba(255,56,96,0.6);"></div>';
+    if (b.high) html += '<div style="height:100%; width: ' + pH + '%; background: #ff8c00; box-shadow: 0 0 10px rgba(255,140,0,0.6);"></div>';
+    if (b.medium) html += '<div style="height:100%; width: ' + pM + '%; background: #ffd600; box-shadow: 0 0 10px rgba(255,214,0,0.6);"></div>';
+    if (b.low) html += '<div style="height:100%; width: ' + pL + '%; background: #34d399; box-shadow: 0 0 10px rgba(52,211,153,0.6);"></div>';
+    html += '</div>';
 
-    const ctx = canvas.getContext("2d");
-    ctx.scale(dpr, dpr);
+    html += '<div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; width: 100%; margin-top: auto;">';
+    html += '<div style="display:flex; justify-content:space-between; padding:0.8rem; background:rgba(255,56,96,0.1); border:1px solid rgba(255,56,96,0.2); border-radius:8px;"><div style="font-family:var(--font-mono); font-size:0.75rem; color:#ff3860;">CRITICAL</div><div style="font-family:var(--font-mono); font-size:0.9rem; color:#fff; font-weight:700;">' + b.critical + '</div></div>';
+    html += '<div style="display:flex; justify-content:space-between; padding:0.8rem; background:rgba(255,140,0,0.1); border:1px solid rgba(255,140,0,0.2); border-radius:8px;"><div style="font-family:var(--font-mono); font-size:0.75rem; color:#ff8c00;">HIGH</div><div style="font-family:var(--font-mono); font-size:0.9rem; color:#fff; font-weight:700;">' + b.high + '</div></div>';
+    html += '<div style="display:flex; justify-content:space-between; padding:0.8rem; background:rgba(255,214,0,0.1); border:1px solid rgba(255,214,0,0.2); border-radius:8px;"><div style="font-family:var(--font-mono); font-size:0.75rem; color:#ffd600;">MEDIUM</div><div style="font-family:var(--font-mono); font-size:0.9rem; color:#fff; font-weight:700;">' + b.medium + '</div></div>';
+    html += '<div style="display:flex; justify-content:space-between; padding:0.8rem; background:rgba(52,211,153,0.1); border:1px solid rgba(52,211,153,0.2); border-radius:8px;"><div style="font-family:var(--font-mono); font-size:0.75rem; color:#34d399;">LOW</div><div style="font-family:var(--font-mono); font-size:0.9rem; color:#fff; font-weight:700;">' + b.low + '</div></div>';
+    html += '</div>';
 
-    const w = rect.width;
-    const h = rect.height;
-    const centerX = w / 2;
-    const centerY = h / 2;
-    const radius = Math.min(w, h) * 0.35;
-    const total = data.datasets[0].data.reduce((a, b) => a + b, 0);
+    html += '<div style="text-align:center; margin-top: 1.5rem; font-family:var(--font-mono); font-size:0.75rem; color:#8892a4;">TOTAL_IDENTIFIED: <span style="color:#fff; font-size:1.1rem; font-weight:700; margin-left:8px;">' + total + '</span></div>';
 
-    let angle = 0;
-    function draw() {
-        if (!canvas.isConnected) return;
-        ctx.clearRect(0, 0, w, h);
-
-        // 1. Radar Sweep
-        ctx.save();
-        ctx.translate(centerX, centerY);
-        ctx.rotate(angle);
-        const grad = ctx.createRadialGradient(0, 0, 0, 0, 0, radius + 20);
-        grad.addColorStop(0, "transparent");
-        grad.addColorStop(1, "rgba(0, 240, 255, 0.15)");
-        ctx.fillStyle = grad;
-        ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, radius + 20, -0.4, 0); ctx.fill();
-        ctx.restore();
-
-        // 2. Data Segments
-        let startAngle = -Math.PI / 2;
-        data.datasets[0].data.forEach((val, i) => {
-            if (val <= 0) return;
-            const sliceAngle = total > 0 ? (val / total) * (Math.PI * 2) : 0;
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
-            ctx.strokeStyle = data.datasets[0].backgroundColor[i];
-            ctx.lineWidth = 14;
-            ctx.lineCap = "round";
-            ctx.stroke();
-
-            // Glow effect
-            ctx.save();
-            ctx.shadowBlur = 15;
-            ctx.shadowColor = data.datasets[0].backgroundColor[i];
-            ctx.beginPath();
-            ctx.arc(centerX, centerY, radius, startAngle, startAngle + sliceAngle);
-            ctx.strokeStyle = data.datasets[0].backgroundColor[i] + "40";
-            ctx.lineWidth = 20;
-            ctx.stroke();
-            ctx.restore();
-
-            startAngle += sliceAngle;
-        });
-
-        // 3. Center Ring
-        ctx.beginPath();
-        ctx.arc(centerX, centerY, radius - 20, 0, Math.PI * 2);
-        ctx.strokeStyle = "rgba(0, 240, 255, 0.05)";
-        ctx.lineWidth = 1;
-        ctx.stroke();
-
-        // 4. Center Text
-        if (total > 0) {
-            ctx.fillStyle = "rgba(0, 240, 255, 0.6)";
-            ctx.font = `bold ${Math.min(w, h) * 0.08}px 'Share Tech Mono'`;
-            ctx.textAlign = "center";
-            ctx.textBaseline = "middle";
-            ctx.fillText(total.toString(), centerX, centerY - 5);
-            ctx.fillStyle = "rgba(136, 146, 164, 0.6)";
-            ctx.font = `${Math.min(w, h) * 0.035}px 'Share Tech Mono'`;
-            ctx.fillText("TOTAL", centerX, centerY + 15);
-        }
-
-        angle += 0.015;
-        donutAnimationFrame = requestAnimationFrame(draw);
-    }
-    draw();
+    container.innerHTML = html;
 }
 
 function drawTimeline(days, timeline) {
-    const canvas = document.getElementById("timelineChart");
-    if (!canvas) return;
-
-    const dpr = window.devicePixelRatio || 1;
-    const parent = canvas.parentElement;
-    const rect = parent.getBoundingClientRect();
-
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `${rect.height}px`;
-
-    const ctx = canvas.getContext("2d");
-    ctx.scale(dpr, dpr);
-
-    const w = rect.width;
-    const h = rect.height;
-    const margin = 50;
-    const bottomPadding = 40;
-    const chartH = h - bottomPadding - 30;
-    const chartW = w - (margin * 2);
-
-    ctx.clearRect(0, 0, w, h);
-
-    // 1. Grid lines
-    ctx.strokeStyle = "rgba(0, 240, 255, 0.05)";
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= 4; i++) {
-        const py = 20 + (chartH / 4) * i;
-        ctx.beginPath();
-        ctx.moveTo(margin, py);
-        ctx.lineTo(w - margin, py);
-        ctx.stroke();
-    }
-
-    // 2. Bars
+    const container = document.getElementById("incidentTimelineContainer");
+    if (!container) return;
+    
     const maxVal = Math.max(...Object.values(timeline).map(v => Object.values(v).reduce((a, b) => a + b, 0)), 5);
-    const barW = Math.min(35, (chartW / days.length) * 0.5);
-    const spacing = (chartW - (days.length * barW)) / (days.length + 1);
-
-    days.forEach((day, i) => {
+    
+    let html = '<div style="display: flex; height: 100%; align-items: flex-end; justify-content: space-between; gap: 10px; padding-bottom: 2rem; position: relative;">';
+    
+    // Background grid lines
+    html += '<div style="position:absolute; top:0; left:0; width:100%; height:calc(100% - 2rem); pointer-events:none; display:flex; flex-direction:column; justify-content:space-between;">';
+    for(let i=0; i<5; i++) {
+        html += '<div style="width:100%; height:1px; background:rgba(129,140,248,0.1);"></div>';
+    }
+    html += '</div>';
+    
+    days.forEach(day => {
         const counts = timeline[day] || {};
-        const px = margin + spacing + (i * (barW + spacing));
-        let currentY = h - bottomPadding;
-
-        ['low', 'medium', 'high', 'critical'].forEach(sev => {
-            const val = counts[sev] || 0;
-            if (val > 0) {
-                const segH = (val / maxVal) * chartH;
-                const py = currentY - segH;
-
-                ctx.save();
-                const colors = {
-                    critical: ["#ff3860", "#660000"],
-                    high: ["#ff9500", "#663300"],
-                    medium: ["#ffd600", "#665500"],
-                    low: ["#00f0ff", "#003344"]
-                };
-
-                const grad = ctx.createLinearGradient(px, py, px, currentY);
-                grad.addColorStop(0, colors[sev][0]);
-                grad.addColorStop(1, colors[sev][1]);
-
-                // Bar with rounded top
-                ctx.fillStyle = grad;
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = colors[sev][0];
-                ctx.beginPath();
-                const r = Math.min(3, barW / 2);
-                ctx.moveTo(px, currentY);
-                ctx.lineTo(px, py + r);
-                ctx.quadraticCurveTo(px, py, px + r, py);
-                ctx.lineTo(px + barW - r, py);
-                ctx.quadraticCurveTo(px + barW, py, px + barW, py + r);
-                ctx.lineTo(px + barW, currentY);
-                ctx.fill();
-                ctx.restore();
-
-                currentY = py;
-            }
-        });
-
-        // Date label
-        ctx.fillStyle = "rgba(136, 146, 164, 0.8)";
-        ctx.font = "10px 'Share Tech Mono'";
-        ctx.textAlign = "center";
-        ctx.fillText(day.split("-").pop(), px + barW / 2, h - 15);
+        const totalDay = (counts.critical||0) + (counts.high||0) + (counts.medium||0) + (counts.low||0);
+        const dayH = maxVal > 0 ? (totalDay / maxVal) * 100 : 0;
+        
+        let barHtml = '<div style="flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; position: relative; z-index: 2;">';
+        barHtml += '<div style="width: 100%; height: ' + dayH + '%; max-width: 45px; margin: 0 auto; display: flex; flex-direction: column; justify-content: flex-end; border-radius: 4px 4px 0 0; overflow: hidden; background: rgba(0,0,0,0.2);">';
+        
+        if (counts.critical) barHtml += '<div style="width:100%; height:' + ((counts.critical/totalDay)*100) + '%; background:linear-gradient(180deg, #ff3860, #a00); box-shadow: inset 0 0 8px rgba(255,56,96,0.8);"></div>';
+        if (counts.high) barHtml += '<div style="width:100%; height:' + ((counts.high/totalDay)*100) + '%; background:linear-gradient(180deg, #ff8c00, #b86000); box-shadow: inset 0 0 8px rgba(255,140,0,0.8);"></div>';
+        if (counts.medium) barHtml += '<div style="width:100%; height:' + ((counts.medium/totalDay)*100) + '%; background:linear-gradient(180deg, #ffd600, #a88a00); box-shadow: inset 0 0 8px rgba(255,214,0,0.8);"></div>';
+        if (counts.low) barHtml += '<div style="width:100%; height:' + ((counts.low/totalDay)*100) + '%; background:linear-gradient(180deg, #34d399, #1b8a60); box-shadow: inset 0 0 8px rgba(52,211,153,0.8);"></div>';
+        
+        barHtml += '</div>';
+        barHtml += '<div style="position: absolute; bottom: -2rem; left: 0; width: 100%; text-align: center; color: #8892a4; font-family: var(--font-mono); font-size: 0.75rem;">' + day.split("-").pop() + '</div>';
+        barHtml += '</div>';
+        
+        html += barHtml;
     });
+    
+    html += '</div>';
+    container.innerHTML = html;
 }
 // ── v6 UI Expansion ────────────────────────────────────────────────
 function updateHudVitals() {
@@ -1446,7 +1356,7 @@ function renderMissionMap(hosts) {
         });
         
         // Draw Grid Lines
-        ctx.strokeStyle = "rgba(0, 240, 255, 0.03)";
+        ctx.strokeStyle = "rgba(129, 140, 248, 0.03)";
         ctx.lineWidth = 1;
         const gridSpacing = Math.max(26, Math.min(74, 40 * zoom));
         for(let x=0; x<canvas.width; x+=gridSpacing) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
@@ -1458,7 +1368,7 @@ function renderMissionMap(hosts) {
             ctx.beginPath();
             ctx.moveTo(core.x, core.y);
             ctx.lineTo(node.x, node.y);
-            ctx.strokeStyle = "rgba(0, 240, 255, 0.08)";
+            ctx.strokeStyle = "rgba(129, 140, 248, 0.08)";
             ctx.setLineDash([5, 5]);
             ctx.stroke();
             ctx.setLineDash([]);
@@ -1467,7 +1377,7 @@ function renderMissionMap(hosts) {
             const progress = (frame * 0.02 + idx * 0.5) % 1;
             const px = core.x + (node.x - core.x) * progress;
             const py = core.y + (node.y - core.y) * progress;
-            ctx.fillStyle = "rgba(0, 240, 255, 0.5)";
+            ctx.fillStyle = "rgba(129, 140, 248, 0.5)";
             ctx.beginPath(); ctx.arc(px, py, 2, 0, Math.PI*2); ctx.fill();
 
             // Lateral Pivoting (Link nodes in same subnet)
@@ -1491,13 +1401,13 @@ function renderMissionMap(hosts) {
         });
 
         // Draw Core
-        ctx.fillStyle = "#00f0ff";
-        ctx.shadowBlur = 20; ctx.shadowColor = "#00f0ff";
+        ctx.fillStyle = "#818cf8";
+        ctx.shadowBlur = 20; ctx.shadowColor = "#818cf8";
         ctx.beginPath(); ctx.arc(core.x, core.y, 8 + (zoom - 1) * 2, 0, Math.PI*2); ctx.fill();
         ctx.shadowBlur = 0;
         // Draw Nodes
         mapNodes.forEach(node => {
-            let color = "#00ff88"; // low
+            let color = "#34d399"; // low
             if (node.risk === "critical") color = "#ff3860";
             else if (node.risk === "high") color = "#ff8c00";
             else if (node.risk === "medium") color = "#ffd600";
@@ -1519,7 +1429,7 @@ function renderMissionMap(hosts) {
 
             // Label
             ctx.fillStyle = "rgba(255,255,255,0.7)";
-            ctx.font = "8px 'Share Tech Mono'";
+            ctx.font = "8px 'Outfit'";
             ctx.fillText(node.host, node.x + 10, node.y + 3);
         });
 

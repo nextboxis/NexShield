@@ -26,6 +26,13 @@ Engine Registry:
 Run Order:  analyze_scan_results() → compute_risk_scores() → merge_duplicates()
 """
 
+import sys
+# Fix Windows console encoding for Unicode output
+try:
+    sys.stdout.reconfigure(encoding='utf-8')  # type: ignore
+except Exception:
+    pass
+
 from datetime import datetime, timezone
 import hashlib
 import logging
@@ -332,6 +339,8 @@ def analyze_scan_results():
                 ctx = {
                     "host": host, "port": port, "protocol": protocol,
                     "service": service, "product": product, "version": version,
+                    "cpe": port_info.get("cpe", ""),
+                    "cves": port_info.get("cves", []),
                 }
 
                 # Run each engine and collect threats
@@ -630,6 +639,83 @@ def train_ml_model():
     print("[*] Fetching historical threat data for ML training...")
     past_threats = list(threats.find({"source": {"$ne": MODELS["ml_predict"]}}))
 
+    # Load real CVE data patterns from local cvelistV5 directory for training
+    from pathlib import Path
+    import json
+    cves_dir = Path(r"j:\PROGRAM\NexShield\cvelistV5-main\cvelistV5-main\cves")
+    local_cve_threats = []
+    if cves_dir.exists():
+        print(f"[*] Extracting real CVE pattern data from {cves_dir}...")
+        cve_count = 0
+        for year_dir in cves_dir.iterdir():
+            if not year_dir.is_dir() or not year_dir.name.isdigit():
+                continue
+            for chunk_dir in year_dir.iterdir():
+                if not chunk_dir.is_dir():
+                    continue
+                for json_file in chunk_dir.glob("*.json"):
+                    try:
+                        with open(json_file, "r", encoding="utf-8") as f:
+                            data = json.load(f)
+                        cve_metadata = data.get("cveMetadata", {})
+                        cve_id = cve_metadata.get("cveId", "")
+                        containers = data.get("containers", {})
+                        cna = containers.get("cna", {})
+                        
+                        descriptions = cna.get("descriptions", [])
+                        desc_en = ""
+                        for d in descriptions:
+                            if d.get("lang") == "en":
+                                desc_en = d.get("value", "")
+                                break
+                        
+                        metrics = cna.get("metrics", [])
+                        if not metrics and "adp" in containers:
+                            for adp in containers["adp"]:
+                                if "metrics" in adp:
+                                    metrics = adp["metrics"]
+                                    break
+                        score = 0
+                        severity = "unknown"
+                        for metric in metrics:
+                            for k in ["cvssV3_1", "cvssV3_0", "cvssV2_0"]:
+                                if k in metric:
+                                    cvss = metric[k]
+                                    score = cvss.get("baseScore", 0)
+                                    severity = cvss.get("baseSeverity", "UNKNOWN").lower()
+                                    break
+                            if score:
+                                break
+                        
+                        affected = cna.get("affected", [])
+                        product = ""
+                        for aff in affected:
+                            prod = aff.get("product", "").strip()
+                            if prod and prod not in ("n/a", "unknown"):
+                                product = prod
+                                break
+                        
+                        if desc_en and severity != "unknown":
+                            local_cve_threats.append({
+                                "name": f"{cve_id} in {product}" if product else cve_id,
+                                "detail": desc_en,
+                                "severity": severity,
+                                "port": 0,
+                                "protocol": "tcp",
+                                "service": product.lower() if product else "unknown"
+                            })
+                            cve_count += 1
+                            if cve_count >= 1000:
+                                break
+                    except Exception:
+                        pass
+                if cve_count >= 1000:
+                    break
+            if cve_count >= 1000:
+                break
+        print(f"[+] Loaded {len(local_cve_threats)} real CVE threat patterns for training.")
+        past_threats.extend(local_cve_threats)
+
     # --- Expanded Synthetic training data ---
     synthetic_threats = [
         {"name": "MS08-067 (NetAPI) Exploitation", "detail": "vulnerability reference", "severity": "critical", "port": 445, "protocol": "tcp", "service": "smb"},
@@ -666,6 +752,17 @@ def train_ml_model():
         {"name": "PostgreSQL Default Creds", "detail": "postgresql accepting default credentials postgres/postgres", "severity": "high", "port": 5432, "protocol": "tcp", "service": "postgresql"},
     ]
     past_threats.extend(synthetic_threats * 8)
+
+    # Filter to keep only standard severities and ensure each class has at least 2 examples
+    valid_severities = {"critical", "high", "medium", "low", "info"}
+    past_threats = [t for t in past_threats if (t.get("severity") or "").lower() in valid_severities]
+    
+    sev_counts = {}
+    for t in past_threats:
+        s = t["severity"].lower()
+        sev_counts[s] = sev_counts.get(s, 0) + 1
+        
+    past_threats = [t for t in past_threats if sev_counts[t["severity"].lower()] >= 2]
 
     if len(past_threats) < 20:
         print(f"[!] Need at least 20 historical threats to train. Only have {len(past_threats)}.")
@@ -751,6 +848,15 @@ def train_ml_model():
 
     joblib.dump(final_pipeline, MODEL_PATH)
     print(f"[+] AI pipeline (Ensemble+Tuning+Calibration) trained and saved to {MODEL_PATH}!")
+    
+    # Save the TF-IDF Vectorizer separately
+    try:
+        vectorizer = final_pipeline.named_steps['preprocessor'].named_transformers_['text']
+        joblib.dump(vectorizer, VECTORIZER_PATH)
+        print(f"[+] TF-IDF Vectorizer saved to {VECTORIZER_PATH}!")
+    except Exception as e:
+        print(f"[!] Failed to save vectorizer: {e}")
+        
     return True
 
 def _engine_ml_predict(ctx):
@@ -800,59 +906,183 @@ def _engine_ml_predict(ctx):
 # ═════════════════════════════════════════════════════════════════════
 
 def _engine_cve_correlation(ctx):
-    """Cross-reference discovered services with cached CVE data from NVD."""
+    """Cross-reference discovered services with cached CVE data from NVD using CPE and version matching."""
     if not check_connection():
         return []
 
-    service = ctx["service"].lower()
-    product = ctx["product"].lower()
-    results = []
+    from cve_lookup import normalize_cpe, match_cpe, lookup_by_cpe, _query_nvd, _parse_cve_item, _parse_cvelist_v5, get_local_cves_by_product  # type: ignore
 
-    # Find matching keywords for this service
-    keywords = set()
-    for svc_key, kw_list in SERVICE_CVE_KEYWORDS.items():
-        if svc_key in service or svc_key in product:
-            keywords.update(kw_list)
-    if product:
-        keywords.add(product)
+    cpe = ctx.get("cpe", "").strip()
+    product = ctx.get("product", "").strip()
+    version = ctx.get("version", "").strip()
+    host = ctx.get("host", "unknown")
+    port = ctx.get("port", "")
+    service = ctx.get("service", "")
+    explicit_cves = ctx.get("cves", [])
 
-    if not keywords:
+    # If neither CPE nor version nor explicit CVEs is present, we cannot correlate CVEs reliably.
+    if not cpe and not version and not explicit_cves:
         return []
 
-    # Search CVE cache for matching entries
-    for keyword in keywords:
+    matched_cves = []
+    seen_ids = set()
+
+    # 0. Explicit CVE matching (from Nmap script output)
+    if explicit_cves:
+        for cve_id in explicit_cves:
+            # First check cve_cache
+            cached = cve_cache.find_one({"cve_id": cve_id})
+            if cached:
+                if cve_id not in seen_ids:
+                    matched_cves.append(cached)
+                    seen_ids.add(cve_id)
+            else:
+                # Fallback: parse directly from the local folder
+                local_data = _parse_cvelist_v5(cve_id)
+                if local_data:
+                    cve_cache.update_one(
+                        {"cve_id": cve_id},
+                        {"$set": {**local_data, "fetched_at": datetime.now(timezone.utc)}},
+                        upsert=True,
+                    )
+                    if cve_id not in seen_ids:
+                        matched_cves.append(local_data)
+                        seen_ids.add(cve_id)
+
+    # 1. CPE-Based Matching
+    if cpe:
+        cpe_23 = normalize_cpe(cpe)
+        
+        # 1a. Search local cache first
+        cpe_parts = cpe_23.split(":")
+        product_name = cpe_parts[4] if len(cpe_parts) > 4 else ""
+        
+        local_candidates = []
+        if product_name:
+            try:
+                local_candidates = list(cve_cache.find({
+                    "cpes": {"$regex": f":{product_name}:", "$options": "i"}
+                }))
+            except Exception:
+                pass
+            
+            # Fetch directly from local cvelistV5 directory using index
+            try:
+                local_cves = get_local_cves_by_product(product_name)
+                existing_ids = {doc.get("cve_id") for doc in local_candidates if doc.get("cve_id")}
+                for lc in local_cves:
+                    if lc.get("cve_id") not in existing_ids:
+                        local_candidates.append(lc)
+            except Exception:
+                pass
+                
+        for cve_doc in local_candidates:
+            cve_cpes = cve_doc.get("cpes", [])
+            matched = False
+            for crit in cve_cpes:
+                if match_cpe(cpe_23, crit):
+                    matched = True
+                    break
+            
+            # Removed strict version in description check to prevent discarding valid matches
+            if matched:
+                matched_cves.append(cve_doc)
+            if len(matched_cves) >= 3:
+                break
+
+        # 1b. If no local match, query NVD API (if version is not wildcard '*')
+        if not matched_cves and len(cpe_parts) > 5 and cpe_parts[5] != "*":
+            try:
+                api_res = lookup_by_cpe(cpe_23, results_per_page=5)
+                if "vulnerabilities" in api_res:
+                    matched_cves.extend(api_res["vulnerabilities"])
+            except Exception:
+                pass
+
+    # 2. Product + Version Keyword Search (fallback if CPE matching yielded nothing)
+    if not matched_cves and product and version:
+        # 2a. Search local cache first
+        syn_cpe = f"cpe:2.3:a:*:{product.replace(' ', '_').lower()}:{version}:*:*:*:*:*:*:*"
         try:
-            cached_cves = list(cve_cache.find(
-                {"description": {"$regex": keyword, "$options": "i"}},
-            ).limit(3))
+            local_candidates = list(cve_cache.find({
+                "cpes": {"$regex": f":{product.replace(' ', '_').lower()}:", "$options": "i"}
+            }))
+            
+            # Fetch directly from local cvelistV5 directory using index
+            try:
+                local_cves = get_local_cves_by_product(product)
+                existing_ids = {doc.get("cve_id") for doc in local_candidates if doc.get("cve_id")}
+                for lc in local_cves:
+                    if lc.get("cve_id") not in existing_ids:
+                        local_candidates.append(lc)
+            except Exception:
+                pass
+
+            for cve_doc in local_candidates:
+                cve_cpes = cve_doc.get("cpes", [])
+                matched = False
+                for crit in cve_cpes:
+                    if match_cpe(syn_cpe, crit):
+                        matched = True
+                        break
+                
+                # Removed strict version in description check to prevent discarding valid matches                        
+                if matched:
+                    matched_cves.append(cve_doc)
+                if len(matched_cves) >= 3:
+                    break
         except Exception:
+            pass
+
+        # 2b. If no local match, query NVD API using keywordSearch
+        if not matched_cves:
+            try:
+                query_res = _query_nvd({"keywordSearch": f"{product} {version}", "resultsPerPage": 3})
+                if "vulnerabilities" in query_res:
+                    vulns = query_res.get("vulnerabilities", [])
+                    for v in vulns:
+                        parsed = _parse_cve_item(v.get("cve", {}))
+                        matched_cves.append(parsed)
+                        # Save to cache
+                        cve_cache.update_one(
+                            {"cve_id": parsed["cve_id"]},
+                            {"$set": {**parsed, "fetched_at": datetime.now(timezone.utc)}},
+                            upsert=True,
+                        )
+            except Exception:
+                pass
+
+    # Build threats from matched CVEs
+    results = []
+    seen_ids = set()
+    for cve_doc in matched_cves:
+        cve_id = cve_doc.get("cve_id", "")
+        if not cve_id or cve_id in seen_ids:
+            continue
+        seen_ids.add(cve_id)
+        
+        cve_sev = cve_doc.get("severity", "medium")
+        cve_score = cve_doc.get("score", 0)
+        cve_desc = cve_doc.get("description", "")
+
+        # Only flag medium+ severity CVEs
+        if cve_sev in ["low", "info", "unknown"]:
             continue
 
-        for cve_doc in cached_cves:
-            cve_id = cve_doc.get("cve_id", "")
-            cve_sev = cve_doc.get("severity", "medium")
-            cve_score = cve_doc.get("score", 0)
-            cve_desc = cve_doc.get("description", "")
-
-            # Only flag medium+ severity CVEs
-            if cve_sev in ["low", "info", "unknown"]:
-                continue
-
-            results.append(_make_threat(  # type: ignore
-                name=f"CVE Correlated: {cve_id}",
-                severity=str(cve_sev),
-                host=str(ctx.get("host", "unknown")),
-                cve_id=str(cve_id),
-                source=MODELS["cve_corr"],
-                detail=(
-                    f"Service '{ctx.get('service', '')}' ({ctx.get('product', '')}) on port {ctx.get('port', '')} "
-                    f"matches CVE {cve_id} (CVSS {cve_score}): {str(cve_desc)[:200]}"  # type: ignore
-                ),
-                tags=["cve_correlation", "nvd", "automated"],
-            ))
-            break  # One CVE match per keyword is sufficient
-
-    return results[:2]  # type: ignore
+        results.append(_make_threat(  # type: ignore
+            name=f"CVE Correlated: {cve_id}",
+            severity=str(cve_sev),
+            host=str(host),
+            cve_id=str(cve_id),
+            source=MODELS["cve_corr"],
+            detail=(
+                f"Service '{service}' ({product}) on port {port} "
+                f"matches CVE {cve_id} (CVSS {cve_score}): {str(cve_desc)[:200]}"
+            ),
+            tags=["cve_correlation", "nvd", "automated"],
+        ))
+        
+    return results[:2]  # Limit to 2 threats per port
 
 
 # ═════════════════════════════════════════════════════════════════════

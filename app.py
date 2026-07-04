@@ -34,7 +34,7 @@ from config import threats, network_scans, activity_log, users, cve_cache, ip_ge
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", secrets.token_hex(32))
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", "nexshield-local-secret-12345")
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=8)
@@ -431,16 +431,14 @@ def health_check():
 @app.route("/")
 def root_redirect():
     """Send users to the right frontend entry point for their session state."""
-    if "user" in session:
-        return redirect(url_for("serve_dashboard"))
+    session.clear()
     return redirect(url_for("serve_login", next=DEFAULT_DASHBOARD_PATH))
 
 
 @app.route("/login")
 def serve_login():
     """Serve the authentication page. Always accessible."""
-    if "user" in session:
-        return redirect(url_for("serve_dashboard"))
+    session.clear()
     return render_template("login.html")
 
 
@@ -1153,6 +1151,48 @@ def export_threats():
 # ═════════════════════════════════════════════════════════════════════
 #  API — CVE Lookup
 # ═════════════════════════════════════════════════════════════════════
+
+@app.route("/api/cve/recent", methods=["GET"])
+@login_required
+def get_recent_cves():
+    """Return recent CVEs directly from the local cvelistV5-main directory."""
+    try:
+        limit = _normalize_limit(request.args.get("limit", 50, type=int), 50, 100)
+        from pathlib import Path
+        from cve_lookup import _parse_cvelist_v5
+        
+        cves_dir = Path(r"j:\PROGRAM\NexShield\cvelistV5-main\cvelistV5-main\cves")
+        if not cves_dir.exists():
+            return jsonify({"status": "error", "message": "Local CVE repository not found."}), 404
+            
+        years = sorted([d.name for d in cves_dir.iterdir() if d.is_dir() and d.name.isdigit()], reverse=True)
+        recent_cves = []
+        
+        for year in years:
+            year_dir = cves_dir / year
+            blocks = []
+            for d in year_dir.iterdir():
+                if d.is_dir() and d.name.endswith("xxx"):
+                    try:
+                        blocks.append((int(d.name[:-3]), d))
+                    except ValueError:
+                        pass
+                        
+            blocks.sort(key=lambda x: x[0], reverse=True)
+            
+            for _, block_dir in blocks:
+                files = sorted([f for f in block_dir.glob("*.json")], key=lambda x: x.name, reverse=True)
+                for f in files:
+                    parsed = _parse_cvelist_v5(f.stem)
+                    if parsed:
+                        recent_cves.append(parsed)
+                        if len(recent_cves) >= limit:
+                            return jsonify({"status": "complete", "cves": recent_cves})
+                            
+        return jsonify({"status": "complete", "cves": recent_cves})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 @app.route("/api/cve/<cve_id>", methods=["GET"])
 @login_required

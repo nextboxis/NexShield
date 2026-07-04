@@ -5,10 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NexShield — Authenticate</title>
     <meta name="description" content="NexShield Mission Control — Secure Authentication Portal" />
-    <meta name="theme-color" content="#04060b" />
 
     <!-- Inline SVG Favicon -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%2300f0ff'/%3E%3Cstop offset='100%25' stop-color='%2300ff88'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M32 4L6 18v20c0 14 12 20 26 22 14-2 26-8 26-22V18L32 4z' fill='none' stroke='url(%23g)' stroke-width='3'/%3E%3Cpath d='M32 16l-14 8v12c0 8 6 12 14 14 8-2 14-6 14-14V24l-14-8z' fill='url(%23g)' opacity='.15'/%3E%3Cpath d='M28 32l-4-4 2-2 2 2 8-8 2 2z' fill='url(%23g)'/%3E%3C/svg%3E" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23818cf8'/%3E%3Cstop offset='100%25' stop-color='%2334d399'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M32 4L6 18v20c0 14 12 20 26 22 14-2 26-8 26-22V18L32 4z' fill='none' stroke='url(%23g)' stroke-width='3'/%3E%3Cpath d='M32 16l-14 8v12c0 8 6 12 14 14 8-2 14-6 14-14V24l-14-8z' fill='url(%23g)' opacity='.15'/%3E%3Cpath d='M28 32l-4-4 2-2 2 2 8-8 2 2z' fill='url(%23g)'/%3E%3C/svg%3E" />
 
     <!-- Google Font: Share Tech Mono + Outfit -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -17,10 +16,10 @@
 
     <style>
         :root {
-            --bg-deep: #06090f;
-            --cyan: #00f0ff;
-            --green: #00ff88;
-            --red: #ff3860;
+            --bg-deep: #070a13;
+            --cyan: #818cf8;
+            --green: #34d399;
+            --red: #f87171;
             --font-mono: 'Share Tech Mono', monospace;
             --font-sans: 'Outfit', sans-serif;
         }
@@ -35,37 +34,45 @@
             display: flex;
             align-items: center;
             justify-content: center;
-            overflow: hidden;
+            overflow: auto; /* Fix: allow scrolling on small viewports */
+            padding: 2rem;
+        }
+
+        body::before {
+            content: "";
+            position: fixed; inset: 0; z-index: -1; pointer-events: none;
+            background: 
+                radial-gradient(circle at 15% 20%, rgba(129, 140, 248, 0.08) 0%, transparent 40%),
+                radial-gradient(circle at 85% 75%, rgba(192, 132, 252, 0.06) 0%, transparent 45%);
         }
 
         /* Grid BG */
         .grid-bg {
-            position: fixed; inset: 0;
-            background-image:
-                linear-gradient(rgba(0, 240, 255, 0.02) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(0, 240, 255, 0.02) 1px, transparent 1px);
-            background-size: 60px 60px;
-            pointer-events: none; z-index: 0;
-            animation: gridDrift 20s linear infinite;
-        }
+    position: fixed;
+    inset: 0;
+    background-image: radial-gradient(rgba(129, 140, 248, 0.06) 1px, transparent 1px);
+    background-size: 24px 24px;
+    pointer-events: none;
+    z-index: 0;
+}
         @keyframes gridDrift { 0% { background-position: 0 0; } 100% { background-position: 60px 60px; } }
 
         /* Radar sweep */
-        .radar-sweep {
+        .radar-sweep { display: none; 
             position: fixed; top: 50%; left: 50%;
             width: 200vmax; height: 200vmax;
-            background: conic-gradient(from 0deg, transparent 0%, rgba(0, 240, 255, 0.06) 10%, transparent 15%);
+            background: conic-gradient(from 0deg, transparent 0%, rgba(129, 140, 248, 0.06) 10%, transparent 15%);
             transform: translate(-50%, -50%);
             pointer-events: none; z-index: 1;
             animation: radarSweep 8s linear infinite;
-        }
+         }
         @keyframes radarSweep { from { transform: translate(-50%, -50%) rotate(0deg); } to { transform: translate(-50%, -50%) rotate(360deg); } }
 
-        .scanline-overlay {
+        .scanline-overlay { display: none; 
             position: fixed; inset: 0;
-            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0, 240, 255, 0.008) 2px, rgba(0, 240, 255, 0.008) 4px);
+            background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(129, 140, 248, 0.008) 2px, rgba(129, 140, 248, 0.008) 4px);
             pointer-events: none; z-index: 1;
-        }
+         }
 
         /* Login Card */
         .login-card {
@@ -73,10 +80,10 @@
             width: 100%; max-width: 440px;
             padding: 3rem 2.5rem;
             background: rgba(13, 20, 33, 0.85);
-            border: 1px solid rgba(0, 240, 255, 0.12);
+            border: 1px solid rgba(129, 140, 248, 0.12);
             border-radius: 20px;
-            backdrop-filter: blur(20px) saturate(180%);
             -webkit-backdrop-filter: blur(20px) saturate(180%);
+            backdrop-filter: blur(20px) saturate(180%);
             box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06);
             animation: cardEntrance 0.8s ease-out;
         }
@@ -93,6 +100,17 @@
             border-top: 2px solid var(--cyan); border-right: 2px solid var(--cyan);
             border-radius: 0 20px 0 0; opacity: 0.5;
         }
+
+        .shake {
+            animation: shake 0.4s cubic-bezier(.36,.07,.19,.97) both;
+        }
+        
+        @keyframes shake {
+            10%, 90% { transform: translate3d(-1px, 0, 0); }
+            20%, 80% { transform: translate3d(2px, 0, 0); }
+            30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+            40%, 60% { transform: translate3d(4px, 0, 0); }
+        }
         .login-card::before {
             content: ''; position: absolute; bottom: -1px; left: -1px;
             width: 24px; height: 24px;
@@ -106,7 +124,7 @@
 
         .login-brand__shield {
             font-size: 2.5rem;
-            filter: drop-shadow(0 0 20px rgba(0, 240, 255, 0.4));
+            filter: drop-shadow(0 0 20px rgba(129, 140, 248, 0.4));
             display: block; margin-bottom: 0.8rem;
         }
 
@@ -115,7 +133,7 @@
             font-size: 1.4rem;
             letter-spacing: 4px;
             color: var(--cyan);
-            text-shadow: 0 0 15px rgba(0, 240, 255, 0.3);
+            text-shadow: 0 0 15px rgba(129, 140, 248, 0.3);
         }
 
         .login-brand__sub {
@@ -140,7 +158,7 @@
 
         .form-input {
             background: rgba(0, 0, 0, 0.5);
-            border: 1px solid rgba(0, 240, 255, 0.15);
+            border: 1px solid rgba(129, 140, 248, 0.15);
             color: #fff;
             font-family: var(--font-mono);
             padding: 0.85rem 1.2rem;
@@ -156,8 +174,8 @@
 
         .form-input:focus {
             border-color: var(--cyan);
-            box-shadow: 0 0 20px rgba(0, 240, 255, 0.12), inset 0 0 15px rgba(0, 240, 255, 0.03);
-            background: rgba(0, 240, 255, 0.04);
+            box-shadow: 0 0 20px rgba(129, 140, 248, 0.12), inset 0 0 15px rgba(129, 140, 248, 0.03);
+            background: rgba(129, 140, 248, 0.04);
         }
 
         .btn-auth {
@@ -167,7 +185,7 @@
             padding: 0.95rem;
             border: 1px solid var(--cyan);
             border-radius: 8px;
-            background: linear-gradient(135deg, rgba(0, 240, 255, 0.12), rgba(0, 255, 136, 0.08));
+            background: linear-gradient(135deg, rgba(129, 140, 248, 0.12), rgba(52, 211, 153, 0.08));
             color: var(--cyan);
             cursor: pointer;
             transition: all 0.35s;
@@ -177,8 +195,8 @@
         }
 
         .btn-auth:hover {
-            background: linear-gradient(135deg, rgba(0, 240, 255, 0.25), rgba(0, 255, 136, 0.15));
-            box-shadow: 0 0 25px rgba(0, 240, 255, 0.2);
+            background: linear-gradient(135deg, rgba(129, 140, 248, 0.25), rgba(52, 211, 153, 0.15));
+            box-shadow: 0 0 25px rgba(129, 140, 248, 0.2);
             transform: translateY(-2px);
         }
 
@@ -201,7 +219,7 @@
         }
 
         .login-feedback--error { color: var(--red); text-shadow: 0 0 10px rgba(255, 56, 96, 0.3); }
-        .login-feedback--success { color: var(--green); text-shadow: 0 0 10px rgba(0, 255, 136, 0.3); }
+        .login-feedback--success { color: var(--green); text-shadow: 0 0 10px rgba(52, 211, 153, 0.3); }
 
         .login-hint {
             text-align: center;
@@ -218,7 +236,7 @@
             position: fixed;
             top: 50%; left: 50%;
             width: 500px; height: 500px;
-            border: 1px solid rgba(0, 240, 255, 0.05);
+            border: 1px solid rgba(129, 140, 248, 0.05);
             border-radius: 50%;
             transform: translate(-50%, -50%);
             z-index: 2;
@@ -438,7 +456,7 @@
 
                     ctx.beginPath();
                     ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-                    ctx.fillStyle = 'rgba(0, 240, 255, 0.25)';
+                    ctx.fillStyle = 'rgba(129, 140, 248, 0.25)';
                     ctx.fill();
 
                     for (let j = i + 1; j < particles.length; j++) {
@@ -450,7 +468,7 @@
                             ctx.beginPath();
                             ctx.moveTo(p.x, p.y);
                             ctx.lineTo(q.x, q.y);
-                            ctx.strokeStyle = `rgba(0, 240, 255, ${0.08 * (1 - dist / MAX_DIST)})`;
+                            ctx.strokeStyle = `rgba(129, 140, 248, ${0.08 * (1 - dist / MAX_DIST)})`;
                             ctx.lineWidth = 0.5;
                             ctx.stroke();
                         }

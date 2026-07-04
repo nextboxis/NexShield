@@ -92,13 +92,13 @@ class TinyCollection:
         return _Result(ids)
 
     # ── Find ─────────────────────────────────────────────────────
-    def find(self, query: dict = None, sort=None, **kwargs) -> '_TinyCursor':
+    def find(self, query: Optional[dict] = None, sort=None, **kwargs) -> '_TinyCursor':
         """Return a cursor-like object over matching documents."""
         with _db_lock:
             docs = self._search(query or {})
         return _TinyCursor(docs, sort)
 
-    def find_one(self, query: dict = None, sort=None, **kwargs) -> Optional[dict]:
+    def find_one(self, query: Optional[dict] = None, sort=None, **kwargs) -> Optional[dict]:
         """Return the first matching document or None."""
         with _db_lock:
             docs = self._search(query or {})
@@ -174,7 +174,7 @@ class TinyCollection:
         return _Result(count)
 
     # ── Delete ───────────────────────────────────────────────────
-    def delete_many(self, query: dict = None) -> Any:
+    def delete_many(self, query: Optional[dict] = None) -> Any:
         """Delete all matching documents. Empty query = delete all."""
         with _db_lock:
             if not query:
@@ -192,14 +192,14 @@ class TinyCollection:
         return _Result(count)
 
     # ── Count & Distinct ─────────────────────────────────────────
-    def count_documents(self, query: dict = None) -> int:
+    def count_documents(self, query: Optional[dict] = None) -> int:
         """Count matching documents."""
         with _db_lock:
             if not query:
                 return len(self._table)
             return len(self._search(query))
 
-    def distinct(self, field: str, query: dict = None) -> list:
+    def distinct(self, field: str, query: Optional[dict] = None) -> list:
         """Return distinct values for a field."""
         with _db_lock:
             docs = self._search(query or {})
@@ -254,10 +254,9 @@ class TinyCollection:
             elif "$sort" in stage:
                 sort_spec = stage["$sort"]
                 for field, direction in reversed(list(sort_spec.items())):
-                    docs.sort(
-                        key=lambda d, f=field: self._get_nested(d, f) or "",
-                        reverse=(direction == -1)
-                    )
+                    def _sort_key(d: dict) -> Any:
+                        return self._get_nested(d, field) or ""
+                    docs.sort(key=_sort_key, reverse=(direction == -1))
 
             elif "$limit" in stage:
                 docs = docs[:stage["$limit"]]
@@ -364,7 +363,7 @@ class TinyCollection:
     def _get_nested(self, doc: dict, key: str) -> Any:
         """Get a nested field value using dot notation."""
         parts = key.split(".")
-        val = doc
+        val: Any = doc
         for p in parts:
             if isinstance(val, dict):
                 val = val.get(p)
@@ -448,12 +447,12 @@ class TinyCollection:
                         result[acc_name] = min(vals) if vals else None
 
                     elif op == "$addToSet":
-                        vals = set()
+                        _set_vals: set[Any] = set()
                         for d in group_docs:
                             v = self._resolve_field(d, operand)
                             if v is not None:
-                                vals.add(v)
-                        result[acc_name] = list(vals)
+                                _set_vals.add(v)
+                        result[acc_name] = list(_set_vals)
 
                     elif op == "$push":
                         if isinstance(operand, dict):
@@ -508,10 +507,9 @@ class _TinyCursor:
     def _sort_docs(docs: list, sort_spec: list) -> list:
         """Sort docs by MongoDB-style sort spec."""
         for field, direction in reversed(sort_spec):
-            docs.sort(
-                key=lambda d, f=field: d.get(f) or "",
-                reverse=(direction == -1)
-            )
+            def _sort_key(d: dict) -> Any:
+                return d.get(field) or ""
+            docs.sort(key=_sort_key, reverse=(direction == -1))
         return docs
 
     def __iter__(self):

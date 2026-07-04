@@ -5,10 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NexShield — AI SOC & Mission Control</title>
     <meta name="description" content="Professional-grade AI Threat Intelligence Operations Center. Real-time radar, mapping, and investigation." />
-    <meta name="theme-color" content="#04060b" />
 
     <!-- Inline SVG Favicon -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%2300f0ff'/%3E%3Cstop offset='100%25' stop-color='%2300ff88'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M32 4L6 18v20c0 14 12 20 26 22 14-2 26-8 26-22V18L32 4z' fill='none' stroke='url(%23g)' stroke-width='3'/%3E%3Cpath d='M32 16l-14 8v12c0 8 6 12 14 14 8-2 14-6 14-14V24l-14-8z' fill='url(%23g)' opacity='.15'/%3E%3Cpath d='M28 32l-4-4 2-2 2 2 8-8 2 2z' fill='url(%23g)'/%3E%3C/svg%3E" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23818cf8'/%3E%3Cstop offset='100%25' stop-color='%2334d399'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M32 4L6 18v20c0 14 12 20 26 22 14-2 26-8 26-22V18L32 4z' fill='none' stroke='url(%23g)' stroke-width='3'/%3E%3Cpath d='M32 16l-14 8v12c0 8 6 12 14 14 8-2 14-6 14-14V24l-14-8z' fill='url(%23g)' opacity='.15'/%3E%3Cpath d='M28 32l-4-4 2-2 2 2 8-8 2 2z' fill='url(%23g)'/%3E%3C/svg%3E" />
 
     <!-- Google Font: Share Tech Mono + Outfit -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -16,6 +15,17 @@
     <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
 
     <link rel="stylesheet" href="/static/css/style.css" />
+    <style>
+        .d-none { display: none; }
+        .brand-version { color: var(--cyan); opacity: 0.6; }
+        .tactical-panel { grid-column: span 2; min-height: 400px; }
+        .empty-hosts { font-size: 0.7rem; opacity: 0.5; font-family: var(--font-mono); letter-spacing: 1px; }
+        .form-label-small { font-family: var(--font-mono); font-size: 0.7rem; color: #8892a4; letter-spacing: 1.5px; }
+        .mb-form { margin-bottom: 0.8rem; }
+        .w-100 { width: 100%; }
+        .mt-10 { margin-top: 10px; }
+        .pw-feedback { font-family: var(--font-mono); font-size: 0.78rem; text-align: center; min-height: 1.4em; }
+    </style>
 </head>
 <body class="mission-view">
     <!-- ── Ambient Layers ───────────────────────────── -->
@@ -45,7 +55,7 @@
                 <input type="text" id="globalSearch" placeholder="Search threats, hosts, CVEs..." onkeyup="globalSearchHandler(event)" />
             </div>
             <div class="notification-bell" id="notifBell" onclick="toggleNotifications()">
-                🔔<span class="notification-badge" id="notifBadge" style="display:none">0</span>
+                🔔<span class="notification-badge d-none" id="notifBadge">0</span>
                 <div class="notification-dropdown" id="notifDropdown"></div>
             </div>
             <div class="liquid-nav__profile" id="navProfile">
@@ -79,7 +89,7 @@
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
     <!-- ── Connection Status Banner ───────────────── -->
-    <div class="connection-banner" id="connectionBanner" style="display:none">
+    <div class="connection-banner d-none" id="connectionBanner">
         ⚠️ Connection lost. Attempting to reconnect...
     </div>
 
@@ -87,7 +97,7 @@
     <div class="content-shell">
         <header class="top-header">
             <div class="brand">
-                <h1 class="brand__title">NEXSHIELD <span style="color:var(--cyan); opacity:0.6">v6.1</span> :: MISSION_CONTROL</h1>
+                <h1 class="brand__title">NEXSHIELD <span class="brand-version">v6.1</span> :: MISSION_CONTROL</h1>
                 <p class="brand__status">
                     <span class="status-dot" id="statusDot"></span>
                     <span id="statusText">System Link Pending...</span>
@@ -147,7 +157,7 @@
             <!-- Phase 1: Operational Tactical Console (Top Priority) -->
             <div class="tactical-row">
                 <!-- Tactical Mission Map -->
-                <div class="sub-panel glass-panel" style="grid-column: span 2; min-height: 400px;">
+                <div class="sub-panel glass-panel tactical-panel">
                     <div class="sub-panel__header">
                         🗺️ TACTICAL_MISSION_MAP
                         <span class="info-legend" title="Real-time topology and threat density map. Click nodes to inspect.">?</span>
@@ -183,8 +193,8 @@
                         </select>
                         <button id="execScanBtn" class="btn-manual" onclick="triggerManualScan()">EXEC_SCAN</button>
                     </div>
-                    <div class="scan-progress" id="scanProgress" style="display: none;">
-                        <div class="scan-progress__bar" id="scanProgressBar" style="width: 0%"></div>
+                    <div class="scan-progress d-none" id="scanProgress">
+                        <div class="scan-progress__bar" id="scanProgressBar"></div>
                         <span class="scan-progress__text" id="scanProgressText">0%</span>
                     </div>
                 </div>
@@ -207,7 +217,7 @@
                         <span class="host-count-badge" id="hostCountBadge">0</span>
                     </div>
                     <div class="hosts-grid" id="hostsGrid">
-                        <p style="font-size: 0.7rem; opacity: 0.5; font-family: var(--font-mono); letter-spacing: 1px">RUN_SCAN_TO_DISCOVER</p>
+                        <p class="empty-hosts">RUN_SCAN_TO_DISCOVER</p>
                     </div>
                 </section>
             </div>
@@ -216,15 +226,15 @@
             <div class="visualizer-row">
                 <div class="quad-section glass-panel">
                     <div class="quad-header">🎯 SEVERITY_RADAR</div>
-                    <div class="donut-wrap">
-                        <canvas id="donutChart"></canvas>
-                        <div class="donut-overlay" id="donutLegend"></div>
+                    <div class="donut-wrap" id="severityRadarContainer" style="padding: 1.5rem; display: flex; flex-direction: column; justify-content: center; height: 100%;">
+                        <!-- CSS donut/bars injected via JS -->
                     </div>
                 </div>
-                <div class="quad-section quad-section--timeline glass-panel">
-                    <div class="quad-header">📊 7-DAY_INCIDENT_TIMELINE</div>
-                    <div class="timeline-container">
-                        <canvas id="timelineChart"></canvas>
+                <div class="quad-section quad-section--cvelist glass-panel">
+                    <div class="quad-header">🐛 TOP_VULNERABILITIES</div>
+                    <div class="cve-list-container" id="topVulnerabilitiesList" style="padding: 1rem 1.5rem; height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
+                        <!-- JS injected list -->
+                        <div style="opacity: 0.5; font-family: var(--font-mono); font-size: 0.8rem;">AWAITING_THREAT_DATA...</div>
                     </div>
                 </div>
             </div>
@@ -295,16 +305,16 @@
     </div>
 
     <!-- ── Change Password Modal ──────────────────── -->
-    <div class="modal-overlay" id="passwordModal" style="display:none">
+    <div class="modal-overlay d-none" id="passwordModal">
         <div class="modal-panel" onclick="event.stopPropagation()">
             <button class="modal-close" onclick="closePasswordModal()">×</button>
             <h2 class="modal-title">🔑 CHANGE_PASSWORD</h2>
             <div class="modal-body">
-                <div class="form-group" style="margin-bottom:0.8rem"><label class="form-label" style="font-family:var(--font-mono);font-size:0.7rem;color:#8892a4;letter-spacing:1.5px">Current Password</label><input type="password" id="currentPw" class="console-input" style="width:100%" /></div>
-                <div class="form-group" style="margin-bottom:0.8rem"><label class="form-label" style="font-family:var(--font-mono);font-size:0.7rem;color:#8892a4;letter-spacing:1.5px">New Password</label><input type="password" id="newPw" class="console-input" style="width:100%" /></div>
-                <div class="form-group" style="margin-bottom:0.8rem"><label class="form-label" style="font-family:var(--font-mono);font-size:0.7rem;color:#8892a4;letter-spacing:1.5px">Confirm New Password</label><input type="password" id="confirmPw" class="console-input" style="width:100%" /></div>
-                <div class="login-feedback" id="pwFeedback" style="font-family:var(--font-mono);font-size:0.78rem;text-align:center;min-height:1.4em"></div>
-                <button class="btn btn--scan" onclick="submitPasswordChange()" style="width:100%;margin-top:10px">UPDATE_ACCESS_KEY</button>
+                <div class="form-group mb-form"><label class="form-label form-label-small">Current Password</label><input type="password" id="currentPw" class="console-input w-100" /></div>
+                <div class="form-group mb-form"><label class="form-label form-label-small">New Password</label><input type="password" id="newPw" class="console-input w-100" /></div>
+                <div class="form-group mb-form"><label class="form-label form-label-small">Confirm New Password</label><input type="password" id="confirmPw" class="console-input w-100" /></div>
+                <div class="login-feedback pw-feedback" id="pwFeedback"></div>
+                <button class="btn btn--scan w-100 mt-10" onclick="submitPasswordChange()">UPDATE_ACCESS_KEY</button>
             </div>
         </div>
     </div>

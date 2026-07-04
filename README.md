@@ -312,6 +312,9 @@ This software is intended for **authorized security testing and research only**.
 ## Recent Improvements (v6.0)
 
 - **Security Hardened**: Missing auth decorators fixed, password logging removed, credentials no longer pre-filled
+- **Session Stability**: Fixed authentication loop bug where stale sessions forced continuous redirects to the login page.
+- **CVE Intelligence**: Removed overly strict description filtering in AI matching logic to ensure more valid CVEs are correctly mapped to identified services.
+- **Performance UI**: Completely replaced heavy JS dependencies (`Chart.js`) with pure CSS-driven neo-minimalist components for faster rendering.
 - **Password Management**: In-app password change via dashboard profile dropdown
 - **Notification Center**: Real-time event bell with unread count badge
 - **Bulk Threat Actions**: Acknowledge, dismiss, or escalate multiple threats at once

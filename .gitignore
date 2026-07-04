@@ -176,3 +176,7 @@ pyrightconfig.json
 .vscode/
 .idea/
 *.code-workspace
+
+# CVE Local Database
+cvelistV5-main/
+cvelistV5-main.zip
