@@ -1575,9 +1575,9 @@ async function submitPasswordChange() {
         return;
     }
 
-    if (newPw.length < 4) {
+    if (newPw.length < 5) {
         if (feedback) {
-            feedback.textContent = "Password must be at least 4 characters.";
+            feedback.textContent = "Password must be at least 5 characters.";
             feedback.style.color = "var(--red)";
         }
         return;
