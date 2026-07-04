@@ -125,6 +125,7 @@ cp .env.example .env
 
 ## 🎯 CLI Commands
 
+### Main Launcher (`run.py`)
 ```bash
 # Start NexShield (auto-configures everything)
 python run.py
@@ -145,6 +146,18 @@ python run.py --debug
 python run.py --host 0.0.0.0
 ```
 
+### Standalone Network Scanner (`scanner.py`)
+```bash
+# Run default scan on localhost
+python scanner.py
+
+# Scan specific IP or hostname on custom ports
+python scanner.py 192.168.1.1 80,443,8080
+
+# Run a specific scan type (e.g., vuln, deep, udp, ssl, quick)
+python scanner.py scanme.nmap.org 80,443 vuln
+```
+
 ---
 
 ## ✨ Key Features
@@ -157,8 +170,8 @@ python run.py --host 0.0.0.0
 | **Metasploit Integration** | Automatic exploit module mapping with RC script generation |
 | **9 Scan Types** | Quick, Default, Deep, Stealth, OS Detect, Vuln Scripts, SSL/TLS, UDP, Full |
 | **Pentest Reporting** | Executive summary, risk matrix, remediation roadmap, topology visualization |
-| **Real-time WebSocket** | Live scan progress, analysis status, and threat notifications |
-| **CVE Intelligence** | Built-in CVE lookup with NVD API integration |
+| **Real-time WebSocket** | Live scan progress (fluctuating smoothly), analysis status, and threat notifications |
+| **CVE Intelligence** | Real-time offline CVE matching parsed directly from local JSON archives on startup for instant correlation |
 | **Host Quarantine** | Zero-trust isolation of compromised nodes |
 | **Export** | CSV/JSON export, Metasploit RC scripts |
 | **Password Management** | In-app password change, session-based auth |
