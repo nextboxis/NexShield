@@ -9,8 +9,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 
 @pytest.fixture
-def client(monkeypatch, tmp_path):
-    """Create a test client with a temporary TinyDB database."""
+def client(monkeypatch):
+    """Create a Flask test client for API route testing."""
     # Patch environment to use TinyDB
     monkeypatch.delenv("MONGO_URI", raising=False)
     monkeypatch.setenv("FLASK_SECRET_KEY", "test-secret-key-for-testing")
