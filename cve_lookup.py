@@ -289,13 +289,16 @@ def _parse_cvelist_v5(cve_id: str) -> Optional[dict]:
             return None
         year = parts[1]
         seq = parts[2]
+        if len(year) != 4 or not year.isdigit() or not seq.isdigit():
+            return None
+        canonical_cve_id = f"CVE-{year}-{seq}"
         if len(seq) > 3:
             block = seq[:-3] + "xxx"
         else:
             block = "0xxx"
 
         base_dir = CVELIST_DIR.resolve()
-        cve_path = (base_dir / year / block / f"{cve_id}.json").resolve()
+        cve_path = (base_dir / year / block / f"{canonical_cve_id}.json").resolve()
         try:
             cve_path.relative_to(base_dir)
         except ValueError:
