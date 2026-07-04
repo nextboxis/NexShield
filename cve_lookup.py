@@ -280,6 +280,13 @@ _LOCAL_YEAR_DIR_RE = re.compile(r"^\d{4}$")
 _LOCAL_BLOCK_DIR_RE = re.compile(r"^\d+xxx$")
 _LOCAL_FILE_STEM_RE = re.compile(r"^CVE-\d{4}-\d{4,}$")
 
+def _canonicalize_cve_id(cve_id: str) -> Optional[str]:
+    """Return canonical CVE ID or None if invalid."""
+    candidate = (cve_id or "").strip().upper()
+    if not _LOCAL_CVE_RE.fullmatch(candidate):
+        return None
+    return candidate
+
 def _build_local_cve_path(year: str, seq: str) -> Optional[Path]:
     """Build a safe local path for a CVE JSON file inside CVELIST_DIR."""
     year = (year or "").strip()
@@ -395,7 +402,10 @@ def lookup_cve(cve_id: str) -> dict:
     otherwise queries the NVD API and caches the response.
     Example: lookup_cve("CVE-2019-1010218")
     """
-    cve_id = cve_id.strip().upper()
+    canonical_cve_id = _canonicalize_cve_id(cve_id)
+    if canonical_cve_id is None:
+        return {"cve_id": (cve_id or "").strip().upper(), "error": "Invalid CVE identifier. Use the format CVE-YYYY-NNNN."}
+    cve_id = canonical_cve_id
 
     # ── Check cache first ────────────────────────────────────────
     cached = None
