@@ -276,6 +276,9 @@ def _query_nvd(params: dict, timeout: int = 30) -> dict:
 from typing import Optional
 
 _LOCAL_CVE_RE = re.compile(r"^CVE-\d{4}-\d{4,}$", re.IGNORECASE)
+_LOCAL_YEAR_DIR_RE = re.compile(r"^\d{4}$")
+_LOCAL_BLOCK_DIR_RE = re.compile(r"^\d+xxx$")
+_LOCAL_FILE_STEM_RE = re.compile(r"^CVE-\d{4}-\d{4,}$")
 
 def _parse_cvelist_v5(cve_id: str) -> Optional[dict]:
     """Reads and parses a CVE from the local cvelistV5-main directory."""
@@ -297,8 +300,15 @@ def _parse_cvelist_v5(cve_id: str) -> Optional[dict]:
         else:
             block = "0xxx"
 
+        if not _LOCAL_YEAR_DIR_RE.fullmatch(year):
+            return None
+        if not _LOCAL_BLOCK_DIR_RE.fullmatch(block):
+            return None
+        if not _LOCAL_FILE_STEM_RE.fullmatch(canonical_cve_id):
+            return None
+
         base_dir = CVELIST_DIR.resolve()
-        cve_path = (base_dir / year / block / f"{canonical_cve_id}.json").resolve()
+        cve_path = base_dir.joinpath(year, block, f"{canonical_cve_id}.json").resolve()
         try:
             cve_path.relative_to(base_dir)
         except ValueError:
