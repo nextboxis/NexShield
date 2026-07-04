@@ -106,7 +106,11 @@ def parse_v5_cve(data):
 
 def main():
     parser = argparse.ArgumentParser(description="Import cvelistV5 data into NexShield")
-    parser.add_argument("--repo", type=str, default=r"j:\PROGRAM\NexShield\cvelistV5-main\cvelistV5-main", help="Path to cvelistV5-main")
+    default_repo = os.environ.get(
+        "CVELIST_REPO",
+        str(Path(__file__).resolve().parent.parent / "cvelistV5-main" / "cvelistV5-main"),
+    )
+    parser.add_argument("--repo", type=str, default=default_repo, help="Path to cvelistV5-main")
     parser.add_argument("--years", type=str, default="2022,2023,2024,2025,2026", help="Comma separated years to import, or 'all'")
     args = parser.parse_args()
 
