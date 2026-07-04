@@ -280,6 +280,35 @@ _LOCAL_YEAR_DIR_RE = re.compile(r"^\d{4}$")
 _LOCAL_BLOCK_DIR_RE = re.compile(r"^\d+xxx$")
 _LOCAL_FILE_STEM_RE = re.compile(r"^CVE-\d{4}-\d{4,}$")
 
+def _build_local_cve_path(year: str, seq: str) -> Optional[Path]:
+    """Build a safe local path for a CVE JSON file inside CVELIST_DIR."""
+    year = (year or "").strip()
+    seq = (seq or "").strip()
+
+    if len(year) != 4 or not year.isdigit():
+        return None
+    if not seq.isdigit():
+        return None
+
+    canonical_cve_id = f"CVE-{year}-{seq}"
+    block = (seq[:-3] + "xxx") if len(seq) > 3 else "0xxx"
+
+    if not _LOCAL_YEAR_DIR_RE.fullmatch(year):
+        return None
+    if not _LOCAL_BLOCK_DIR_RE.fullmatch(block):
+        return None
+    if not _LOCAL_FILE_STEM_RE.fullmatch(canonical_cve_id):
+        return None
+
+    base_dir = CVELIST_DIR.resolve()
+    cve_path = base_dir.joinpath(year, block, f"{canonical_cve_id}.json").resolve()
+    try:
+        cve_path.relative_to(base_dir)
+    except ValueError:
+        return None
+    return cve_path
+
+
 def _parse_cvelist_v5(cve_id: str) -> Optional[dict]:
     """Reads and parses a CVE from the local cvelistV5-main directory."""
     try:
@@ -292,28 +321,9 @@ def _parse_cvelist_v5(cve_id: str) -> Optional[dict]:
             return None
         year = parts[1]
         seq = parts[2]
-        if len(year) != 4 or not year.isdigit() or not seq.isdigit():
-            return None
-        canonical_cve_id = f"CVE-{year}-{seq}"
-        if len(seq) > 3:
-            block = seq[:-3] + "xxx"
-        else:
-            block = "0xxx"
 
-        if not _LOCAL_YEAR_DIR_RE.fullmatch(year):
-            return None
-        if not _LOCAL_BLOCK_DIR_RE.fullmatch(block):
-            return None
-        if not _LOCAL_FILE_STEM_RE.fullmatch(canonical_cve_id):
-            return None
-
-        base_dir = CVELIST_DIR.resolve()
-        cve_path = base_dir.joinpath(year, block, f"{canonical_cve_id}.json").resolve()
-        try:
-            cve_path.relative_to(base_dir)
-        except ValueError:
-            return None
-        if not cve_path.exists():
+        cve_path = _build_local_cve_path(year, seq)
+        if cve_path is None or not cve_path.exists():
             return None
 
         with open(cve_path, "r", encoding="utf-8") as f:
