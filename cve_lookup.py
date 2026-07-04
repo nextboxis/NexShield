@@ -295,8 +295,10 @@ def _parse_cvelist_v5(cve_id: str) -> Optional[dict]:
             block = "0xxx"
 
         base_dir = CVELIST_DIR.resolve()
-        cve_path = (CVELIST_DIR / year / block / f"{cve_id}.json").resolve()
-        if cve_path != base_dir and base_dir not in cve_path.parents:
+        cve_path = (base_dir / year / block / f"{cve_id}.json").resolve()
+        try:
+            cve_path.relative_to(base_dir)
+        except ValueError:
             return None
         if not cve_path.exists():
             return None
