@@ -1158,12 +1158,11 @@ def get_recent_cves():
     """Return recent CVEs directly from the local cvelistV5-main directory."""
     try:
         limit = _normalize_limit(request.args.get("limit", 50, type=int), 50, 100)
-        from pathlib import Path
-        from cve_lookup import _parse_cvelist_v5
-        
-        cves_dir = Path(r"j:\PROGRAM\NexShield\cvelistV5-main\cvelistV5-main\cves")
+        from cve_lookup import CVELIST_DIR, _parse_cvelist_v5
+
+        cves_dir = CVELIST_DIR
         if not cves_dir.exists():
-            return jsonify({"status": "error", "message": "Local CVE repository not found."}), 404
+            return jsonify({"status": "error", "message": f"Local CVE repository not found: {cves_dir}"}), 404
             
         years = sorted([d.name for d in cves_dir.iterdir() if d.is_dir() and d.name.isdigit()], reverse=True)
         recent_cves = []
