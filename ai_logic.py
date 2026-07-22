@@ -1621,18 +1621,36 @@ def merge_duplicates():
 # ═════════════════════════════════════════════════════════════════════
 
 def _make_threat(name, severity, host, cve_id, source, detail, tags=None):
-    """Create a standardized threat document."""
-    sev = (severity or 'info').lower()
-    return {
-        "name": name,
-        "severity": sev,
-        "host": host,
-        "cve_id": cve_id,
-        "source": source,
-        "detail": detail,
-        "tags": list(tags or []),
-        "detected_at": datetime.now(timezone.utc),
-    }
+    """Create a standardized threat document validated against schemas.ThreatItem."""
+    sev = (severity or 'info').lower().strip()
+    try:
+        from schemas import ThreatItem
+        item = ThreatItem(
+            name=name,
+            severity=sev,
+            host=str(host),
+            cve_id=str(cve_id or ''),
+            source=str(source),
+            detail=str(detail),
+            tags=list(tags or []),
+            created_at=datetime.now(timezone.utc).isoformat()
+        )
+        doc = item.model_dump()
+        doc["detected_at"] = datetime.now(timezone.utc)
+        return doc
+    except Exception:
+        # Fallback if validation fails
+        return {
+            "name": name,
+            "severity": sev if sev in {"info", "low", "medium", "high", "critical"} else "info",
+            "host": str(host),
+            "cve_id": str(cve_id or ''),
+            "source": str(source),
+            "detail": str(detail),
+            "tags": list(tags or []),
+            "detected_at": datetime.now(timezone.utc),
+        }
+
 
 
 def _threat_hash(threat):

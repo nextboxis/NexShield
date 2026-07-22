@@ -21,7 +21,10 @@ NVD_API_KEY = os.environ.get("NVD_API_KEY", "")
 NVD_HEADERS = {"apiKey": NVD_API_KEY} if NVD_API_KEY else {}
 CACHE_DAYS = 7  # Re-fetch after 7 days
 
+import logging
 import threading
+
+logger = logging.getLogger(__name__)
 
 # Local CVE repository path — relative to this file's directory
 _REPO_ROOT = Path(__file__).parent
@@ -36,6 +39,7 @@ def _build_cvelist_index():
     global _cvelist_index_loaded, _cvelist_index
     cves_dir = CVELIST_DIR
     if not cves_dir.exists():
+        logger.debug(f"Local CVELIST_DIR does not exist at {cves_dir}")
         return
     
     local_index = {}
@@ -60,13 +64,15 @@ def _build_cvelist_index():
                                 if product not in local_index:
                                     local_index[product] = []
                                 local_index[product].append(cve_id)
-                    except Exception:
-                        pass
+                    except (json.JSONDecodeError, OSError) as exc:
+                        logger.debug(f"Failed to read/parse local CVE file {json_file}: {exc}")
         with _cvelist_index_lock:
             _cvelist_index = local_index
             _cvelist_index_loaded = True
-    except Exception:
-        pass
+            logger.info(f"Loaded {len(_cvelist_index)} product entries into local CVE index.")
+    except Exception as exc:
+        logger.warning(f"Error during local CVE index build: {exc}")
+
 
 def start_indexing():
     global _cvelist_index_thread

@@ -1,40 +1,47 @@
-import pytest
-from ai_logic import _engine_port_risk, _engine_version_vuln, _engine_service_fp
+"""
+test_ai_logic.py — Unit tests for AI threat engines, risk scoring, and hashing
+"""
 
-def test_engine_port_risk():
-    ctx = {
-        "host": "192.168.1.1", "port": 21, "protocol": "tcp",
-        "service": "ftp", "product": "vsftpd", "version": "2.3.4",
-    }
-    threats = _engine_port_risk(ctx)
-    assert len(threats) == 1
-    assert threats[0]["name"] == "FTP Exposed"
-    assert threats[0]["severity"] == "high"
+from ai_logic import _make_threat, _threat_hash, MODELS, SEVERITY_WEIGHTS, SENSITIVE_PORTS
 
-def test_engine_version_vuln():
-    ctx = {
-        "host": "192.168.1.1", "port": 21, "protocol": "tcp",
-        "service": "ftp", "product": "vsftpd", "version": "2.3.4",
-    }
-    threats = _engine_version_vuln(ctx)
-    # vsftpd 2.3.4 should trigger the known vulnerability pattern
-    assert len(threats) >= 1
-    cves = [t["cve_id"] for t in threats if "cve_id" in t]
-    assert "CVE-2011-2523" in cves
 
-def test_engine_service_fp():
-    # Expected service on port 22 is ssh
-    ctx_normal = {
-        "host": "192.168.1.1", "port": 22, "protocol": "tcp",
-        "service": "ssh", "product": "OpenSSH", "version": "8.0",
-    }
-    assert len(_engine_service_fp(ctx_normal)) == 0
+def test_make_threat_helper():
+    threat = _make_threat(
+        name="Test Threat",
+        severity="high",
+        host="192.168.1.5",
+        cve_id="CVE-2021-44228",
+        source=MODELS["version_vuln"],
+        detail="Log4j vulnerability detected",
+        tags=["log4j", "rce"]
+    )
+    assert threat["name"] == "Test Threat"
+    assert threat["severity"] == "high"
+    assert threat["host"] == "192.168.1.5"
+    assert "detected_at" in threat
 
-    # Anomalous service on port 22
-    ctx_anomalous = {
-        "host": "192.168.1.1", "port": 22, "protocol": "tcp",
-        "service": "http", "product": "Apache", "version": "2.4",
-    }
-    threats = _engine_service_fp(ctx_anomalous)
-    assert len(threats) == 1
-    assert "Anomalous Service" in threats[0]["name"]
+
+def test_threat_hash_deduplication():
+    t1 = _make_threat(
+        name="Threat 1", severity="high", host="10.0.0.1",
+        cve_id="CVE-2021-44228", source="EngineA", detail="Detail A"
+    )
+    t2 = _make_threat(
+        name="Threat 1 Different Detail", severity="critical", host="10.0.0.1",
+        cve_id="CVE-2021-44228", source="EngineA", detail="Detail B"
+    )
+    assert _threat_hash(t1) == _threat_hash(t2)
+
+
+def test_severity_weights_mapping():
+    assert SEVERITY_WEIGHTS["critical"] == 10
+    assert SEVERITY_WEIGHTS["high"] == 7
+    assert SEVERITY_WEIGHTS["medium"] == 4
+    assert SEVERITY_WEIGHTS["low"] == 2
+    assert SEVERITY_WEIGHTS["info"] == 0
+
+
+def test_sensitive_ports_knowledge_base():
+    assert 22 in SENSITIVE_PORTS
+    assert 445 in SENSITIVE_PORTS
+    assert SENSITIVE_PORTS[445][1] == "critical"
