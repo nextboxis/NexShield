@@ -1310,8 +1310,9 @@ def epss_lookup(cve_id):
         return jsonify({"status": "complete", "cve_id": cve_id, **result})
     except ValueError as exc:
         return jsonify({"status": "error", "message": str(exc)}), 400
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    except Exception:
+        logger.exception("EPSS lookup error")
+        return jsonify({"status": "error", "message": "An internal error occurred."}), 500
 
 
 @app.route("/api/nvd/cpe", methods=["GET"])
@@ -1328,8 +1329,9 @@ def nvd_cpe_lookup():
         if "error" in result:
             return jsonify({"status": "error", "message": result["error"]}), 502
         return jsonify({"status": "complete", **result})
-    except Exception as e:
-        return jsonify({"status": "error", "message": str(e)}), 500
+    except Exception:
+        logger.exception("NVD CPE lookup error")
+        return jsonify({"status": "error", "message": "An internal error occurred."}), 500
 
 
 @app.route("/api/nvd/tag", methods=["GET"])
