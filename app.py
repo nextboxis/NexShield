@@ -1308,8 +1308,8 @@ def epss_lookup(cve_id):
         from cve_lookup import get_epss_score  # type: ignore
         result = get_epss_score(cve_id)
         return jsonify({"status": "complete", "cve_id": cve_id, **result})
-    except ValueError as exc:
-        return jsonify({"status": "error", "message": str(exc)}), 400
+    except ValueError:
+        return jsonify({"status": "error", "message": "Invalid CVE ID format."}), 400
     except Exception:
         logger.exception("EPSS lookup error")
         return jsonify({"status": "error", "message": "An internal error occurred."}), 500
@@ -1327,7 +1327,8 @@ def nvd_cpe_lookup():
         limit = _normalize_limit(request.args.get("limit", 20, type=int), 20, 100)
         result = lookup_by_cpe(cpe_name, limit)
         if "error" in result:
-            return jsonify({"status": "error", "message": result["error"]}), 502
+            logger.warning("NVD CPE lookup upstream error: %s", result["error"])
+            return jsonify({"status": "error", "message": "Failed to query NVD CPE data."}), 502
         return jsonify({"status": "complete", **result})
     except Exception:
         logger.exception("NVD CPE lookup error")
