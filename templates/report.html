@@ -990,8 +990,11 @@
     </main>
 
     <div class="floating-actions">
-        <button class="btn-float btn-float-rc" onclick="location.href='/api/report/download-rc'" title="Download Operation RC Script">💾</button>
-        <button class="btn-float" onclick="window.print()" title="Print to PDF">🖨️</button>
+        <button class="btn-float" onclick="location.href='/api/report/download?format=pdf'" title="Export PDF Report">📕 PDF</button>
+        <button class="btn-float" onclick="location.href='/api/report/download?format=html'" title="Export Standalone HTML">🌐 HTML</button>
+        <button class="btn-float" onclick="location.href='/api/report/download?format=markdown'" title="Export Markdown for Jira/GitHub">📝 MD</button>
+        <button class="btn-float" onclick="location.href='/api/report/download?format=sarif'" title="Export SARIF Standard">📊 SARIF</button>
+        <button class="btn-float" onclick="window.print()" title="Print / Print to PDF">🖨️</button>
         <button class="btn-float" onclick="window.scrollTo({top:0, behavior:'smooth'})" title="Back to Top">↑</button>
     </div>
 

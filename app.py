@@ -1471,6 +1471,63 @@ def api_analytics_trends():
         return jsonify({"status": "error", "message": "Failed to calculate analytics."}), 500
 
 
+@app.route("/api/report/generate", methods=["GET"])
+@login_required
+def api_generate_report():
+    """Generate security report content in requested format (html, pdf, markdown, or sarif)."""
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+
+    fmt = request.args.get("format", "html").strip().lower()
+    from report_generator import generate_report_content, compute_executive_summary  # type: ignore
+
+    all_threats = _serialize(list(threats.find()))
+    all_scans = _serialize(list(network_scans.find()))
+
+    report_text = generate_report_content(all_threats, all_scans, fmt=fmt)
+    summary = compute_executive_summary(all_threats, all_scans)
+
+    return jsonify({
+        "status": "complete",
+        "format": fmt,
+        "summary": summary,
+        "content": report_text,
+    })
+
+
+@app.route("/api/report/download", methods=["GET"])
+@login_required
+def api_download_report():
+    """Download security report file attachment in requested format."""
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+
+    fmt = request.args.get("format", "html").strip().lower()
+    from report_generator import generate_report_content  # type: ignore
+
+    all_threats = _serialize(list(threats.find()))
+    all_scans = _serialize(list(network_scans.find()))
+
+    report_text = generate_report_content(all_threats, all_scans, fmt=fmt)
+
+    ext_map = {"markdown": "md", "md": "md", "sarif": "sarif", "pdf": "pdf", "html": "html"}
+    ext = ext_map.get(fmt, "html")
+
+    mime_map = {
+        "html": "text/html",
+        "md": "text/markdown",
+        "sarif": "application/json",
+        "pdf": "application/pdf",
+    }
+    mime = mime_map.get(ext, "text/html")
+
+    filename = f"nexshield_security_report_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.{ext}"
+    response = make_response(report_text)
+    response.headers["Content-Type"] = f"{mime}; charset=utf-8"
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    return response
+
+
 # ═════════════════════════════════════════════════════════════════════
 #  API — Activity Log
 # ═════════════════════════════════════════════════════════════════════
