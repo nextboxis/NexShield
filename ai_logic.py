@@ -1065,10 +1065,18 @@ def _engine_cve_correlation(ctx):
         cve_sev = cve_doc.get("severity", "medium")
         cve_score = cve_doc.get("score", 0)
         cve_desc = cve_doc.get("description", "")
+        epss_score = float(cve_doc.get("epss_score", 0.0))
+        epss_pct = float(cve_doc.get("epss_percentile", 0.0))
 
-        # Only flag medium+ severity CVEs
-        if cve_sev in ["low", "info", "unknown"]:
+        # Only flag medium+ severity CVEs unless high EPSS probability
+        if cve_sev in ["low", "info", "unknown"] and epss_score < 0.10:
             continue
+
+        # Elevate severity if high EPSS probability (> 10% active exploitation likelihood)
+        if epss_score >= 0.10 and cve_sev in ["medium", "low"]:
+            cve_sev = "high"
+
+        epss_detail = f" | EPSS Exploit Probability: {epss_score * 100:.1f}%" if epss_score > 0 else ""
 
         results.append(_make_threat(  # type: ignore
             name=f"CVE Correlated: {cve_id}",
@@ -1078,9 +1086,9 @@ def _engine_cve_correlation(ctx):
             source=MODELS["cve_corr"],
             detail=(
                 f"Service '{service}' ({product}) on port {port} "
-                f"matches CVE {cve_id} (CVSS {cve_score}): {str(cve_desc)[:200]}"
+                f"matches CVE {cve_id} (CVSS {cve_score}{epss_detail}): {str(cve_desc)[:200]}"
             ),
-            tags=["cve_correlation", "nvd", "automated"],
+            tags=["cve_correlation", "nvd", "epss", "automated"],
         ))
         
     return results[:2]  # Limit to 2 threats per port

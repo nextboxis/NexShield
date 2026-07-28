@@ -1220,6 +1220,21 @@ def cve_detail(cve_id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route("/api/epss/<cve_id>", methods=["GET"])
+@login_required
+def epss_lookup(cve_id):
+    """Query Exploit Prediction Scoring System (EPSS) metrics for a given CVE."""
+    try:
+        cve_id = _validate_cve_id(cve_id)
+        from cve_lookup import get_epss_score  # type: ignore
+        result = get_epss_score(cve_id)
+        return jsonify({"status": "complete", "cve_id": cve_id, **result})
+    except ValueError as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 400
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 @app.route("/api/nvd/cpe", methods=["GET"])
 @login_required
 def nvd_cpe_lookup():

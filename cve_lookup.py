@@ -177,12 +177,58 @@ def match_cpe(cpe_candidate: str, cpe_criteria: str) -> bool:
     return True
 
 
+_epss_mem_cache = {}
+_epss_cache_lock = threading.Lock()
+
+
+def get_epss_score(cve_id: str, timeout: int = 5) -> dict:
+    """
+    Fetch EPSS (Exploit Prediction Scoring System) score from FIRST.org API.
+    Returns dict with keys: epss_score (float 0.0-1.0), epss_percentile (float 0.0-1.0), and date.
+    """
+    canonical_cve = _canonicalize_cve_id(cve_id)
+    if not canonical_cve:
+        return {"epss_score": 0.0, "epss_percentile": 0.0, "error": "Invalid CVE format"}
+
+    with _epss_cache_lock:
+        if canonical_cve in _epss_mem_cache:
+            return _epss_mem_cache[canonical_cve]
+
+    try:
+        url = f"https://api.first.org/data/v1/epss?cve={canonical_cve}"
+        resp = requests.get(url, timeout=timeout)
+        if resp.status_code == 200:
+            res_json = resp.json()
+            data_list = res_json.get("data", [])
+            if data_list:
+                item = data_list[0]
+                score = float(item.get("epss", 0.0))
+                percentile = float(item.get("percentile", 0.0))
+                result = {
+                    "epss_score": round(score, 4),
+                    "epss_percentile": round(percentile, 4),
+                    "epss_date": item.get("date", ""),
+                }
+                with _epss_cache_lock:
+                    _epss_mem_cache[canonical_cve] = result
+                return result
+    except Exception as exc:
+        logger.debug(f"EPSS API fetch failed for {canonical_cve}: {exc}")
+
+    fallback = {"epss_score": 0.0, "epss_percentile": 0.0}
+    with _epss_cache_lock:
+        _epss_mem_cache[canonical_cve] = fallback
+    return fallback
+
+
 def _cached_payload(cached: dict, stale: bool = False) -> dict:
     payload = {
         "cve_id": cached["cve_id"],
         "description": cached.get("description", ""),
         "severity": cached.get("severity", "unknown"),
         "score": cached.get("score", 0),
+        "epss_score": cached.get("epss_score", 0.0),
+        "epss_percentile": cached.get("epss_percentile", 0.0),
         "published": cached.get("published", ""),
         "modified": cached.get("modified", ""),
         "references": cached.get("references", []),
@@ -191,6 +237,7 @@ def _cached_payload(cached: dict, stale: bool = False) -> dict:
     if stale:
         payload["stale"] = True
     return payload
+
 
 
 def _parse_cve_item(cve_data: dict) -> dict:
@@ -430,6 +477,9 @@ def lookup_cve(cve_id: str) -> dict:
     # ── Check local cvelistV5-main ───────────────────────────────
     local_data = _parse_cvelist_v5(cve_id)
     if local_data:
+        epss_info = get_epss_score(cve_id)
+        local_data["epss_score"] = epss_info.get("epss_score", 0.0)
+        local_data["epss_percentile"] = epss_info.get("epss_percentile", 0.0)
         if check_connection():
             cve_cache.update_one(
                 {"cve_id": cve_id},
@@ -452,6 +502,9 @@ def lookup_cve(cve_id: str) -> dict:
         return {"cve_id": cve_id, "error": "CVE not found in NVD database."}
 
     result = _parse_cve_item(vulns[0].get("cve", {}))
+    epss_info = get_epss_score(cve_id)
+    result["epss_score"] = epss_info.get("epss_score", 0.0)
+    result["epss_percentile"] = epss_info.get("epss_percentile", 0.0)
     result["cached"] = False
 
     # ── Cache the result ─────────────────────────────────────────
