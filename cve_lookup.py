@@ -141,6 +141,50 @@ def normalize_cpe(cpe_str: str) -> str:
     return cpe_str
 
 
+PRODUCT_ALIASES = {
+    "httpd": "http_server",
+    "apache": "http_server",
+    "nginx": "nginx",
+    "openssh": "openssh",
+    "postgres": "postgresql",
+    "postgresql": "postgresql",
+    "mongo": "mongodb",
+    "mongodb": "mongodb",
+    "mariadb": "mariadb",
+    "mysql": "mysql",
+    "samba": "samba",
+    "tomcat": "tomcat",
+}
+
+
+def check_cve_v5_version_match(version_rules: list[dict], installed_version: str) -> bool:
+    """
+    Evaluates CVE 5.0 version rules against an installed service version.
+    Returns True if the installed version falls within affected boundaries.
+    """
+    if not installed_version or not version_rules:
+        return True
+
+    for rule in version_rules:
+        status = rule.get("status", "affected").lower()
+        if status != "affected":
+            continue
+
+        version_start = rule.get("version", "0")
+        less_than = rule.get("lessThan")
+        less_than_equal = rule.get("lessThanOrEqual")
+
+        if compare_versions(installed_version, version_start) >= 0:
+            if less_than and compare_versions(installed_version, less_than) < 0:
+                return True
+            if less_than_equal and compare_versions(installed_version, less_than_equal) <= 0:
+                return True
+            if not less_than and not less_than_equal and compare_versions(installed_version, version_start) == 0:
+                return True
+
+    return False
+
+
 def compare_versions(v1: str, v2: str) -> int:
     """
     Compares two version strings semantically.
@@ -186,7 +230,10 @@ def match_cpe(cpe_candidate: str, cpe_criteria: str) -> bool:
         cr_part = crit_parts[idx].lower() if idx < len(crit_parts) else "*"
         if c_part == "*" or cr_part == "*":
             continue
-        if c_part != cr_part:
+        # Apply Product Aliases mapping
+        c_alias = PRODUCT_ALIASES.get(c_part, c_part)
+        cr_alias = PRODUCT_ALIASES.get(cr_part, cr_part)
+        if c_alias != cr_alias:
             return False
             
     # For version (idx 5), check if they match, or if criteria is wildcard

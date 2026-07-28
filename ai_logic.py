@@ -921,7 +921,7 @@ def _engine_cve_correlation(ctx):
     if not check_connection():
         return []
 
-    from cve_lookup import normalize_cpe, match_cpe, lookup_by_cpe, _query_nvd, _parse_cve_item, _parse_cvelist_v5, get_local_cves_by_product  # type: ignore
+    from cve_lookup import normalize_cpe, match_cpe, lookup_by_cpe, _query_nvd, _parse_cve_item, _parse_cvelist_v5, get_local_cves_by_product, check_cve_v5_version_match  # type: ignore
 
     cpe = ctx.get("cpe", "").strip()
     product = ctx.get("product", "").strip()
