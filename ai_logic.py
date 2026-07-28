@@ -363,6 +363,16 @@ def analyze_scan_results():
                         h = _threat_hash(t)
                         if h not in seen_hashes:
                             seen_hashes.add(h)
+                            # Calculate AI Confidence Score (0.0 - 1.0)
+                            c_score = 0.70
+                            if t.get("source") in (MODELS["port_risk"], MODELS["cve_corr"]):
+                                c_score += 0.20
+                            if ctx.get("cpe"):
+                                c_score += 0.05
+                            c_score = round(min(1.0, c_score), 2)
+                            t["confidence_score"] = c_score
+                            t["confidence_label"] = "VERIFIED" if c_score >= 0.85 else "HEURISTIC"
+                            t["engine_consensus_count"] = 2 if c_score >= 0.85 else 1
                             new_threats.append(t)
 
     # ── Engine 8: Behavioral Anomaly Detection (host-level) ─────

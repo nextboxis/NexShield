@@ -141,10 +141,32 @@ def normalize_cpe(cpe_str: str) -> str:
     return cpe_str
 
 
+def compare_versions(v1: str, v2: str) -> int:
+    """
+    Compares two version strings semantically.
+    Returns -1 if v1 < v2, 0 if v1 == v2, and 1 if v1 > v2.
+    """
+    def _clean_version(v):
+        return [int(x) for x in re.findall(r"\d+", str(v or ""))]
+
+    parts1 = _clean_version(v1)
+    parts2 = _clean_version(v2)
+
+    max_len = max(len(parts1), len(parts2))
+    parts1 += [0] * (max_len - len(parts1))
+    parts2 += [0] * (max_len - len(parts2))
+
+    if parts1 < parts2:
+        return -1
+    elif parts1 > parts2:
+        return 1
+    return 0
+
+
 def match_cpe(cpe_candidate: str, cpe_criteria: str) -> bool:
     """
     Check if a candidate CPE (e.g., from scan) matches a criteria CPE (e.g., from CVE).
-    Both should be in CPE v2.3 format.
+    Both should be in CPE v2.3 format with Semantic Versioning check.
     """
     if not cpe_candidate or not cpe_criteria:
         return False
@@ -171,10 +193,11 @@ def match_cpe(cpe_candidate: str, cpe_criteria: str) -> bool:
     c_ver = cand_parts[5].lower() if 5 < len(cand_parts) else "*"
     cr_ver = crit_parts[5].lower() if 5 < len(crit_parts) else "*"
     if cr_ver != "*" and c_ver != "*":
-        if cr_ver != c_ver:
+        if compare_versions(c_ver, cr_ver) != 0:
             return False
             
     return True
+
 
 
 _epss_mem_cache = {}

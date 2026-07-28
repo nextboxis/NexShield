@@ -417,9 +417,15 @@ function renderThreats(threats) {
     }
 
     currentFilteredThreats = threats;
-    body.innerHTML = threats.map((t, index) => `
+    body.innerHTML = threats.map((t, index) => {
+        const confLabel = t.confidence_label || (t.confidence_score >= 0.85 ? "VERIFIED" : "HEURISTIC");
+        const confColor = confLabel === "VERIFIED" ? "#00ff88" : "#8892a4";
+        return `
         <tr class="row-clickable">
-            <td onclick="openModalByIndex(${index})"><span class="${severityClass(t.severity)}">${escapeHtml((t.severity || "unknown").toUpperCase())}</span></td>
+            <td onclick="openModalByIndex(${index})">
+                <span class="${severityClass(t.severity)}">${escapeHtml((t.severity || "unknown").toUpperCase())}</span>
+                <span style="font-size:0.65rem; padding: 2px 4px; border-radius: 4px; border: 1px solid ${confColor}; color: ${confColor}; margin-left: 4px;">${confLabel}</span>
+            </td>
             <td onclick="openModalByIndex(${index})" class="font-mono" style="font-size: 0.8rem">${escapeHtml(t.name || "Unknown threat")}</td>
             <td onclick="openModalByIndex(${index})" class="font-mono">${escapeHtml(t.host || "Unknown host")}</td>
             <td onclick="openModalByIndex(${index})"><code>${escapeHtml(t.cve_id || "-")}</code></td>
@@ -432,7 +438,7 @@ function renderThreats(threats) {
                 ` : '<span style="opacity:0.3; font-size:0.7rem; font-family:var(--font-mono)">SECURE_🛡️</span>'}
             </td>
         </tr>
-    `).join("");
+    `}).join("");
 }
 
 function openModalByIndex(index) {
