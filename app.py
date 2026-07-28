@@ -1405,6 +1405,59 @@ def nvd_universal_search():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route("/api/remediation/generate", methods=["GET"])
+@login_required
+def api_generate_remediation():
+    """Generate automated remediation script for a target host (ansible, powershell, or bash)."""
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+
+    host = request.args.get("host", "").strip()
+    fmt = request.args.get("format", "ansible").strip().lower()
+
+    if not host:
+        return jsonify({"status": "error", "message": "host parameter is required."}), 400
+
+    from remediation_generator import generate_remediation_script  # type: ignore
+    host_threats = list(threats.find({"host": host}))
+
+    script_content = generate_remediation_script(host_threats, target_host=host, fmt=fmt)
+    return jsonify({
+        "status": "complete",
+        "host": host,
+        "format": fmt,
+        "threat_count": len(host_threats),
+        "script": script_content,
+    })
+
+
+@app.route("/api/remediation/download", methods=["GET"])
+@login_required
+def api_download_remediation():
+    """Download remediation script as a file attachment."""
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+
+    host = request.args.get("host", "target").strip()
+    fmt = request.args.get("format", "ansible").strip().lower()
+
+    from remediation_generator import generate_remediation_script  # type: ignore
+    host_threats = list(threats.find({"host": host}))
+
+    script_content = generate_remediation_script(host_threats, target_host=host, fmt=fmt)
+
+    ext_map = {"ansible": "yml", "powershell": "ps1", "bash": "sh"}
+    ext = ext_map.get(fmt, "yml")
+    mime_map = {"yml": "text/yaml", "ps1": "text/plain", "sh": "application/x-sh"}
+    mime = mime_map.get(ext, "text/plain")
+
+    filename = f"nexshield_remediation_{host.replace('.', '_')}.{ext}"
+    response = make_response(script_content)
+    response.headers["Content-Type"] = f"{mime}; charset=utf-8"
+    response.headers["Content-Disposition"] = f"attachment; filename={filename}"
+    return response
+
+
 # ═════════════════════════════════════════════════════════════════════
 #  API — Activity Log
 # ═════════════════════════════════════════════════════════════════════

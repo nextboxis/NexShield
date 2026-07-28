@@ -1698,3 +1698,48 @@ function toggleMobileNav() {
     const links = document.getElementById("navLinks");
     if (links) links.classList.toggle("nav-open");
 }
+
+// ── Automated Remediation Script Generator ──────────────────────────────
+let currentRemediationHost = "";
+let currentRemediationFormat = "ansible";
+
+async function showRemediationModal(host, fmt = "ansible") {
+    currentRemediationHost = host || "target";
+    currentRemediationFormat = fmt || "ansible";
+
+    const modal = document.getElementById("remediationModal");
+    const codeBlock = document.getElementById("remediationCodeBlock");
+    const title = document.getElementById("remediationTitle");
+
+    if (title) title.textContent = `🛡️ REMEDIATION_SCRIPT::${currentRemediationHost.toUpperCase()} [${currentRemediationFormat.toUpperCase()}]`;
+    if (codeBlock) codeBlock.textContent = "Loading remediation script tasks...";
+
+    if (modal) modal.classList.remove("d-none");
+
+    try {
+        const res = await fetchJson(`/api/remediation/generate?host=${encodeURIComponent(currentRemediationHost)}&format=${currentRemediationFormat}`);
+        if (res.status === "complete") {
+            if (codeBlock) codeBlock.textContent = res.script;
+        } else {
+            if (codeBlock) codeBlock.textContent = `# Error generating script: ${res.message || "Unknown error"}`;
+        }
+    } catch (err) {
+        if (codeBlock) codeBlock.textContent = `# Failed to fetch remediation script: ${err.message}`;
+    }
+}
+
+function switchRemediationFormat(fmt) {
+    showRemediationModal(currentRemediationHost, fmt);
+}
+
+function closeRemediationModal() {
+    const modal = document.getElementById("remediationModal");
+    if (modal) modal.classList.add("d-none");
+}
+
+function downloadRemediationScript() {
+    if (!currentRemediationHost) return;
+    const url = `/api/remediation/download?host=${encodeURIComponent(currentRemediationHost)}&format=${currentRemediationFormat}`;
+    window.location.href = url;
+}
+

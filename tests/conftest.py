@@ -62,3 +62,20 @@ def sample_threat():
         "detail": "SSH exposed on port 22",
         "tags": ["ssh", "sensitive_port"],
     }
+
+
+@pytest.fixture
+def client(monkeypatch):
+    """Create a Flask test client for API route testing."""
+    monkeypatch.delenv("MONGO_URI", raising=False)
+    monkeypatch.setenv("FLASK_SECRET_KEY", "test-secret-key-for-testing")
+    monkeypatch.setenv("ADMIN_USERNAME", "admin")
+    monkeypatch.setenv("ADMIN_PASSWORD", "admin")
+
+    from app import app, _provision_admin_user
+    app.config["TESTING"] = True
+    _provision_admin_user()
+
+    with app.test_client() as test_client:
+        yield test_client
+

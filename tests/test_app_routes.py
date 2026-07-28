@@ -8,22 +8,6 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 
-@pytest.fixture
-def client(monkeypatch):
-    """Create a Flask test client for API route testing."""
-    # Patch environment to use TinyDB
-    monkeypatch.delenv("MONGO_URI", raising=False)
-    monkeypatch.setenv("FLASK_SECRET_KEY", "test-secret-key-for-testing")
-    monkeypatch.setenv("ADMIN_USERNAME", "admin")
-    monkeypatch.setenv("ADMIN_PASSWORD", "admin")
-
-    from app import app, _provision_admin_user
-    app.config["TESTING"] = True
-    _provision_admin_user()
-
-    with app.test_client() as client:
-        yield client
-
 
 def _login(client, username="admin", password="admin"):
     """Helper to log in and return response."""

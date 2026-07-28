@@ -319,6 +319,23 @@
         </div>
     </div>
 
+    <!-- ── Remediation Code Modal ────────────────── -->
+    <div class="modal-overlay d-none" id="remediationModal" onclick="closeRemediationModal()" role="dialog" aria-modal="true" aria-labelledby="remediationTitle">
+        <div class="modal-panel modal-panel--wide" onclick="event.stopPropagation()">
+            <button class="modal-close" onclick="closeRemediationModal()" aria-label="Close Remediation Modal">&times;</button>
+            <h2 class="modal-title" id="remediationTitle">🛡️ AUTOMATED_REMEDIATION_CODE</h2>
+            <div class="remediation-toolbar mb-form" style="display: flex; gap: 10px; align-items: center; margin-bottom: 12px;">
+                <button class="btn-console" onclick="switchRemediationFormat('ansible')">ANSIBLE (.YML)</button>
+                <button class="btn-console" onclick="switchRemediationFormat('powershell')">POWERSHELL (.PS1)</button>
+                <button class="btn-console" onclick="switchRemediationFormat('bash')">BASH (.SH)</button>
+                <button class="btn-console" style="margin-left: auto;" onclick="downloadRemediationScript()">DOWNLOAD_SCRIPT</button>
+            </div>
+            <div class="modal-body">
+                <pre id="remediationCodeBlock" style="background: rgba(0,0,0,0.6); padding: 1rem; border-radius: 6px; color: #00ff88; font-family: var(--font-mono, monospace); font-size: 0.85rem; max-height: 400px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; border: 1px solid rgba(255,255,255,0.1);"></pre>
+            </div>
+        </div>
+    </div>
+
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     <script src="/static/js/script.js"></script>
 </body>
