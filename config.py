@@ -616,3 +616,59 @@ else:
 def check_connection() -> bool:
     """Return True if the database is ready."""
     return _db_ready
+
+
+def get_analytics_summary() -> dict:
+    """
+    High-performance analytical aggregation over historical threats and network scans.
+    Computes time-series trends, severity distributions, top exposed services, and host metrics.
+    """
+    if not check_connection():
+        return {
+            "total_threats": 0,
+            "total_scans": 0,
+            "total_hosts": 0,
+            "severity_distribution": {"critical": 0, "high": 0, "medium": 0, "low": 0},
+            "top_services": [],
+        }
+
+    from collections import defaultdict
+    threat_docs = list(threats.find())
+    scan_docs = list(network_scans.find())
+
+    sev_counts = {"critical": 0, "high": 0, "medium": 0, "low": 0}
+    service_counts = defaultdict(int)
+    host_set = set()
+
+    for t in threat_docs:
+        sev = str(t.get("severity") or "low").lower()
+        if sev in sev_counts:
+            sev_counts[sev] += 1
+
+        host = t.get("host")
+        if host:
+            host_set.add(host)
+
+    for s in scan_docs:
+        host = s.get("host")
+        if host:
+            host_set.add(host)
+
+        services = s.get("services_detected", []) or []
+        for svc in services:
+            if svc:
+                service_counts[svc.lower()] += 1
+
+    top_services = [
+        {"service": k, "count": v}
+        for k, v in sorted(service_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+    ]
+
+    return {
+        "total_threats": len(threat_docs),
+        "total_scans": len(scan_docs),
+        "total_hosts": len(host_set),
+        "severity_distribution": sev_counts,
+        "top_services": top_services,
+    }
+

@@ -1458,6 +1458,19 @@ def api_download_remediation():
     return response
 
 
+@app.route("/api/analytics/trends", methods=["GET"])
+@login_required
+def api_analytics_trends():
+    """Return high-performance analytical summary and threat trend distributions."""
+    try:
+        from config import get_analytics_summary  # type: ignore
+        summary = get_analytics_summary()
+        return jsonify({"status": "complete", "analytics": summary})
+    except Exception as e:
+        logger.error("Analytics trends error: %s", e)
+        return jsonify({"status": "error", "message": "Failed to calculate analytics."}), 500
+
+
 # ═════════════════════════════════════════════════════════════════════
 #  API — Activity Log
 # ═════════════════════════════════════════════════════════════════════

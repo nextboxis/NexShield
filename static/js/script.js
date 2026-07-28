@@ -50,6 +50,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // Initial Dashboard Sync
     syncIntelligence();
     checkNmapStatus();
+    initNetworkTopologyMap();
 
     // v6: Smart polling with Page Visibility API
     startSmartPolling();
@@ -1742,4 +1743,128 @@ function downloadRemediationScript() {
     const url = `/api/remediation/download?host=${encodeURIComponent(currentRemediationHost)}&format=${currentRemediationFormat}`;
     window.location.href = url;
 }
+
+// ── Interactive 2D Network Topology Renderer ─────────────────────────────
+let topologyNodes = [];
+let topologyLinks = [];
+let topologyAnimationId = null;
+
+async function initNetworkTopologyMap() {
+    const canvas = document.getElementById("missionMap");
+    if (!canvas) return;
+
+    try {
+        const data = await fetchJson("/api/topology");
+        if (data.status !== "complete") return;
+
+        topologyNodes = data.nodes || [];
+        topologyLinks = data.links || [];
+
+        const mapNodesSpan = document.getElementById("mapNodes");
+        if (mapNodesSpan) mapNodesSpan.textContent = data.total_hosts || topologyNodes.length;
+
+        setupTopologyCanvas(canvas);
+    } catch (err) {
+        console.error("Topology map init error:", err);
+    }
+}
+
+function setupTopologyCanvas(canvas) {
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const width = canvas.clientWidth || canvas.width || 600;
+    const height = canvas.clientHeight || canvas.height || 300;
+    canvas.width = width;
+    canvas.height = height;
+
+    const nodePositions = new Map();
+    const gateways = topologyNodes.filter(n => n.type === "gateway");
+    const hosts = topologyNodes.filter(n => n.type === "host");
+
+    gateways.forEach((gw, idx) => {
+        const cx = width * ((idx + 1) / (gateways.length + 1));
+        const cy = height * 0.5;
+        nodePositions.set(gw.id, { x: cx, y: cy, ...gw });
+    });
+
+    hosts.forEach((h, idx) => {
+        const parentGwId = `gw-${h.subnet}`;
+        const parentPos = nodePositions.get(parentGwId) || { x: width * 0.5, y: height * 0.5 };
+        const angle = (idx * (2 * Math.PI / Math.max(hosts.length, 1)));
+        const radius = Math.min(width, height) * 0.3;
+        const x = parentPos.x + Math.cos(angle) * radius;
+        const y = parentPos.y + Math.sin(angle) * radius;
+        nodePositions.set(h.id, { x, y, ...h });
+    });
+
+    let pulsePhase = 0;
+
+    function renderFrame() {
+        ctx.clearRect(0, 0, width, height);
+        pulsePhase += 0.05;
+
+        topologyLinks.forEach(link => {
+            const src = nodePositions.get(link.source);
+            const tgt = nodePositions.get(link.target);
+            if (src && tgt) {
+                ctx.beginPath();
+                ctx.moveTo(src.x, src.y);
+                ctx.lineTo(tgt.x, tgt.y);
+                ctx.strokeStyle = "rgba(0, 255, 136, 0.25)";
+                ctx.lineWidth = 1.5;
+                ctx.setLineDash([4, 4]);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+        });
+
+        nodePositions.forEach(node => {
+            let color = "#00ff88";
+            if (node.severity === "critical") color = "#ff0055";
+            else if (node.severity === "high") color = "#ff7700";
+            else if (node.severity === "medium") color = "#ffcc00";
+
+            const pulseRadius = (node.type === "gateway" ? 14 : 9) + Math.sin(pulsePhase) * 2;
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, pulseRadius, 0, 2 * Math.PI);
+            ctx.strokeStyle = color;
+            ctx.globalAlpha = 0.4;
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, node.type === "gateway" ? 8 : 5, 0, 2 * Math.PI);
+            ctx.fillStyle = color;
+            ctx.fill();
+
+            ctx.font = "10px monospace";
+            ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
+            ctx.textAlign = "center";
+            ctx.fillText(node.label || node.id, node.x, node.y + (node.type === "gateway" ? 22 : 16));
+        });
+
+        topologyAnimationId = requestAnimationFrame(renderFrame);
+    }
+
+    if (topologyAnimationId) cancelAnimationFrame(topologyAnimationId);
+    renderFrame();
+
+    canvas.onclick = (evt) => {
+        const rect = canvas.getBoundingClientRect();
+        const mouseX = evt.clientX - rect.left;
+        const mouseY = evt.clientY - rect.top;
+
+        nodePositions.forEach(node => {
+            const dist = Math.hypot(node.x - mouseX, node.y - mouseY);
+            if (dist <= 15 && node.type === "host") {
+                if (typeof showHostReport === "function") {
+                    showHostReport(node.id);
+                }
+            }
+        });
+    };
+}
+
 
