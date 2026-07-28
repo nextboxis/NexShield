@@ -547,6 +547,13 @@ def analyze_scan_results():
     # Batch insert
     if new_threats:
         threats.insert_many(new_threats)
+        try:
+            from webhook_notifier import dispatch_webhook_alert  # type: ignore
+            for nt in new_threats:
+                if str(nt.get("severity")).lower() == "critical" or "apt" in nt.get("tags", []):
+                    dispatch_webhook_alert(nt)
+        except Exception as exc:
+            logger.debug("Webhook alert dispatch failed: %s", exc)
 
     return len(new_threats)
 

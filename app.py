@@ -1528,6 +1528,26 @@ def api_download_report():
     return response
 
 
+@app.route("/api/webhooks/test", methods=["POST"])
+@login_required
+def api_test_webhook():
+    """Test webhook notifications to configured Slack, Discord, or MS Teams endpoints."""
+    try:
+        from webhook_notifier import dispatch_webhook_alert  # type: ignore
+        mock_threat = {
+            "name": "TEST ALERT: NexShield Webhook Integration",
+            "severity": "high",
+            "host": "192.168.1.1",
+            "cve_id": "CVE-2023-TEST",
+            "detail": "This is a test notification from NexShield Mission Control.",
+        }
+        res = dispatch_webhook_alert(mock_threat)
+        return jsonify({"status": "complete", "results": res})
+    except Exception as e:
+        logger.error("Webhook test failed: %s", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 # ═════════════════════════════════════════════════════════════════════
 #  API — Activity Log
 # ═════════════════════════════════════════════════════════════════════
