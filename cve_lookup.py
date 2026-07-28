@@ -28,7 +28,15 @@ logger = logging.getLogger(__name__)
 
 # Local CVE repository path — relative to this file's directory
 _REPO_ROOT = Path(__file__).parent
-CVELIST_DIR = _REPO_ROOT / "cvelistV5-main" / "cvelistV5-main" / "cves"
+_PRIMARY_CVE_DIR = _REPO_ROOT / "cve_data" / "cvelistV5-main" / "cves"
+_ALT_CVE_DIR = _REPO_ROOT / "cve_data" / "cves"
+_FALLBACK_CVE_DIR = _REPO_ROOT / "cvelistV5-main" / "cvelistV5-main" / "cves"
+
+CVELIST_DIR = (
+    _PRIMARY_CVE_DIR if _PRIMARY_CVE_DIR.exists()
+    else (_ALT_CVE_DIR if _ALT_CVE_DIR.exists()
+    else _FALLBACK_CVE_DIR)
+)
 
 _cvelist_index = {}
 _cvelist_index_lock = threading.Lock()
