@@ -45,3 +45,29 @@ def test_sensitive_ports_knowledge_base():
     assert 22 in SENSITIVE_PORTS
     assert 445 in SENSITIVE_PORTS
     assert SENSITIVE_PORTS[445][1] == "critical"
+
+
+def test_apt_threat_actor_engine():
+    from ai_logic import _engine_threat_actor
+    ctx = {"host": "192.168.1.10", "port": 445, "protocol": "tcp", "service": "smb"}
+    threats = _engine_threat_actor(ctx)
+    assert len(threats) > 0
+    assert "APT Signature Match" in threats[0]["name"]
+    assert "Lazarus" in threats[0]["detail"]
+
+
+def test_ml_exploitability_engine():
+    from ai_logic import _engine_ml_exploitability
+    ctx = {"host": "192.168.1.10", "port": 445, "protocol": "tcp", "service": "smb"}
+    threats = _engine_ml_exploitability(ctx)
+    assert len(threats) > 0
+    assert "RCE Exploitability Index" in threats[0]["name"]
+
+
+def test_remediation_effort_engine():
+    from ai_logic import _engine_remediation_effort
+    ctx = {"host": "192.168.1.10", "port": 3389, "protocol": "tcp", "service": "rdp"}
+    threats = _engine_remediation_effort(ctx)
+    assert len(threats) > 0
+    assert "Remediation Time Estimate" in threats[0]["name"]
+
