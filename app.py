@@ -1548,6 +1548,19 @@ def api_test_webhook():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
+@app.route("/api/self-test", methods=["GET"])
+@login_required
+def api_self_test():
+    """Execute integrated system self-test diagnostic suite."""
+    try:
+        from run import run_self_test  # type: ignore
+        ok = run_self_test()
+        return jsonify({"status": "complete", "passed": ok})
+    except Exception as e:
+        logger.error("Self-test endpoint error: %s", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
 # ═════════════════════════════════════════════════════════════════════
 #  API — Activity Log
 # ═════════════════════════════════════════════════════════════════════

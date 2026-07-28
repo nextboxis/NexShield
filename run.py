@@ -267,6 +267,71 @@ def start_server(host="127.0.0.1", port=5000, debug=False):
 
 def main():
     """Main entry point."""
+def run_self_test() -> bool:
+    """Run full system diagnostic self-test suite embedded in the main project."""
+    print_header("System Self-Test Suite")
+    results = []
+
+    # 1. Database Check
+    try:
+        from config import check_connection
+        results.append(("Database Read/Write", check_connection()))
+    except Exception:
+        results.append(("Database Read/Write", False))
+
+    # 2. AI Logic Engine Check
+    try:
+        from ai_logic import _make_threat
+        threat = _make_threat("Test Threat", "high", "127.0.0.1", "CVE-2023-0001", "SelfTest", "Test detail")
+        results.append(("20-Engine AI Logic", threat["name"] == "Test Threat"))
+    except Exception:
+        results.append(("20-Engine AI Logic", False))
+
+    # 3. CVE 5.0 Version Bounds Matching Check
+    try:
+        from cve_lookup import compare_versions, match_cpe
+        ver_ok = compare_versions("2.4.41", "2.4.52") == -1 and match_cpe("cpe:2.3:a:apache:httpd:2.4.41:*:*:*:*:*:*:*", "cpe:2.3:a:apache:http_server:2.4.41:*:*:*:*:*:*:*")
+        results.append(("CVE 5.0 Version Matching", ver_ok))
+    except Exception:
+        results.append(("CVE 5.0 Version Matching", False))
+
+    # 4. Remediation Code Generator Check
+    try:
+        from remediation_generator import generate_remediation_script
+        ansible_code = generate_remediation_script([{"name": "SMB Exposed", "host": "127.0.0.1"}], "127.0.0.1", "ansible")
+        results.append(("Remediation Generator", "hosts:" in ansible_code))
+    except Exception:
+        results.append(("Remediation Generator", False))
+
+    # 5. Report Exporter Check
+    try:
+        from report_generator import generate_report_content
+        rpt_code = generate_report_content([{"name": "SMB Exposed", "severity": "critical", "host": "127.0.0.1"}], [], fmt="markdown")
+        results.append(("Multi-Format Report Generator", "NexShield Security" in rpt_code))
+    except Exception:
+        results.append(("Multi-Format Report Generator", False))
+
+    # 6. Webhook Alerting Check
+    try:
+        from webhook_notifier import dispatch_webhook_alert
+        res = dispatch_webhook_alert({"name": "SelfTest Alert", "severity": "low"})
+        results.append(("Webhook Alert Dispatcher", isinstance(res, dict)))
+    except Exception:
+        results.append(("Webhook Alert Dispatcher", False))
+
+    print_header("Self-Test Results")
+    all_ok = True
+    for name, ok in results:
+        icon = "✓" if ok else "✗"
+        print_status(icon, f"{name}: {'PASSED' if ok else 'FAILED'}")
+        if not ok:
+            all_ok = False
+
+    return all_ok
+
+
+def main():
+    """Main launcher entry point."""
     import argparse
 
     parser = argparse.ArgumentParser(
@@ -277,6 +342,7 @@ Examples:
   python run.py                  Start NexShield (auto-configures)
   python run.py --port 8080      Start on port 8080
   python run.py --check          Verify setup only
+  python run.py --self-test      Run embedded system self-test suite
   python run.py --reset-db       Reset the database
   python run.py --debug          Enable debug mode
         """,
@@ -285,6 +351,7 @@ Examples:
     parser.add_argument("--host", type=str, default=None, help="Server host (default: 127.0.0.1)")
     parser.add_argument("--debug", action="store_true", help="Enable debug mode")
     parser.add_argument("--check", action="store_true", help="Run setup checks only, don't start server")
+    parser.add_argument("--self-test", action="store_true", help="Run embedded system self-test suite")
     parser.add_argument("--reset-db", action="store_true", help="Reset the database")
 
     args = parser.parse_args()
@@ -299,6 +366,11 @@ Examples:
     if args.reset_db:
         reset_database()
         sys.exit(0)
+
+    # Handle self-test
+    if args.self_test:
+        test_ok = run_self_test()
+        sys.exit(0 if test_ok else 1)
 
     # Run checks
     ok = run_checks()
