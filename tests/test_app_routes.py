@@ -254,3 +254,30 @@ def test_registration_disabled(client):
         content_type="application/json",
     )
     assert resp.status_code == 403
+
+
+def test_topology_endpoint(client):
+    """Topology endpoint returns nodes and links."""
+    with client.session_transaction() as sess:
+        sess["user"] = "admin"
+        sess["role"] = "admin"
+    resp = client.get("/api/topology")
+    assert resp.status_code in (200, 503)
+    if resp.status_code == 200:
+        data = resp.get_json()
+        assert data["status"] == "complete"
+        assert "nodes" in data
+        assert "links" in data
+
+
+def test_epss_route(client):
+    """EPSS endpoint returns score data for valid CVE."""
+    with client.session_transaction() as sess:
+        sess["user"] = "admin"
+        sess["role"] = "admin"
+    resp = client.get("/api/epss/CVE-2021-44228")
+    assert resp.status_code == 200
+    data = resp.get_json()
+    assert data["status"] == "complete"
+    assert "epss_score" in data
+

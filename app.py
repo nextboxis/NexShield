@@ -940,6 +940,85 @@ def list_hosts():
     return jsonify({"status": "complete", "hosts": result, "total": len(result)})
 
 
+@app.route("/api/topology", methods=["GET"])
+@login_required
+def network_topology():
+    """Return 2D network topology graph nodes and links for discovered hosts."""
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+
+    scans = list(network_scans.find().sort("scanned_at", -1).limit(200))
+    nodes = []
+    links = []
+    seen_nodes = set()
+    subnets = defaultdict(list)
+
+    for scan in scans:
+        host = scan.get("host")
+        if not host or host in seen_nodes:
+            continue
+        seen_nodes.add(host)
+
+        try:
+            ip_obj = ipaddress.ip_address(host)
+            subnet_str = f"{str(ip_obj).rsplit('.', 1)[0]}.0/24"
+        except ValueError:
+            subnet_str = "external-network"
+
+        subnets[subnet_str].append(host)
+
+        host_threats = list(threats.find({"host": host}))
+        threat_count = len(host_threats)
+        severities = [t.get("severity", "info").lower() for t in host_threats]
+
+        highest_sev = "low"
+        if "critical" in severities:
+            highest_sev = "critical"
+        elif "high" in severities:
+            highest_sev = "high"
+        elif "medium" in severities:
+            highest_sev = "medium"
+
+        open_ports = scan.get("open_port_count", 0)
+
+        nodes.append({
+            "id": host,
+            "label": scan.get("hostname") or host,
+            "type": "host",
+            "subnet": subnet_str,
+            "open_ports": open_ports,
+            "threat_count": threat_count,
+            "severity": highest_sev,
+            "os_name": scan.get("os_detection", {}).get("name", "Unknown") if isinstance(scan.get("os_detection"), dict) else "Unknown",
+        })
+
+    for subnet_str, host_list in subnets.items():
+        gw_id = f"gw-{subnet_str}"
+        nodes.append({
+            "id": gw_id,
+            "label": f"Subnet {subnet_str}",
+            "type": "gateway",
+            "subnet": subnet_str,
+            "host_count": len(host_list),
+            "severity": "info",
+        })
+
+        for h in host_list:
+            links.append({
+                "source": gw_id,
+                "target": h,
+                "type": "subnet_link",
+            })
+
+    return jsonify({
+        "status": "complete",
+        "nodes": nodes,
+        "links": links,
+        "subnets_count": len(subnets),
+        "total_hosts": len(seen_nodes),
+    })
+
+
 @app.route("/api/host/<path:ip>/history", methods=["GET"])
 @login_required
 def host_scan_history(ip):
