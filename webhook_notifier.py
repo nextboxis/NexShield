@@ -31,7 +31,6 @@ def dispatch_webhook_alert(threat_data: dict[str, Any]) -> dict[str, Any]:
     host = threat_data.get("host", "Unknown Host")
     cve_id = threat_data.get("cve_id", "N/A")
     detail = threat_data.get("detail", "N/A")
-
     results = {"slack": False, "discord": False, "teams": False, "generic": False}
 
     # 1. Slack Webhook Dispatch
