@@ -727,6 +727,7 @@ def dashboard_summary():
         "recent_threats": enriched,
         "recent_activity": _serialize(recent_activity),
     })
+    
 
 
 # ═════════════════════════════════════════════════════════════════════
@@ -1237,11 +1238,15 @@ def get_recent_cves():
     """Return recent CVEs directly from the local cvelistV5-main directory."""
     try:
         limit = _normalize_limit(request.args.get("limit", 50, type=int), 50, 100)
-        from cve_lookup import CVELIST_DIR, _parse_cvelist_v5
-
-        cves_dir = CVELIST_DIR
+        from cve_lookup import CVELIST_DIR, _parse_cvelist_v5
+
+
+
+        cves_dir = CVELIST_DIR
+
         if not cves_dir.exists():
-            return jsonify({"status": "error", "message": f"Local CVE repository not found: {cves_dir}"}), 404
+            return jsonify({"status": "error", "message": f"Local CVE repository not found: {cves_dir}"}), 404
+
             
         years = sorted([d.name for d in cves_dir.iterdir() if d.is_dir() and d.name.isdigit()], reverse=True)
         recent_cves = []
@@ -1526,6 +1531,93 @@ def api_download_report():
     response.headers["Content-Type"] = f"{mime}; charset=utf-8"
     response.headers["Content-Disposition"] = f"attachment; filename={filename}"
     return response
+
+
+# ═════════════════════════════════════════════════════════════════════
+#  API — RAG (Retrieval-Augmented Generation) Intelligence Endpoints
+# ═════════════════════════════════════════════════════════════════════
+
+@app.route("/api/rag/status", methods=["GET"])
+@login_required
+def api_rag_status():
+    """Return RAG knowledge store status, index stats, and active backend."""
+    try:
+        from rag_engine import knowledge_store, rag_generator  # type: ignore
+        stats = knowledge_store.get_stats()
+        stats["active_backend"] = rag_generator.backend
+        return jsonify({"status": "complete", "rag_stats": stats})
+    except Exception as e:
+        logger.error("RAG status error: %s", e)
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@app.route("/api/rag/query", methods=["POST"])
+@login_required
+def api_rag_query():
+    """Natural-language query endpoint for NexShield RAG AI Copilot."""
+    data = request.get_json(silent=True) or {}
+    query = data.get("query", "").strip()
+    host = data.get("host", "").strip() or None
+    threat_id = data.get("threat_id", "").strip() or None
+
+    if not query:
+        return jsonify({"status": "error", "message": "Query parameter is required."}), 400
+
+    try:
+        from rag_engine import rag_generator  # type: ignore
+        answer_result = rag_generator.answer_query(user_query=query, host=host, threat_id=threat_id)
+        return jsonify({"status": "complete", "data": answer_result})
+    except Exception as e:
+        logger.error("RAG query error: %s", e)
+        return jsonify({"status": "error", "message": f"RAG Copilot query failed: {str(e)}"}), 500
+
+
+@app.route("/api/rag/threat/<tid>", methods=["GET"])
+@login_required
+def api_rag_threat_deep_dive(tid):
+    """Deep-dive RAG analysis and custom remediation citations for a specific threat."""
+    if not check_connection():
+        return jsonify({"status": "error", "message": "Database unavailable"}), 503
+
+    doc = None
+    if _HAS_BSON:
+        from bson import ObjectId  # type: ignore
+        try:
+            oid = ObjectId(tid)
+            doc = threats.find_one({"_id": oid})
+        except Exception:
+            pass
+    if not doc:
+        doc = threats.find_one({"_id": tid})
+
+    if not doc:
+        return jsonify({"status": "error", "message": "Threat not found."}), 404
+
+    try:
+        from rag_engine import rag_generator  # type: ignore
+        serialized = _serialize(doc)
+        explanation = rag_generator.generate_threat_explanation(serialized)
+        return jsonify({"status": "complete", "threat_id": tid, "analysis": explanation})
+    except Exception as e:
+        logger.error("RAG threat analysis error: %s", e)
+        return jsonify({"status": "error", "message": f"RAG analysis failed: {str(e)}"}), 500
+
+
+@app.route("/api/rag/reindex", methods=["POST"])
+@login_required
+def api_rag_reindex():
+    """Trigger background re-indexing of local CVEs and knowledge base."""
+    def _do_reindex():
+        try:
+            from rag_engine import knowledge_store  # type: ignore
+            ingested = knowledge_store.ingest_cve_files(max_cves=500)
+            knowledge_store.build_vector_index()
+            _log_activity("rag_reindex", f"RAG knowledge store reindexed ({ingested} CVEs added)", "success")
+        except Exception as e:
+            _log_activity("rag_reindex_error", f"RAG reindex failed: {str(e)}", "error")
+
+    _start_background_task(_do_reindex)
+    return jsonify({"status": "accepted", "message": "RAG reindexing started in the background."}), 202
 
 
 @app.route("/api/webhooks/test", methods=["POST"])

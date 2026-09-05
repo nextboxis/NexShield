@@ -168,19 +168,28 @@ PRODUCT_ALIASES = {
 def check_cve_v5_version_match(version_rules: list[dict], installed_version: str) -> bool:
     """
     Evaluates CVE 5.0 version rules against an installed service version.
-    Returns True if the installed version falls within affected boundaries.
+    Returns True ONLY if the installed version falls within confirmed affected boundaries.
+    Does not assume unknown/empty versions are affected (prevents false positives).
     """
     if not installed_version or not version_rules:
-        return True
+        return False
+
+    installed_version = str(installed_version).strip()
+    if not installed_version or installed_version == "*":
+        return False
 
     for rule in version_rules:
         status = rule.get("status", "affected").lower()
         if status != "affected":
             continue
 
-        version_start = rule.get("version", "0")
-        less_than = rule.get("lessThan")
-        less_than_equal = rule.get("lessThanOrEqual")
+        version_start = str(rule.get("version", "0")).strip()
+        less_than = str(rule.get("lessThan") or "").strip()
+        less_than_equal = str(rule.get("lessThanOrEqual") or "").strip()
+
+        # Wildcard / universal affected rules
+        if version_start in ("*", "all") or less_than in ("*", "all") or less_than_equal in ("*", "all"):
+            return True
 
         if compare_versions(installed_version, version_start) >= 0:
             if less_than and compare_versions(installed_version, less_than) < 0:
@@ -215,10 +224,11 @@ def compare_versions(v1: str, v2: str) -> int:
     return 0
 
 
-def match_cpe(cpe_candidate: str, cpe_criteria: str) -> bool:
+def match_cpe(cpe_candidate: str, cpe_criteria: str, allow_wildcard_candidate: bool = False) -> bool:
     """
     Check if a candidate CPE (e.g., from scan) matches a criteria CPE (e.g., from CVE).
     Both should be in CPE v2.3 format with Semantic Versioning check.
+    Prevents false positives when candidate version is unknown or wildcard.
     """
     if not cpe_candidate or not cpe_criteria:
         return False
@@ -244,10 +254,17 @@ def match_cpe(cpe_candidate: str, cpe_criteria: str) -> bool:
         if c_alias != cr_alias:
             return False
             
-    # For version (idx 5), check if they match, or if criteria is wildcard
+    # For version (idx 5):
     c_ver = cand_parts[5].lower() if 5 < len(cand_parts) else "*"
     cr_ver = crit_parts[5].lower() if 5 < len(crit_parts) else "*"
-    if cr_ver != "*" and c_ver != "*":
+
+    # Candidate with unknown/wildcard version should NOT match specific CVE criteria
+    # unless allow_wildcard_candidate is explicitly True
+    if c_ver in ("*", "-", "") and not allow_wildcard_candidate:
+        return False
+
+    # If criteria specifies a version and candidate specifies a version, check match
+    if cr_ver not in ("*", "-", "") and c_ver not in ("*", "-", ""):
         if compare_versions(c_ver, cr_ver) != 0:
             return False
             
@@ -502,6 +519,7 @@ def _parse_cvelist_v5(cve_id: str) -> Optional[dict]:
         refs = [r.get("url", "") for r in cna.get("references", [])[:5] if "url" in r]
         
         cpes = []
+        version_rules = []
         for aff in cna.get("affected", []):
             vendor = aff.get("vendor", "*").replace(" ", "_").lower()
             product = aff.get("product", "*").replace(" ", "_").lower()
@@ -510,6 +528,8 @@ def _parse_cvelist_v5(cve_id: str) -> Optional[dict]:
             synthetic_cpe = f"cpe:2.3:a:{vendor}:{product}:*:*:*:*:*:*:*"
             if synthetic_cpe not in cpes:
                 cpes.append(synthetic_cpe)
+            for v_entry in aff.get("versions", []):
+                version_rules.append(v_entry)
                 
         return {
             "cve_id": cve_id,
@@ -522,6 +542,7 @@ def _parse_cvelist_v5(cve_id: str) -> Optional[dict]:
             "references": refs,
             "status": status,
             "cpes": cpes,
+            "version_rules": version_rules,
             "cached": True
         }
     except Exception:

@@ -171,6 +171,8 @@ def _match_remediation_keys(threat: dict) -> list[str]:
 def generate_remediation_script(threats: list[dict], target_host: str, fmt: str = "ansible") -> str:
     """
     Generate an automated remediation script in the requested format (ansible, powershell, or bash).
+    Leverages RAG intelligence to dynamically generate customized playbooks, falling back
+    to static templates if RAG context is unavailable.
     """
     fmt = (fmt or "ansible").strip().lower()
     if fmt not in ("ansible", "powershell", "bash"):
@@ -178,7 +180,16 @@ def generate_remediation_script(threats: list[dict], target_host: str, fmt: str 
 
     target_host = target_host or "127.0.0.1"
 
-    # Identify all required fixes
+    # Attempt dynamic RAG remediation synthesis first
+    try:
+        from rag_engine import rag_generator  # type: ignore
+        rag_script = rag_generator.generate_dynamic_remediation(target_host, threats, fmt=fmt)
+        if rag_script and len(rag_script.splitlines()) > 10:
+            return rag_script
+    except Exception as exc:
+        logger.debug(f"RAG dynamic remediation fallback to static DB: {exc}")
+
+    # Fallback to static rules
     matched_keys = []
     for threat in threats:
         keys = _match_remediation_keys(threat)

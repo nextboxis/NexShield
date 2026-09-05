@@ -54,7 +54,7 @@ def dispatch_webhook_alert(threat_data: dict[str, Any]) -> dict[str, Any]:
 
 def _send_slack(url: str, name: str, severity: str, host: str, cve_id: str, detail: str) -> bool:
     payload = {
-        "text": f"🚨 *NexShield Security Alert: {severity.upper()}*",
+        "text": f" *NexShield Security Alert: {severity.upper()}*",
         "attachments": [{
             "color": "#f87171" if severity in ("critical", "high") else "#fbbf24",
             "fields": [
@@ -72,7 +72,7 @@ def _send_discord(url: str, name: str, severity: str, host: str, cve_id: str, de
     payload = {
         "username": "NexShield Mission Control",
         "embeds": [{
-            "title": f"🚨 Threat Detected: {name}",
+            "title": f" Threat Detected: {name}",
             "color": 16281969 if severity in ("critical", "high") else 16498468,
             "fields": [
                 {"name": "Severity", "value": severity.upper(), "inline": True},
@@ -92,7 +92,7 @@ def _send_teams(url: str, name: str, severity: str, host: str, cve_id: str, deta
         "themeColor": "F87171" if severity in ("critical", "high") else "FBBF24",
         "summary": f"NexShield Threat Alert: {name}",
         "sections": [{
-            "activityTitle": f"🚨 NexShield Alert: {name}",
+            "activityTitle": f" NexShield Alert: {name}",
             "activitySubtitle": f"Severity: {severity.upper()} | Target: {host}",
             "facts": [
                 {"name": "CVE ID", "value": cve_id},
