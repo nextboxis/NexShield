@@ -197,28 +197,28 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
     if not _scan_lock.acquire(blocking=False):
         raise RuntimeError("SCAN_LOCKED: Another scan is already running. Wait for it to finish.")
 
-    def update_progress(percent, message):
-        with _status_lock:
-            _active_scan["progress"] = percent
-        if progress_callback:
-            try:
-                progress_callback(percent, message)
-            except Exception:
-                pass
-
-    stop_fluctuation = threading.Event()
-
-    def fluctuate_progress():
-        current_pct = 10
-        while not stop_fluctuation.is_set():
-            if stop_fluctuation.wait(timeout=random.uniform(1.0, 3.0)):
-                break
-            if current_pct < 59:
-                increment = random.choice([1, 2, 3])
-                current_pct = min(59, current_pct + increment)
-                update_progress(current_pct, "Executing nmap scan...")
-
     try:
+        def update_progress(percent, message):
+            with _status_lock:
+                _active_scan["progress"] = percent
+            if progress_callback:
+                try:
+                    progress_callback(percent, message)
+                except Exception:
+                    pass
+
+        stop_fluctuation = threading.Event()
+
+        def fluctuate_progress():
+            current_pct = 10
+            while not stop_fluctuation.is_set():
+                if stop_fluctuation.wait(timeout=random.uniform(1.0, 3.0)):
+                    break
+                if current_pct < 59:
+                    increment = random.choice([1, 2, 3])
+                    current_pct = min(59, current_pct + increment)
+                    update_progress(current_pct, "Executing nmap scan...")
+
         with _status_lock:
             _active_scan.update({
                 "running": True, "target": target,

@@ -625,7 +625,8 @@ class SecurityKnowledgeStore:
                                 tags=[cve_id.lower()] + [p.lower() for p in products if p],
                                 metadata={"cve_id": cve_id, "products": products, "source": "local_cvelist"},
                             )
-                            self._docs[cve_id] = doc
+                            with self._lock:
+                                self._docs[cve_id] = doc
                             ingested += 1
                         except Exception:
                             continue
@@ -677,10 +678,12 @@ class SecurityKnowledgeStore:
             }
 
     def get_document(self, doc_id: str) -> Optional[KnowledgeDocument]:
-        return self._docs.get(doc_id)
+        with self._lock:
+            return self._docs.get(doc_id)
 
     def all_documents(self) -> List[KnowledgeDocument]:
-        return list(self._docs.values())
+        with self._lock:
+            return list(self._docs.values())
 
 
 # ═════════════════════════════════════════════════════════════════════

@@ -18,7 +18,7 @@ import time
 import uuid
 import threading
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Tuple
 from datetime import datetime, timezone
 
 _db_lock = threading.RLock()
@@ -298,64 +298,78 @@ class TinyCollection:
             result.append(doc)
         return result
 
+    @staticmethod
+    def _coerce_comparable(val: Any, operand: Any) -> Tuple[Any, Any]:
+        """Coerce values for comparison if one is datetime and the other is an ISO string."""
+        if isinstance(operand, datetime) and isinstance(val, str):
+            try:
+                return datetime.fromisoformat(val), operand
+            except (ValueError, TypeError):
+                return val, operand
+        if isinstance(val, datetime) and isinstance(operand, str):
+            try:
+                return val, datetime.fromisoformat(operand)
+            except (ValueError, TypeError):
+                return val, operand
+        return val, operand
+
+    @classmethod
+    def _compare_relational(cls, val: Any, operand: Any, op: str) -> bool:
+        """Safely compare val and operand for $gt, $gte, $lt, $lte without unhandled TypeErrors."""
+        if val is None or operand is None:
+            return False
+        v, o = cls._coerce_comparable(val, operand)
+        try:
+            if op == "$gt":
+                return v > o
+            elif op == "$gte":
+                return v >= o
+            elif op == "$lt":
+                return v < o
+            elif op == "$lte":
+                return v <= o
+        except TypeError:
+            return False
+        return False
+
+    def _match_operator(self, val: Any, op: str, operand: Any, condition: dict, doc: dict, key: str) -> bool:
+        """Evaluate a single MongoDB-style operator condition against a field value."""
+        if op == "$in":
+            return val in operand
+        if op == "$nin":
+            return val not in operand
+        if op == "$ne":
+            return val != operand
+        if op in ("$gt", "$gte", "$lt", "$lte"):
+            return self._compare_relational(val, operand, op)
+        if op == "$regex":
+            flags = re.IGNORECASE if condition.get("$options", "") == "i" else 0
+            return val is not None and bool(re.search(operand, str(val), flags))
+        if op == "$exists":
+            return (key in doc) if operand else (key not in doc)
+        return True
+
     def _matches_query(self, doc: dict, query: dict) -> bool:
         """Check if a document matches a MongoDB-style query."""
         for key, condition in query.items():
             if key == "$and":
-                return all(self._matches_query(doc, q) for q in condition)
+                if not all(self._matches_query(doc, q) for q in condition):
+                    return False
+                continue
             if key == "$or":
-                return any(self._matches_query(doc, q) for q in condition)
+                if not any(self._matches_query(doc, q) for q in condition):
+                    return False
+                continue
 
             val = self._get_nested(doc, key)
 
             if isinstance(condition, dict):
                 for op, operand in condition.items():
-                    if op == "$in":
-                        if val not in operand:
-                            return False
-                    elif op == "$nin":
-                        if val in operand:
-                            return False
-                    elif op == "$ne":
-                        if val == operand:
-                            return False
-                    elif op == "$gt":
-                        if val is None or val <= operand:
-                            return False
-                    elif op == "$gte":
-                        try:
-                            if val is None or val < operand:
-                                return False
-                        except TypeError:
-                            # Handle datetime comparison with string
-                            if isinstance(operand, datetime) and isinstance(val, str):
-                                try:
-                                    val_dt = datetime.fromisoformat(val)
-                                    if val_dt < operand:
-                                        return False
-                                except (ValueError, TypeError):
-                                    return False
-                            else:
-                                return False
-                    elif op == "$lt":
-                        if val is None or val >= operand:
-                            return False
-                    elif op == "$lte":
-                        if val is None or val > operand:
-                            return False
-                    elif op == "$regex":
-                        flags = 0
-                        if condition.get("$options", "") == "i":
-                            flags = re.IGNORECASE
-                        if val is None or not re.search(operand, str(val), flags):
-                            return False
-                    elif op == "$exists":
-                        if operand and key not in doc:
-                            return False
-                        if not operand and key in doc:
-                            return False
+                    if op == "$options":
+                        continue
+                    if not self._match_operator(val, op, operand, condition, doc, key):
+                        return False
             else:
-                # Direct equality
                 if val != condition:
                     return False
         return True

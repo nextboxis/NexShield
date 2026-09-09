@@ -1645,7 +1645,7 @@ def api_test_webhook():
 def api_self_test():
     """Execute integrated system self-test diagnostic suite."""
     try:
-        from run import run_self_test  # type: ignore
+        from diagnostics import run_self_test  # type: ignore
         ok = run_self_test()
         return jsonify({"status": "complete", "passed": ok})
     except Exception as e:

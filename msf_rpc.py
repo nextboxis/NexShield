@@ -11,7 +11,14 @@ logger = logging.getLogger(__name__)
 # Default config for MSF RPC
 MSF_PASSWORD = os.environ.get("MSF_PASSWORD", "nexshield")
 MSF_HOST = os.environ.get("MSF_HOST", "127.0.0.1")
-MSF_PORT = int(os.environ.get("MSF_PORT", "55553"))
+def _get_msf_port() -> int:
+    raw = os.environ.get("MSF_PORT", "55553")
+    try:
+        return int(raw)
+    except (ValueError, TypeError):
+        return 55553
+
+MSF_PORT = _get_msf_port()
 
 def get_client():
     """
@@ -59,11 +66,15 @@ def execute_exploit(host: str, module_name: str, lhost: str = "eth0") -> dict:
         # Execute asynchronously
         job_info = exploit.execute()
         
+        job_id = job_info.get("job_id") if isinstance(job_info, dict) else None
+        uuid = job_info.get("uuid") if isinstance(job_info, dict) else None
+        msg = f"Exploit launched. Job ID: {job_id}" if job_id is not None else f"Exploit launched with result: {job_info}"
+
         return {
             "status": "success",
-            "job_id": job_info.get("job_id"),
-            "uuid": job_info.get("uuid"),
-            "message": f"Exploit launched. Job ID: {job_info.get('job_id')}"
+            "job_id": job_id,
+            "uuid": uuid,
+            "message": msg,
         }
         
     except Exception as e:

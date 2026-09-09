@@ -89,8 +89,7 @@ def start_indexing():
             _cvelist_index_thread = threading.Thread(target=_build_cvelist_index, daemon=True)
             _cvelist_index_thread.start()
 
-# Start indexing immediately when cve_lookup is imported
-start_indexing()
+# Note: Indexing is triggered lazily via start_indexing() on first product query
 
 def get_local_cves_by_product(product_name: str) -> list:
     """Return a list of parsed CVE documents from the local repository matching the product name."""
