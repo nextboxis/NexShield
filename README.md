@@ -165,6 +165,7 @@ python scanner.py scanme.nmap.org 80,443 vuln
 | Feature | Description |
 | --- | --- |
 | **Mission Control HUD** | Real-time SOC dashboard with animated topology map, severity radar, and 7-day timeline |
+| **Offline IP Geolocation & ASN** | $O(\log N)$ binary search across 750k+ DB-IP intervals (Country, ASN, Organization, RFC 1918 space) |
 | **16-Engine AI Pipeline** | CVE correlation, default credentials, SSL/TLS audit, lateral movement, zero-day heuristics |
 | **ML Threat Prediction** | Ensemble model (Random Forest + Gradient Boosting) trained on your scan data |
 | **Metasploit Integration** | Automatic exploit module mapping with RC script generation |
@@ -221,6 +222,8 @@ NexShield/
 ├── run.py                     # ⭐ Main launcher — just run this!
 ├── app.py                     # Flask backend — API routes, WebSocket, auth
 ├── config.py                  # Database config (TinyDB/MongoDB auto-detection)
+├── diagnostics.py             # System diagnostic & self-test suite (8 suites)
+├── ip_lookup.py               # 🌍 Fast O(log N) IP Geolocation & ASN engine
 ├── ai_logic.py                # 21-engine AI analysis pipeline & ML training
 ├── rag_engine.py              # 🧠 In-Between RAG intelligence subsystem
 ├── scanner.py                 # Network scanning engine (Nmap wrapper)
@@ -235,14 +238,65 @@ NexShield/
 ├── .env.example               # Configuration template
 ├── install.bat                # Windows installer
 ├── install.sh                 # Linux/macOS installer
-├── tests/                     # Unit tests (ai_logic, cve_lookup, scanner)
-├── data/                      # Database files (auto-created)
-│   └── nexshield_db.json      # TinyDB database
+├── scripts/
+│   ├── import_ip_location.py  # Dataset synchronizer for sapics/ip-location-db
+│   └── import_cvelist.py      # CVE 5.0 bulk JSON archive importer
+├── tests/                     # Unit tests (ai_logic, cve_lookup, ip_lookup)
+├── data/                      # Database & intelligence files (auto-created)
+│   ├── nexshield_db.json      # TinyDB database
+│   └── ip_location/           # DB-IP Country and ASN datasets
 ├── templates/
 │   └── login.html             # Authentication page
 └── static/
     ├── css/style.css           # UI design system
     └── js/script.js            # Dashboard logic
+```
+
+---
+
+## 🌍 IP Geolocation & ASN Intelligence Engine
+
+NexShield embeds high-performance offline IP geolocation and Autonomous System Number (ASN) intelligence powered by datasets from [`sapics/ip-location-db`](https://github.com/sapics/ip-location-db).
+
+- **$O(\log N)$ Binary Search**: Sub-millisecond $(<0.015\text{ ms})$ lookup across 750,000+ CIDR boundaries.
+- **Offline & Private**: Never leaks queried IP addresses to external third parties.
+- **Automated Caching**: Queries and updates `ip_geo_cache` in TinyDB / MongoDB for repeat hits.
+- **RFC 1918 Awareness**: Instant classification of private (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), loopback (`127.0.0.0/8`), link-local, and multicast ranges.
+
+### Managing Datasets (`scripts/import_ip_location.py`)
+
+```bash
+# Display interval counts and dataset file stats
+python scripts/import_ip_location.py --stats
+
+# Download latest DB-IP Country and ASN releases
+python scripts/import_ip_location.py --download
+
+# Initialize fallback starter database
+python scripts/import_ip_location.py --init-starter
+```
+
+### API Endpoint
+
+```http
+GET /api/geo/<ip>
+```
+
+Response:
+```json
+{
+  "status": "complete",
+  "ip": "8.8.8.8",
+  "geo": {
+    "country_code": "US",
+    "country_name": "United States",
+    "asn": 15169,
+    "as_name": "Google LLC",
+    "is_private": false,
+    "network_type": "public"
+  },
+  "cached": false
+}
 ```
 
 ---
@@ -345,4 +399,3 @@ This software is intended for **authorized security testing and research only**.
 - **Bulk Threat Actions**: Acknowledge, dismiss, or escalate multiple threats at once.
 - **Smart Polling**: Dashboard auto-refresh pauses when browser tab is hidden.
 - **Global Search**: Search across all threats, hosts, and CVEs from the navbar.
-
