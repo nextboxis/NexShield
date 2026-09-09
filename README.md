@@ -224,7 +224,6 @@ NexShield/
 ├── requirements.txt           # Core Python dependencies
 ├── requirements-optional.txt  # Optional dependencies (MongoDB, Metasploit, Gunicorn)
 ├── .env.example               # Configuration template
-├── pytest.ini                 # Pytest test suite configuration
 ├── nexshield/                 # 🛡️ Core Application Package
 │   ├── __init__.py            # Package root & version metadata (v6.0.0)
 │   ├── app.py                 # Flask backend — API routes, WebSocket, auth
@@ -254,9 +253,6 @@ NexShield/
 ├── scripts/                   # 🛠️ Utility & Intelligence Synchronizers
 │   ├── import_ip_location.py  # Dataset synchronizer for sapics/ip-location-db
 │   └── import_cvelist.py      # CVE 5.0 bulk JSON archive importer
-├── tests/                     # 🧪 Automated Test Suites
-│   ├── conftest.py            # Test path configuration
-│   └── test_ip_lookup.py      # Geolocation & ASN unit tests
 ├── data/                      # 💾 Database & Local Intelligence Datasets
 │   ├── nexshield_db.json      # TinyDB document database
 │   └── ip_location/           # DB-IP Country and ASN datasets
