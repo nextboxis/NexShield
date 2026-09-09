@@ -238,6 +238,9 @@ NexShield/
 ├── .env.example               # Configuration template
 ├── install.bat                # Windows installer
 ├── install.sh                 # Linux/macOS installer
+├── docs/                      # Documentation & project policies
+│   ├── CHANGELOG.md           # Detailed release notes and version history
+│   └── SECURITY.md            # Responsible vulnerability disclosure policy
 ├── scripts/
 │   ├── import_ip_location.py  # Dataset synchronizer for sapics/ip-location-db
 │   └── import_cvelist.py      # CVE 5.0 bulk JSON archive importer
