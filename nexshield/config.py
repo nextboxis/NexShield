@@ -25,12 +25,13 @@ _db_lock = threading.RLock()
 
 try:
     from dotenv import load_dotenv  # type: ignore
-    _env_path = Path(__file__).parent / ".env"
+    _PROJECT_ROOT = Path(__file__).resolve().parent.parent
+    _env_path = _PROJECT_ROOT / ".env" if (_PROJECT_ROOT / ".env").exists() else Path(__file__).parent / ".env"
     if _env_path.exists():
         load_dotenv(_env_path)
         print("   [+] Loaded .env configuration file.")
     else:
-        _example_path = Path(__file__).parent / ".env.example"
+        _example_path = _PROJECT_ROOT / ".env.example" if (_PROJECT_ROOT / ".env.example").exists() else Path(__file__).parent / ".env.example"
         if _example_path.exists():
             import shutil
             shutil.copy2(_example_path, _env_path)
@@ -42,7 +43,7 @@ except ImportError:
 
 MONGO_URI = os.environ.get("MONGO_URI", "").strip()
 DB_NAME = os.environ.get("MONGO_DB", "threat_intel")
-DATA_DIR = Path(__file__).parent / "data"
+DATA_DIR = _PROJECT_ROOT / "data" if (_PROJECT_ROOT / "data").exists() or not (Path(__file__).parent / "data").exists() else Path(__file__).parent / "data"
 
 _db_ready = False
 _using_mongodb = False

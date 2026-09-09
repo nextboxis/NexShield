@@ -33,6 +33,7 @@ except Exception:
     pass
 
 from datetime import datetime, timezone
+from pathlib import Path
 import hashlib
 import logging
 import re
@@ -796,8 +797,9 @@ def _engine_mitre_map(ctx):
     )]
 
 
-MODEL_PATH = "threat_ml_model.pkl"
-VECTORIZER_PATH = "threat_ml_vect.pkl"
+_ROOT = Path(__file__).resolve().parent.parent if (Path(__file__).resolve().parent.parent / "threat_ml_model.pkl").exists() else Path(__file__).resolve().parent
+MODEL_PATH = str(_ROOT / "threat_ml_model.pkl")
+VECTORIZER_PATH = str(_ROOT / "threat_ml_vect.pkl")
 
 def extract_is_sensitive_port(X):
     import numpy as np

@@ -45,7 +45,7 @@ except ImportError:
     SKLEARN_AVAILABLE = False
     logger.warning("scikit-learn not available for RAG vectorizer; falling back to lexical token similarity.")
 
-ROOT_DIR = Path(__file__).parent
+ROOT_DIR = Path(__file__).resolve().parent.parent if (Path(__file__).resolve().parent.parent / "data").exists() else Path(__file__).resolve().parent
 DATA_DIR = ROOT_DIR / "data"
 INDEX_CACHE_PATH = DATA_DIR / "rag_knowledge_index.json"
 

@@ -13,6 +13,11 @@ Usage:
 import os
 import sys
 import logging
+from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parent
+sys.path.insert(0, str(_PROJECT_ROOT / "nexshield"))
+sys.path.insert(0, str(_PROJECT_ROOT))
 
 logging.basicConfig(
     level=logging.INFO,

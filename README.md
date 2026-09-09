@@ -219,40 +219,54 @@ NexShield's analysis pipeline runs **16 independent engines** against scan data:
 
 ```text
 NexShield/
-├── run.py                     # ⭐ Main launcher — just run this!
-├── app.py                     # Flask backend — API routes, WebSocket, auth
-├── config.py                  # Database config (TinyDB/MongoDB auto-detection)
-├── diagnostics.py             # System diagnostic & self-test suite (8 suites)
-├── ip_lookup.py               # 🌍 Fast O(log N) IP Geolocation & ASN engine
-├── ai_logic.py                # 21-engine AI analysis pipeline & ML training
-├── rag_engine.py              # 🧠 In-Between RAG intelligence subsystem
-├── scanner.py                 # Network scanning engine (Nmap wrapper)
-├── cve_lookup.py              # CVE database and NVD API integration
-├── exploit_cli.py             # CLI for exploit RC script generation
-├── msf_utils.py               # Metasploit payload mapping and RC script logic
-├── msf_rpc.py                 # Metasploit RPC client
-├── wsgi.py                    # Production WSGI entry point
-├── Dockerfile                 # Docker image definition
-├── docker-compose.yml         # Multi-container environment definition
+├── run.py                     # ⭐ Main unified launcher (auto-configures & starts)
+├── wsgi.py                    # Production WSGI entry point (Gunicorn/Waitress)
 ├── requirements.txt           # Core Python dependencies
+├── requirements-optional.txt  # Optional dependencies (MongoDB, Metasploit, Gunicorn)
 ├── .env.example               # Configuration template
-├── install.bat                # Windows installer
-├── install.sh                 # Linux/macOS installer
-├── docs/                      # Documentation & project policies
+├── pytest.ini                 # Pytest test suite configuration
+├── nexshield/                 # 🛡️ Core Application Package
+│   ├── __init__.py            # Package root & version metadata (v6.0.0)
+│   ├── app.py                 # Flask backend — API routes, WebSocket, auth
+│   ├── config.py              # Database config (TinyDB/MongoDB auto-detection)
+│   ├── ai_logic.py            # 21-engine AI analysis pipeline & ML training
+│   ├── rag_engine.py          # 🧠 In-Between RAG intelligence subsystem
+│   ├── ip_lookup.py           # 🌍 Fast O(log N) IP Geolocation & ASN engine
+│   ├── cve_lookup.py          # CVE database and NVD API integration
+│   ├── scanner.py             # Network scanning engine (Nmap wrapper)
+│   ├── remediation_generator.py # Automated security remediation guidance
+│   ├── report_generator.py    # Multi-format report builder (PDF, HTML, CSV, JSON, SARIF)
+│   ├── webhook_notifier.py    # Outbound SOC alerts (Slack, Discord, Teams)
+│   ├── schemas.py             # Pydantic input validation models
+│   ├── diagnostics.py         # System self-test suite (8 diagnostic suites)
+│   ├── msf_rpc.py             # Metasploit RPC client
+│   ├── msf_utils.py           # Metasploit payload mapping and RC script logic
+│   └── exploit_cli.py         # CLI for exploit RC script generation
+├── deploy/                    # 🚀 Container & Deployment Configurations
+│   ├── Dockerfile             # Multi-stage production container image
+│   ├── docker-compose.yml     # Multi-container orchestration (App, MongoDB, Metasploit)
+│   ├── install.bat            # Windows automated installer
+│   ├── install.sh             # Linux/macOS automated installer
+│   └── run_development.bat    # Development environment runner
+├── docs/                      # 📚 Documentation & Project Policies
 │   ├── CHANGELOG.md           # Detailed release notes and version history
 │   └── SECURITY.md            # Responsible vulnerability disclosure policy
-├── scripts/
+├── scripts/                   # 🛠️ Utility & Intelligence Synchronizers
 │   ├── import_ip_location.py  # Dataset synchronizer for sapics/ip-location-db
 │   └── import_cvelist.py      # CVE 5.0 bulk JSON archive importer
-├── tests/                     # Unit tests (ai_logic, cve_lookup, ip_lookup)
-├── data/                      # Database & intelligence files (auto-created)
-│   ├── nexshield_db.json      # TinyDB database
+├── tests/                     # 🧪 Automated Test Suites
+│   ├── conftest.py            # Test path configuration
+│   └── test_ip_lookup.py      # Geolocation & ASN unit tests
+├── data/                      # 💾 Database & Local Intelligence Datasets
+│   ├── nexshield_db.json      # TinyDB document database
 │   └── ip_location/           # DB-IP Country and ASN datasets
-├── templates/
-│   └── login.html             # Authentication page
-└── static/
-    ├── css/style.css           # UI design system
-    └── js/script.js            # Dashboard logic
+├── templates/                 # 🎨 Web UI HTML Templates
+│   ├── index.html             # Main SOC Dashboard
+│   ├── login.html             # Authentication page
+│   └── report.html            # Host assessment report
+└── static/                    # ⚡ Frontend Design System & JavaScript
+    ├── css/style.css          # Design system & dark glassmorphic styling
+    └── js/script.js           # Real-time WebSocket telemetry & charts
 ```
 
 ---

@@ -23,7 +23,7 @@ import threading
 
 logger = logging.getLogger(__name__)
 
-_REPO_ROOT = Path(__file__).parent
+_REPO_ROOT = Path(__file__).resolve().parent.parent if (Path(__file__).resolve().parent.parent / "cve_data").exists() else Path(__file__).resolve().parent
 _PRIMARY_CVE_DIR = _REPO_ROOT / "cve_data" / "cvelistV5-main" / "cves"
 _ALT_CVE_DIR = _REPO_ROOT / "cve_data" / "cves"
 _FALLBACK_CVE_DIR = _REPO_ROOT / "cvelistV5-main" / "cvelistV5-main" / "cves"

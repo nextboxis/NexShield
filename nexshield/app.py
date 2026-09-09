@@ -25,13 +25,18 @@ try:
     _HAS_BSON = True
 except ImportError:
     _HAS_BSON = False
+from pathlib import Path
 
 from ai_logic import compute_risk_scores # type: ignore
 from config import threats, network_scans, activity_log, users, cve_cache, ip_geo_cache, scan_jobs, check_connection # type: ignore
 
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__)
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+_TEMPLATE_DIR = _PROJECT_ROOT / "templates" if (_PROJECT_ROOT / "templates").exists() else Path(__file__).parent / "templates"
+_STATIC_DIR = _PROJECT_ROOT / "static" if (_PROJECT_ROOT / "static").exists() else Path(__file__).parent / "static"
+
+app = Flask(__name__, template_folder=str(_TEMPLATE_DIR), static_folder=str(_STATIC_DIR))
 app.secret_key = os.environ.get("FLASK_SECRET_KEY", "nexshield-local-secret-12345")
 app.config["SESSION_COOKIE_HTTPONLY"] = True
 app.config["SESSION_COOKIE_SAMESITE"] = "Lax"

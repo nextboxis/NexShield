@@ -1,4 +1,5 @@
 @echo off
+cd /d "%~dp0\.."
 echo.
 echo ========================================================
 echo   NexShield v5 - Windows Setup

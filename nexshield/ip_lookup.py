@@ -19,7 +19,7 @@ from config import ip_geo_cache, check_connection  # type: ignore
 
 logger = logging.getLogger(__name__)
 
-_ROOT = Path(__file__).resolve().parent
+_ROOT = Path(__file__).resolve().parent.parent if (Path(__file__).resolve().parent.parent / "data").exists() else Path(__file__).resolve().parent
 DATA_DIR = _ROOT / "data" / "ip_location"
 
 COUNTRY_NAMES: Dict[str, str] = {

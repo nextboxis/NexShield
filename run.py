@@ -27,6 +27,8 @@ except Exception:
 
 MIN_PYTHON = (3, 9)
 PROJECT_DIR = Path(__file__).parent.resolve()
+sys.path.insert(0, str(PROJECT_DIR / "nexshield"))
+sys.path.insert(0, str(PROJECT_DIR))
 VENV_DIR = PROJECT_DIR / ".venv"
 DATA_DIR = PROJECT_DIR / "data"
 ENV_FILE = PROJECT_DIR / ".env"

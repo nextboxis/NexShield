@@ -5,7 +5,9 @@ import argparse
 from datetime import datetime, timezone
 from pathlib import Path
 
-sys.path.append(str(Path(__file__).parent.parent))
+_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_ROOT / "nexshield"))
+sys.path.insert(0, str(_ROOT))
 
 from config import cve_cache, check_connection
 

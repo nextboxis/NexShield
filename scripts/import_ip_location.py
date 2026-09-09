@@ -14,6 +14,7 @@ from pathlib import Path
 from datetime import datetime, timezone
 
 _ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(_ROOT / "nexshield"))
 sys.path.insert(0, str(_ROOT))
 
 DATA_DIR = _ROOT / "data" / "ip_location"

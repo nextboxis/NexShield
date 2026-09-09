@@ -7,6 +7,7 @@
 @REM
 
 @echo off
+cd /d "%~dp0\.."
 setlocal enabledelayedexpansion
 
 echo.
