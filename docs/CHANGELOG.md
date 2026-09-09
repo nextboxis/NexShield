@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [6.1.0] - 2026-09-09
+
+### Added
+- **IP Geolocation & ASN Intelligence Engine**: High-performance offline IP-to-Country and IP-to-ASN lookup based on `sapics/ip-location-db`.
+- **Package Architecture**: Grouped core application and analysis modules into modular `nexshield/` package with backwards-compatible root entry points (`run.py`, `wsgi.py`).
+- **Dedicated Deployment Directory**: Moved container and installation scripts into `deploy/` (`Dockerfile`, `docker-compose.yml`, `install.sh`, `install.bat`, `run_development.bat`).
+- **Dedicated Documentation Directory**: Centralized `CHANGELOG.md` and `SECURITY.md` in `docs/`.
+
+### Changed
+- **Dependency Upgrades**: Modernized runtime dependencies (numpy 2.5.2, pandas 3.0.5, scikit-learn 1.9.0, scipy 1.18.0, tinydb 4.9.0, pymongo 4.18.0, pytest 9.1.1, requests 2.34.2).
+- **Codebase Refinement**: Removed obsolete comment lines and hardened network fetch timeouts across frontend telemetry.
+
 ## [6.0] - 2026-06-09
 
 ### Added
