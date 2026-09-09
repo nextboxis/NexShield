@@ -12,21 +12,17 @@ from pathlib import Path
 from datetime import datetime, timezone, timedelta
 from config import cve_cache, check_connection  # type: ignore
 
-# ═════════════════════════════════════════════════════════════════════
-#  NVD API Configuration
-# ═════════════════════════════════════════════════════════════════════
 
 NVD_API = "https://services.nvd.nist.gov/rest/json/cves/2.0"
 NVD_API_KEY = os.environ.get("NVD_API_KEY", "")
 NVD_HEADERS = {"apiKey": NVD_API_KEY} if NVD_API_KEY else {}
-CACHE_DAYS = 7  # Re-fetch after 7 days
+CACHE_DAYS = 7
 
 import logging
 import threading
 
 logger = logging.getLogger(__name__)
 
-# Local CVE repository path — relative to this file's directory
 _REPO_ROOT = Path(__file__).parent
 _PRIMARY_CVE_DIR = _REPO_ROOT / "cve_data" / "cvelistV5-main" / "cves"
 _ALT_CVE_DIR = _REPO_ROOT / "cve_data" / "cves"
@@ -89,11 +85,10 @@ def start_indexing():
             _cvelist_index_thread = threading.Thread(target=_build_cvelist_index, daemon=True)
             _cvelist_index_thread.start()
 
-# Note: Indexing is triggered lazily via start_indexing() on first product query
 
 def get_local_cves_by_product(product_name: str) -> list:
     """Return a list of parsed CVE documents from the local repository matching the product name."""
-    start_indexing() # Ensure it's running
+    start_indexing()
     
     product_key = product_name.strip().lower()
     if not product_key:
@@ -104,16 +99,11 @@ def get_local_cves_by_product(product_name: str) -> list:
         
     results = []
     for cve_id in cve_ids:
-        # Reuse existing lookup_cve which checks/updates DB cache
         cve_data = lookup_cve(cve_id)
         if cve_data and "error" not in cve_data:
             results.append(cve_data)
     return results
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  Internal Helpers
-# ═════════════════════════════════════════════════════════════════════
 
 def normalize_cpe(cpe_str: str) -> str:
     """Normalize a CPE string from nmap format (v2.2) to NVD CPE v2.3 format."""
@@ -121,24 +111,18 @@ def normalize_cpe(cpe_str: str) -> str:
     if not cpe_str:
         return ""
     
-    # If it's already v2.3, return it
     if cpe_str.startswith("cpe:2.3:"):
         return cpe_str
         
-    # If it's v2.2 format: cpe:/a:vendor:product:version:...
     if cpe_str.startswith("cpe:/"):
         parts = cpe_str.split(":")
-        # parts[0] is "cpe"
-        # parts[1] is "/a", "/o", "/h" etc.
         part = parts[1].replace("/", "") if len(parts) > 1 else "a"
         vendor = parts[2] if len(parts) > 2 else "*"
         product = parts[3] if len(parts) > 3 else "*"
         version = parts[4] if len(parts) > 4 else "*"
         update = parts[5] if len(parts) > 5 else "*"
         
-        # build CPE 2.3 string
         cpe_23_parts = ["cpe", "2.3", part, vendor, product, version, update, "*", "*", "*", "*", "*", "*"]
-        # Fill/adjust with remaining parts from input if any
         for i in range(6, len(parts)):
             if i - 6 + 7 < len(cpe_23_parts):
                 cpe_23_parts[i - 6 + 7] = parts[i]
@@ -186,7 +170,6 @@ def check_cve_v5_version_match(version_rules: list[dict], installed_version: str
         less_than = str(rule.get("lessThan") or "").strip()
         less_than_equal = str(rule.get("lessThanOrEqual") or "").strip()
 
-        # Wildcard / universal affected rules
         if version_start in ("*", "all") or less_than in ("*", "all") or less_than_equal in ("*", "all"):
             return True
 
@@ -241,34 +224,27 @@ def match_cpe(cpe_candidate: str, cpe_criteria: str, allow_wildcard_candidate: b
     if len(cand_parts) < 5 or len(crit_parts) < 5:
         return False
         
-    # We match the first 5 critical parts: part, vendor, product
     for idx in [2, 3, 4]:
         c_part = cand_parts[idx].lower() if idx < len(cand_parts) else "*"
         cr_part = crit_parts[idx].lower() if idx < len(crit_parts) else "*"
         if c_part == "*" or cr_part == "*":
             continue
-        # Apply Product Aliases mapping
         c_alias = PRODUCT_ALIASES.get(c_part, c_part)
         cr_alias = PRODUCT_ALIASES.get(cr_part, cr_part)
         if c_alias != cr_alias:
             return False
             
-    # For version (idx 5):
     c_ver = cand_parts[5].lower() if 5 < len(cand_parts) else "*"
     cr_ver = crit_parts[5].lower() if 5 < len(crit_parts) else "*"
 
-    # Candidate with unknown/wildcard version should NOT match specific CVE criteria
-    # unless allow_wildcard_candidate is explicitly True
     if c_ver in ("*", "-", "") and not allow_wildcard_candidate:
         return False
 
-    # If criteria specifies a version and candidate specifies a version, check match
     if cr_ver not in ("*", "-", "") and c_ver not in ("*", "-", ""):
         if compare_versions(c_ver, cr_ver) != 0:
             return False
             
     return True
-
 
 
 _epss_mem_cache = {}
@@ -333,17 +309,14 @@ def _cached_payload(cached: dict, stale: bool = False) -> dict:
     return payload
 
 
-
 def _parse_cve_item(cve_data: dict) -> dict:
     """Parse a single CVE item from the NVD response into a normalized dict."""
-    # Parse description
     descriptions = cve_data.get("descriptions", [])
     desc_en = next(
         (d["value"] for d in descriptions if d.get("lang") == "en"),
         "No description available.",
     )
 
-    # Parse CVSS score (prefer v3.1 > v3.0 > v2)
     metrics = cve_data.get("metrics", {})
     score = 0
     severity = "unknown"
@@ -356,18 +329,14 @@ def _parse_cve_item(cve_data: dict) -> dict:
             cvss_vector = cvss.get("vectorString", "")
             break
 
-    # Parse references
     refs = cve_data.get("references", [])
     ref_urls = [r.get("url", "") for r in refs[:5]]
 
-    # Parse dates
     published = cve_data.get("published", "")
     modified = cve_data.get("lastModified", "")
 
-    # Parse tags (e.g., "disputed")
     tags = cve_data.get("vulnStatus", "")
 
-    # Parse CPE criteria
     cpes = []
     configurations = cve_data.get("configurations", [])
     for config in configurations:
@@ -414,11 +383,6 @@ def _query_nvd(params: dict, timeout: int = 30) -> dict:
     except Exception as e:
         return {"error": f"NVD API request failed: {str(e)}"}
 
-
-# ═════════════════════════════════════════════════════════════════════
-# ═════════════════════════════════════════════════════════════════════
-#  Primary Lookup — by CVE ID
-# ═════════════════════════════════════════════════════════════════════
 
 from typing import Optional
 
@@ -558,7 +522,6 @@ def lookup_cve(cve_id: str) -> dict:
         return {"cve_id": (cve_id or "").strip().upper(), "error": "Invalid CVE identifier. Use the format CVE-YYYY-NNNN."}
     cve_id = canonical_cve_id
 
-    # ── Check cache first ────────────────────────────────────────
     cached = None
     if check_connection():
         cached = cve_cache.find_one({"cve_id": cve_id})
@@ -572,7 +535,6 @@ def lookup_cve(cve_id: str) -> dict:
             else:
                 return _cached_payload(cached)
 
-    # ── Check local cvelistV5-main ───────────────────────────────
     local_data = _parse_cvelist_v5(cve_id)
     if local_data:
         epss_info = get_epss_score(cve_id)
@@ -586,7 +548,6 @@ def lookup_cve(cve_id: str) -> dict:
             )
         return local_data
 
-    # ── Query NVD API ────────────────────────────────────────────
     data = _query_nvd({"cveId": cve_id})
     if "error" in data:
         if cached:
@@ -605,7 +566,6 @@ def lookup_cve(cve_id: str) -> dict:
     result["epss_percentile"] = epss_info.get("epss_percentile", 0.0)
     result["cached"] = False
 
-    # ── Cache the result ─────────────────────────────────────────
     if check_connection():
         cve_cache.update_one(
             {"cve_id": cve_id},
@@ -615,10 +575,6 @@ def lookup_cve(cve_id: str) -> dict:
 
     return result
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  Lookup by CPE Name
-# ═════════════════════════════════════════════════════════════════════
 
 def lookup_by_cpe(cpe_name: str, results_per_page: int = 20) -> dict:
     """
@@ -633,7 +589,6 @@ def lookup_by_cpe(cpe_name: str, results_per_page: int = 20) -> dict:
     vulns = data.get("vulnerabilities", [])
     parsed_vulns = [_parse_cve_item(v.get("cve", {})) for v in vulns]
 
-    # Cache the results in MongoDB/TinyDB
     if check_connection() and parsed_vulns:
         for vuln in parsed_vulns:
             cve_cache.update_one(
@@ -650,10 +605,6 @@ def lookup_by_cpe(cpe_name: str, results_per_page: int = 20) -> dict:
         "vulnerabilities": parsed_vulns,
     }
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  Lookup by CVE Tag (e.g. "disputed")
-# ═════════════════════════════════════════════════════════════════════
 
 def lookup_by_tag(tag: str, results_per_page: int = 20) -> dict:
     """
@@ -674,10 +625,6 @@ def lookup_by_tag(tag: str, results_per_page: int = 20) -> dict:
     }
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Lookup by CVSS v2 Metrics Vector
-# ═════════════════════════════════════════════════════════════════════
-
 def lookup_by_cvss_v2_metrics(vector: str, results_per_page: int = 20) -> dict:
     """
     Find CVEs matching a specific CVSS v2 vector string.
@@ -697,10 +644,6 @@ def lookup_by_cvss_v2_metrics(vector: str, results_per_page: int = 20) -> dict:
         "vulnerabilities": [_parse_cve_item(v.get("cve", {})) for v in vulns],
     }
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  Lookup by CVSS v2 Severity
-# ═════════════════════════════════════════════════════════════════════
 
 def lookup_by_cvss_v2_severity(severity: str, results_per_page: int = 20) -> dict:
     """
@@ -725,10 +668,6 @@ def lookup_by_cvss_v2_severity(severity: str, results_per_page: int = 20) -> dic
         "vulnerabilities": [_parse_cve_item(v.get("cve", {})) for v in vulns],
     }
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  Universal Search (auto-detects query type)
-# ═════════════════════════════════════════════════════════════════════
 
 def search_nvd(query: str, query_type: str = "auto", results_per_page: int = 20) -> dict:
     """
@@ -763,10 +702,6 @@ def search_nvd(query: str, query_type: str = "auto", results_per_page: int = 20)
     return {"error": f"Unknown query type: {query_type}"}
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Per-Host CVE Intelligence
-# ═════════════════════════════════════════════════════════════════════
-
 def get_cves_for_host(ip: str) -> list:
     """
     Return all CVEs correlated to a specific host IP.
@@ -782,7 +717,6 @@ def get_cves_for_host(ip: str) -> list:
             continue
         if cve_id in cve_map:
             continue
-        # Try local cache first
         cached = cve_cache.find_one({"cve_id": cve_id})
         if cached:
             cve_map[cve_id] = {
@@ -798,13 +732,11 @@ def get_cves_for_host(ip: str) -> list:
                 "source": t.get("source", ""),
             }
         else:
-            # Fallback: parse directly from cvelistV5 folder
             local = _parse_cvelist_v5(cve_id)
             if local:
                 local["threat_name"] = t.get("name", "")
                 local["source"] = t.get("source", "")
                 cve_map[cve_id] = local
-                # Cache it for next time
                 if check_connection():
                     from datetime import datetime, timezone
                     cve_cache.update_one(

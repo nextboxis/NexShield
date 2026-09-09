@@ -36,7 +36,6 @@ from typing import Any, Dict, List, Optional, Tuple
 
 logger = logging.getLogger("nexshield.rag")
 
-# Try to import scikit-learn for vector indexing; provide fallback if unavailable
 try:
     from sklearn.feature_extraction.text import TfidfVectorizer
     from sklearn.metrics.pairwise import cosine_similarity
@@ -51,15 +50,11 @@ DATA_DIR = ROOT_DIR / "data"
 INDEX_CACHE_PATH = DATA_DIR / "rag_knowledge_index.json"
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Data Structures
-# ═════════════════════════════════════════════════════════════════════
-
 @dataclass
 class KnowledgeDocument:
     """A granular document chunk indexed in the RAG knowledge store."""
     doc_id: str
-    category: str  # "cve", "mitre", "compliance", "hardening", "threat_actor"
+    category: str
     title: str
     content: str
     metadata: Dict[str, Any] = field(default_factory=dict)
@@ -98,12 +93,7 @@ class RetrievalResult:
     matched_terms: List[str] = field(default_factory=list)
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Curated Foundation Cybersecurity Knowledge Base
-# ═════════════════════════════════════════════════════════════════════
-
 FOUNDATION_KNOWLEDGE: List[Dict[str, Any]] = [
-    # ── MITRE ATT&CK: SMB & Lateral Movement ──────────────────────
     {
         "doc_id": "MITRE-T1021.002",
         "category": "mitre",
@@ -149,7 +139,6 @@ FOUNDATION_KNOWLEDGE: List[Dict[str, Any]] = [
             ],
         },
     },
-    # ── MITRE ATT&CK: RDP Exposure & Credential Access ─────────────
     {
         "doc_id": "MITRE-T1021.001",
         "category": "mitre",
@@ -188,7 +177,6 @@ FOUNDATION_KNOWLEDGE: List[Dict[str, Any]] = [
             ],
         },
     },
-    # ── MITRE ATT&CK: SSH Hardening & Brute Force ──────────────────
     {
         "doc_id": "MITRE-T1021.004",
         "category": "mitre",
@@ -233,7 +221,6 @@ FOUNDATION_KNOWLEDGE: List[Dict[str, Any]] = [
             ],
         },
     },
-    # ── MITRE ATT&CK: Telnet Deprecation ───────────────────────────
     {
         "doc_id": "MITRE-T1021.006",
         "category": "mitre",
@@ -274,7 +261,6 @@ FOUNDATION_KNOWLEDGE: List[Dict[str, Any]] = [
             ],
         },
     },
-    # ── MITRE ATT&CK: Web Server Hardening & Cleartext HTTP ─────────
     {
         "doc_id": "MITRE-T1071.001",
         "category": "mitre",
@@ -314,7 +300,6 @@ FOUNDATION_KNOWLEDGE: List[Dict[str, Any]] = [
             ],
         },
     },
-    # ── MITRE ATT&CK: Database Exposure (MySQL, MSSQL, Postgres, Mongo) ──
     {
         "doc_id": "MITRE-T1190-DB",
         "category": "mitre",
@@ -360,7 +345,6 @@ FOUNDATION_KNOWLEDGE: List[Dict[str, Any]] = [
             ],
         },
     },
-    # ── High Profile CVEs: Log4Shell (CVE-2021-44228) ──────────────
     {
         "doc_id": "CVE-2021-44228",
         "category": "cve",
@@ -397,7 +381,6 @@ FOUNDATION_KNOWLEDGE: List[Dict[str, Any]] = [
             ],
         },
     },
-    # ── High Profile CVEs: EternalBlue (CVE-2017-0144) ─────────────
     {
         "doc_id": "CVE-2017-0144",
         "category": "cve",
@@ -434,7 +417,6 @@ FOUNDATION_KNOWLEDGE: List[Dict[str, Any]] = [
             ],
         },
     },
-    # ── Regulatory Compliance: PCI-DSS 4.0 Architecture ───────────
     {
         "doc_id": "COMPLIANCE-PCI-DSS-4.0",
         "category": "compliance",
@@ -463,7 +445,6 @@ FOUNDATION_KNOWLEDGE: List[Dict[str, Any]] = [
             ],
         },
     },
-    # ── Regulatory Compliance: NIST CSF 2.0 ────────────────────────
     {
         "doc_id": "COMPLIANCE-NIST-CSF-2.0",
         "category": "compliance",
@@ -487,7 +468,6 @@ FOUNDATION_KNOWLEDGE: List[Dict[str, Any]] = [
             ],
         },
     },
-    # ── CIS Benchmarks: Linux & Windows Server Hardening ───────────
     {
         "doc_id": "CIS-BENCHMARK-HARDENING",
         "category": "hardening",
@@ -526,10 +506,6 @@ FOUNDATION_KNOWLEDGE: List[Dict[str, Any]] = [
 ]
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  SecurityKnowledgeStore — Ingestion & Semantic Vector Index
-# ═════════════════════════════════════════════════════════════════════
-
 class SecurityKnowledgeStore:
     """
     Manages knowledge documents from multiple security sources:
@@ -547,7 +523,6 @@ class SecurityKnowledgeStore:
         self._is_indexed = False
         self._last_indexed_at: Optional[str] = None
 
-        # Load foundation knowledge immediately
         self._load_foundation_knowledge()
 
     def _load_foundation_knowledge(self):
@@ -566,7 +541,7 @@ class SecurityKnowledgeStore:
     def add_document(self, doc: KnowledgeDocument):
         with self._lock:
             self._docs[doc.doc_id] = doc
-            self._is_indexed = False  # requires re-vectorization
+            self._is_indexed = False
 
     def ingest_cve_files(self, max_cves: int = 500) -> int:
         """
@@ -581,7 +556,6 @@ class SecurityKnowledgeStore:
 
         ingested = 0
         try:
-            # Check recent years backwards (2026, 2025, 2024, 2023, 2022, 2021)
             year_dirs = sorted(
                 [d for d in cves_root.iterdir() if d.is_dir() and d.name.isdigit()],
                 key=lambda p: int(p.name),
@@ -613,7 +587,6 @@ class SecurityKnowledgeStore:
                                     desc_en = d.get("value", desc_en)
                                     break
 
-                            # Affected products
                             affected = cna.get("affected", [])
                             products = [aff.get("product", "") for aff in affected if aff.get("product")]
 
@@ -643,7 +616,6 @@ class SecurityKnowledgeStore:
 
             corpus = []
             for d in doc_list:
-                # Combine title, content, tags, and category into a dense semantic representation
                 tag_str = " ".join(d.tags)
                 text = f"{d.title} {d.content} {tag_str} {d.category}"
                 corpus.append(text)
@@ -686,17 +658,12 @@ class SecurityKnowledgeStore:
             return list(self._docs.values())
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  RAGRetriever — Hybrid Semantic & Taxonomy Search
-# ═════════════════════════════════════════════════════════════════════
-
 class RAGRetriever:
     """
     Retrieves the most relevant knowledge documents given a natural language query
     or a structured threat context (host, port, service, cve).
     """
 
-    # Keyword synonyms for query expansion in cybersecurity
     SYNONYM_MAP = {
         "445": ["smb", "microsoft-ds", "windows", "samba", "eternalblue", "t1021.002"],
         "smb": ["445", "139", "netbios", "lateral_movement", "psexec", "t1021.002"],
@@ -737,7 +704,6 @@ class RAGRetriever:
         if not doc_ids:
             return results
 
-        # 1. Cosine similarity score
         cosine_scores = np.zeros(len(doc_ids))
         if SKLEARN_AVAILABLE and self.store._vectorizer and self.store._doc_matrix is not None:
             try:
@@ -747,7 +713,6 @@ class RAGRetriever:
             except Exception as e:
                 logger.debug(f"Cosine similarity error: {e}")
 
-        # 2. Keyword boost & category filtering
         query_terms = set(re.findall(r"[a-zA-Z0-9_\-]+", expanded_query.lower()))
         lower_query = expanded_query.lower()
         cve_in_query = re.findall(r"cve-\d{4}-\d+", lower_query)
@@ -761,14 +726,11 @@ class RAGRetriever:
             if category_filter and doc.category != category_filter:
                 continue
 
-            # Check matching terms in tags & title
             matched_terms = [t for t in query_terms if t in doc.tags or t in doc.title.lower()]
             keyword_score = min(1.0, len(matched_terms) * 0.25)
 
-            # Combined hybrid score (60% cosine vector + 40% keyword taxonomy boost)
             final_score = float(0.6 * cosine_scores[idx] + 0.4 * keyword_score)
 
-            # Boost exact CVE or Doc ID matches
             if doc.doc_id.lower() in lower_query:
                 final_score = max(final_score, 0.95)
             for cve in cve_in_query:
@@ -801,10 +763,6 @@ class RAGRetriever:
         query = " ".join(parts)
         return self.retrieve(query=query, top_k=top_k)
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  RAGGenerator — Multi-Backend Generative Synthesizer
-# ═════════════════════════════════════════════════════════════════════
 
 class RAGGenerator:
     """
@@ -847,7 +805,6 @@ class RAGGenerator:
                     if doc.remediation.get(k):
                         mitigation_snippets[k].extend(doc.remediation[k])
 
-        # Synthesize technical explanation using deterministic grounding
         name = threat.get("name", "Vulnerability")
         host = threat.get("host", "Target Host")
         port = threat.get("port") or threat.get("port_info", {}).get("port", "N/A")
@@ -885,7 +842,6 @@ class RAGGenerator:
         tasks_or_lines: List[str] = []
         used_citations: set = set()
 
-        # Collect unique ports and services
         for t in host_threats:
             results = self.retriever.retrieve_for_threat(t, top_k=2)
             for r in results:
@@ -895,7 +851,6 @@ class RAGGenerator:
                     tasks_or_lines.extend(doc.remediation[fmt])
 
         if not tasks_or_lines:
-            # Fallback to general firewall and host baseline hardening
             if fmt == "ansible":
                 tasks_or_lines = [
                     f"- name: General Host Hardening for {host}",
@@ -933,7 +888,6 @@ class RAGGenerator:
                 "  become: true",
                 "  tasks:",
             ]
-            # Indent tasks properly
             indented = []
             for line in tasks_or_lines:
                 if line.startswith("- name:"):
@@ -956,7 +910,7 @@ class RAGGenerator:
             ]
             return "\n".join(header + tasks_or_lines)
 
-        else:  # bash
+        else:
             header = [
                 f"#!/usr/bin/env bash",
                 f"# ═════════════════════════════════════════════════════════════════",
@@ -974,7 +928,6 @@ class RAGGenerator:
         Interactive RAG Security Copilot endpoint: Answers natural language questions
         grounded in the local cybersecurity knowledge store and host scan data.
         """
-        # Retrieve context
         results = self.retriever.retrieve(user_query, top_k=4)
 
         citations = []
@@ -991,7 +944,6 @@ class RAGGenerator:
 
         combined_context = "\n\n".join(context_blocks)
 
-        # Check if user asked to use cloud or ollama backend, else fallback to deterministic synthesizer
         llm_answer = None
         if self.backend == "ollama":
             llm_answer = self._call_ollama(user_query, combined_context)
@@ -999,7 +951,6 @@ class RAGGenerator:
             llm_answer = self._call_gemini(user_query, combined_context)
 
         if not llm_answer:
-            # Deterministic, grounded security reasoning
             primary = results[0].document if results else None
             if primary:
                 llm_answer = (
@@ -1068,10 +1019,6 @@ class RAGGenerator:
         return None
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Singleton Module Instance & Auto-Initialization
-# ═════════════════════════════════════════════════════════════════════
-
 knowledge_store = SecurityKnowledgeStore()
 rag_retriever = RAGRetriever(knowledge_store)
 rag_generator = RAGGenerator(rag_retriever)
@@ -1091,5 +1038,4 @@ def initialize_rag_subsystem():
     thread.start()
 
 
-# Kick off background initialization upon import
 initialize_rag_subsystem()

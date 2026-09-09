@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 class TargetValidation(BaseModel):
     """Result schema for scanner target validation."""
     valid: bool
-    type: Optional[str] = None  # 'ipv4', 'ipv6', 'cidr', 'hostname'
+    type: Optional[str] = None
     value: str
     host_count: Optional[int] = None
     is_private: Optional[bool] = None

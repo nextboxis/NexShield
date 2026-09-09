@@ -27,7 +27,6 @@ Run Order:  analyze_scan_results() → compute_risk_scores() → merge_duplicate
 """
 
 import sys
-# Fix Windows console encoding for Unicode output
 try:
     sys.stdout.reconfigure(encoding='utf-8')  # type: ignore
 except Exception:
@@ -41,10 +40,6 @@ from config import threats, network_scans, cve_cache, check_connection  # type: 
 
 logger = logging.getLogger(__name__)
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  Model Registry
-# ═════════════════════════════════════════════════════════════════════
 
 MODELS = {
     "port_risk":     "PortRisk-Engine-v2",
@@ -71,13 +66,7 @@ MODELS = {
 }
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Knowledge Bases
-# ═════════════════════════════════════════════════════════════════════
-
-# ── Ports classified by risk tier ──────────────────────────────────
 SENSITIVE_PORTS = {
-    # port: (threat_name, severity, mitre_technique)
     21:    ("FTP Exposed",             "high",     "T1071.002"),
     22:    ("SSH Exposed",             "medium",   "T1021.004"),
     23:    ("Telnet Exposed",          "critical", "T1021.006"),
@@ -123,7 +112,6 @@ SENSITIVE_PORTS = {
     50000: ("Jenkins Agent Port",     "high",     "T1190"),
 }
 
-# ── Services known to ship with default credentials ────────────────
 DEFAULT_CRED_SERVICES = {
     "mysql":          "root / (empty)",
     "postgresql":     "postgres / postgres",
@@ -152,9 +140,7 @@ DEFAULT_CRED_SERVICES = {
     "weblogic":       "weblogic / welcome1",
 }
 
-# ── Known vulnerable product versions (simplified heuristic) ───────
 KNOWN_VULN_PATTERNS = [
-    # (regex_on_product+version, CVE_ref, severity, description)
     (r"apache\s*httpd?\s*2\.[0-3]\.",                "CVE-2021-41773", "critical", "Apache HTTPD < 2.4 — path traversal risk"),
     (r"openssh\s*[0-7]\.",                            "CVE-2023-38408", "high",     "OpenSSH < 8.0 — agent forwarding vulnerabilities"),
     (r"openssl\s*1\.0\.",                             "CVE-2014-0160",  "critical", "OpenSSL 1.0.x — potential Heartbleed"),
@@ -180,7 +166,6 @@ KNOWN_VULN_PATTERNS = [
     (r"weblogic\s*(10|12\.1)\.",                      "CVE-2020-14882", "critical", "WebLogic — unauthenticated RCE"),
 ]
 
-# ── MITRE ATT&CK Technique descriptions ───────────────────────────
 MITRE_TECHNIQUES = {
     "T1021.001": "Remote Desktop Protocol",
     "T1021.002": "SMB/Windows Admin Shares",
@@ -202,9 +187,7 @@ MITRE_TECHNIQUES = {
     "T1574.002": "DLL Side-Loading",
 }
 
-# ── Suspicious port combination patterns (behavioral analysis) ─────
 SUSPICIOUS_COMBOS = [
-    # (required_ports, threat_name, severity, description)
     (
         {3389, 445},
         "Lateral Movement Risk: RDP + SMB",
@@ -279,7 +262,6 @@ SUSPICIOUS_COMBOS = [
     ),
 ]
 
-# ── Service-to-keyword mapping for CVE cache correlation ───────────
 SERVICE_CVE_KEYWORDS = {
     "ssh": ["openssh", "ssh"],
     "http": ["apache", "httpd", "nginx", "http"],
@@ -295,7 +277,6 @@ SERVICE_CVE_KEYWORDS = {
     "elasticsearch": ["elasticsearch", "elastic"],
 }
 
-# ── Severity weights for composite risk scoring ────────────────────
 SEVERITY_WEIGHTS = {
     "critical": 10,
     "high":     7,
@@ -304,10 +285,6 @@ SEVERITY_WEIGHTS = {
     "info":     0,
 }
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  Engine 17 — APT Threat Actor Attribution
-# ═════════════════════════════════════════════════════════════════════
 
 APT_PROFILES = [
     {
@@ -351,22 +328,18 @@ def _engine_threat_actor(ctx):
     host_services = ctx.get("host_services") or [ctx]
     results = []
 
-    # Compile aggregated text of host services
     host_svc_text = " ".join(
         f"{s.get('service', '')} {s.get('product', '')} {s.get('version', '')}"
         for s in host_services
     ).lower()
 
     for apt in APT_PROFILES:
-        # Multi-port requirement: ALL profile ports must be present on the host
         if not apt["ports"].issubset(host_ports):
             continue
 
-        # Only emit from the primary (lowest numbered) matching port to prevent duplicate alerts
         if port != min(apt["ports"]):
             continue
 
-        # Corroborating service indicators requirement
         indicators = apt.get("indicators", [])
         if indicators and not any(ind in host_svc_text for ind in indicators):
             continue
@@ -382,10 +355,6 @@ def _engine_threat_actor(ctx):
         ))
     return results
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  Engine 18 — ML Exploitability Index Engine
-# ═════════════════════════════════════════════════════════════════════
 
 def _engine_ml_exploitability(ctx):
     """Calculates Unauthenticated RCE Exploitability Index (0-100%)."""
@@ -408,10 +377,6 @@ def _engine_ml_exploitability(ctx):
     return results
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Engine 19 — Engineering Remediation Effort Estimator
-# ═════════════════════════════════════════════════════════════════════
-
 def _engine_remediation_effort(ctx):
     """Estimates required patch deployment engineering time and maintenance window requirements."""
     port = ctx["port"]
@@ -430,10 +395,6 @@ def _engine_remediation_effort(ctx):
     return results
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Engine 21 — RAG Intelligence Engine (In-Between AI Model)
-# ═════════════════════════════════════════════════════════════════════
-
 def _engine_rag_intelligence(ctx):
     """
     RAG-Augmented Threat Intelligence Engine.
@@ -448,11 +409,9 @@ def _engine_rag_intelligence(ctx):
             return results
 
         top_match = retrieval_results[0]
-        # Require higher similarity threshold and semantic relevance to prevent false matches
         if top_match.score >= 0.60:
             doc = top_match.document
             
-            # Verify substantive keyword relevance to the specific service or product
             svc_terms = {str(ctx.get("service", "")).lower(), str(ctx.get("product", "")).lower()}
             svc_terms.discard("")
             doc_text = f"{doc.title} {doc.content}".lower()
@@ -488,10 +447,6 @@ def _engine_rag_intelligence(ctx):
     return results
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  False Positive Reduction & Consolidation Engine
-# ═════════════════════════════════════════════════════════════════════
-
 FP_ALLOWLIST_HOSTS = {"127.0.0.1", "::1", "localhost"}
 
 
@@ -515,22 +470,16 @@ def filter_and_consolidate_threats(threats_list, host_ports_map=None):
         cve_id = str(t.get("cve_id", ""))
         tags = t.get("tags", [])
 
-        # 1. Suppress informational findings from becoming actionable threat items
         if severity == "info":
             continue
 
-        # 2. Allowlist suppression for local/loopback benign test services
         if host in FP_ALLOWLIST_HOSTS:
-            # Allow confirmed CVEs and genuine high/critical vulns, suppress heuristic exposure noise
             if severity in ("low", "medium") and not cve_id.startswith("CVE-"):
                 continue
 
-        # 3. Suppress redundant web protocol MITRE mapping on standard ports 80/443
         if source == MODELS.get("mitre_map") and ("T1071.001" in tags or "T1071" in tags):
             continue
 
-        # 4. Dedup overlapping findings for identical host + issue
-        # e.g. PortRisk "HTTP Unencrypted" and Encryption "Unencrypted: HTTP without TLS"
         if "unencrypted" in name.lower() and ("80" in cve_id or "http" in name.lower()):
             dedup_key = f"{host}|port80_unencrypted"
         elif cve_id.startswith("CVE-"):
@@ -551,10 +500,6 @@ def filter_and_consolidate_threats(threats_list, host_ports_map=None):
     return filtered
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Core Pipeline — analyze_scan_results()
-# ═════════════════════════════════════════════════════════════════════
-
 def analyze_scan_results():
     """
     Multi-model analysis pipeline. Runs all engines against the latest
@@ -571,9 +516,8 @@ def analyze_scan_results():
     scan_id = latest["scan_id"]
     scans = list(network_scans.find({"scan_id": scan_id}))
     new_threats = []
-    seen_hashes = set()  # Deduplicate within the same analysis run
+    seen_hashes = set()
 
-    # Pre-aggregate host open ports and services for host-level context & correlation
     host_ports = {}
     host_services = {}
     for scan in scans:
@@ -610,7 +554,6 @@ def analyze_scan_results():
                     "host_services": host_services.get(host, []),
                 }
 
-                # Run each engine and collect threats
                 for engine_fn in [
                     _engine_port_risk,
                     _engine_version_vuln,
@@ -634,7 +577,6 @@ def analyze_scan_results():
                         h = _threat_hash(t)
                         if h not in seen_hashes:
                             seen_hashes.add(h)
-                            # Calculate AI Confidence Score (0.0 - 1.0)
                             c_score = 0.70
                             if t.get("source") in (MODELS["port_risk"], MODELS["cve_corr"], MODELS.get("rag_intelligence")):
                                 c_score += 0.20
@@ -646,7 +588,6 @@ def analyze_scan_results():
                             t["engine_consensus_count"] = 2 if c_score >= 0.85 else 1
                             new_threats.append(t)
 
-    # ── Engine 8: Behavioral Anomaly Detection (host-level) ─────
     for host in host_ports:
         ports = host_ports[host]
         for req_ports, name, severity, desc in SUSPICIOUS_COMBOS:
@@ -664,7 +605,6 @@ def analyze_scan_results():
                     seen_hashes.add(h)
                     new_threats.append(t)
 
-    # ── Engine 11: Lateral Movement Graph Analysis (host-level) ──
     LATERAL_MOVE_INDICATORS = {
         "remote_access": {22, 23, 3389, 5900, 5985},
         "file_share":    {21, 445, 139, 2049},
@@ -679,7 +619,6 @@ def analyze_scan_results():
             if ports & cat_ports:
                 categories_hit.append(cat)
 
-        # Flag hosts with 3+ lateral movement categories
         if len(categories_hit) >= 3:
             cat_str = " + ".join(c.replace("_", " ").title() for c in categories_hit)
             t = _make_threat(
@@ -700,10 +639,8 @@ def analyze_scan_results():
                 seen_hashes.add(h)
                 new_threats.append(t)
 
-    # ── False Positive Reduction & Consolidation Filter ────────
     new_threats = filter_and_consolidate_threats(new_threats, host_ports)
 
-    # Batch insert
     if new_threats:
         threats.insert_many(new_threats)
         try:
@@ -717,10 +654,6 @@ def analyze_scan_results():
     return len(new_threats)
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Engine 1 — Port Risk Analysis
-# ═════════════════════════════════════════════════════════════════════
-
 def _engine_port_risk(ctx):
     """Flag open ports that are in the sensitive ports database."""
     port = ctx["port"]
@@ -729,7 +662,7 @@ def _engine_port_risk(ctx):
 
     name, severity, _ = SENSITIVE_PORTS[port]
     if severity == "info":
-        return []  # Filter out informational / expected ports like 443 HTTPS
+        return []
 
     detail = (
         f"Port {port}/{ctx['protocol']} open — "
@@ -743,10 +676,6 @@ def _engine_port_risk(ctx):
     )]
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Engine 2 — Version Vulnerability Detection
-# ═════════════════════════════════════════════════════════════════════
-
 def _engine_version_vuln(ctx):
     """Check for known vulnerable product+version combinations."""
     results = []
@@ -754,12 +683,9 @@ def _engine_version_vuln(ctx):
     version = ctx["version"]
     full_str = f"{product} {version}".strip().lower()
 
-    # Flag missing version info responsibly:
-    # Exclude common CDNs, web proxies, and security banner-hiding implementations
     suppress_unknown_version = {"cloudflare", "gws", "akamai", "envoy", "fastly", "frontdoor", "cdn"}
     product_lower = product.lower().strip()
     if product and not version and not any(p in product_lower for p in suppress_unknown_version):
-        # Banner suppression is CIS-recommended hardening; classify as low audit note, not medium vulnerability
         results.append(_make_threat(
             name=f"Undisclosed Version: {product}",
             severity="low", host=ctx["host"],
@@ -769,7 +695,6 @@ def _engine_version_vuln(ctx):
             tags=["version", "audit", "hardening"],
         ))
 
-    # Match against known vulnerable patterns
     for pattern, cve, sev, desc in KNOWN_VULN_PATTERNS:
         if re.search(pattern, full_str, re.IGNORECASE):
             results.append(_make_threat(
@@ -780,16 +705,11 @@ def _engine_version_vuln(ctx):
                 detail=desc,
                 tags=["cve", "version", "vulnerability"],
             ))
-            break  # One CVE match per port is enough
+            break
 
     return results
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Engine 3 — Service Fingerprint Anomaly Detection
-# ═════════════════════════════════════════════════════════════════════
-
-# Expected services for common ports (anomaly = unexpected service)
 EXPECTED_SERVICES = {
     22:   ["ssh"],
     80:   ["http", "www", "httpd"],
@@ -813,7 +733,6 @@ def _engine_service_fp(ctx):
     if any(e in service for e in expected):
         return []
 
-    # Anomaly: unexpected service on a well-known port
     return [_make_threat(
         name=f"Anomalous Service on Port {port}",
         severity="high", host=ctx["host"],
@@ -827,10 +746,6 @@ def _engine_service_fp(ctx):
         tags=["anomaly", "fingerprint", "masquerade"],
     )]
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  Engine 4 — Default Credentials Risk Assessment
-# ═════════════════════════════════════════════════════════════════════
 
 def _engine_default_creds(ctx):
     """Flag services known to ship with weak/default credentials."""
@@ -855,10 +770,6 @@ def _engine_default_creds(ctx):
     return []
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Engine 5 — MITRE ATT&CK Technique Mapping
-# ═════════════════════════════════════════════════════════════════════
-
 def _engine_mitre_map(ctx):
     """Map open ports to MITRE ATT&CK techniques."""
     port = ctx["port"]
@@ -867,7 +778,7 @@ def _engine_mitre_map(ctx):
 
     _, severity, technique = SENSITIVE_PORTS[port]
     if severity == "info" or (port in (80, 443) and technique.startswith("T1071")):
-        return []  # Skip informational items and redundant standard web traffic
+        return []
 
     technique_name = MITRE_TECHNIQUES.get(technique, "Unknown Technique")
 
@@ -884,10 +795,6 @@ def _engine_mitre_map(ctx):
         tags=["mitre", "attack", technique],
     )]
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  Engine 6 — Machine Learning Prediction & Training
-# ═════════════════════════════════════════════════════════════════════
 
 MODEL_PATH = "threat_ml_model.pkl"
 VECTORIZER_PATH = "threat_ml_vect.pkl"
@@ -927,11 +834,12 @@ def train_ml_model():
     print("[*] Fetching historical threat data for ML training...")
     past_threats = list(threats.find({"source": {"$ne": MODELS["ml_predict"]}}))
 
-    # Load real CVE data patterns from local cvelistV5 directory for training
     import json
-    from cve_lookup import CVELIST_DIR  # type: ignore
-
-    cves_dir = CVELIST_DIR
+    from cve_lookup import CVELIST_DIR  # type: ignore
+
+
+    cves_dir = CVELIST_DIR
+
     local_cve_threats = []
     if cves_dir.exists():
         print(f"[*] Extracting real CVE pattern data from {cves_dir}...")
@@ -1005,7 +913,6 @@ def train_ml_model():
         print(f"[+] Loaded {len(local_cve_threats)} real CVE threat patterns for training.")
         past_threats.extend(local_cve_threats)
 
-    # --- Expanded Synthetic training data ---
     synthetic_threats = [
         {"name": "MS08-067 (NetAPI) Exploitation", "detail": "vulnerability reference", "severity": "critical", "port": 445, "protocol": "tcp", "service": "smb"},
         {"name": "vsftpd 2.3.4 Backdoor", "detail": "backdoor reference", "severity": "critical", "port": 21, "protocol": "tcp", "service": "ftp"},
@@ -1029,7 +936,6 @@ def train_ml_model():
         {"name": "SMB EternalBlue", "detail": "smbv1 eternalblue ms17-010 worm", "severity": "critical", "port": 445, "protocol": "tcp", "service": "smb"},
         {"name": "FTP Bounce Attack", "detail": "ftp bounce attack port scanning proxy", "severity": "high", "port": 21, "protocol": "tcp", "service": "ftp"},
         {"name": "NFS World Readable", "detail": "nfs world readable export no_root_squash", "severity": "high", "port": 2049, "protocol": "tcp", "service": "nfs"},
-        # New synthetics
         {"name": "WebLogic Unauth RCE", "detail": "oracle weblogic server remote code execution CVE-2020-14882", "severity": "critical", "port": 7001, "protocol": "tcp", "service": "http"},
         {"name": "Confluence OGNL Injection", "detail": "atlassian confluence ognl injection rce CVE-2022-26134", "severity": "critical", "port": 8090, "protocol": "tcp", "service": "http"},
         {"name": "SSH Brute Force", "detail": "frequent failed ssh login attempts detected", "severity": "medium", "port": 22, "protocol": "tcp", "service": "ssh"},
@@ -1042,7 +948,6 @@ def train_ml_model():
     ]
     past_threats.extend(synthetic_threats * 8)
 
-    # Filter to keep only standard severities and ensure each class has at least 2 examples
     valid_severities = {"critical", "high", "medium", "low", "info"}
     past_threats = [t for t in past_threats if (t.get("severity") or "").lower() in valid_severities]
     
@@ -1057,13 +962,11 @@ def train_ml_model():
         print(f"[!] Need at least 20 historical threats to train. Only have {len(past_threats)}.")
         return False
 
-    # Extract structured features
     data = []
     for t in past_threats:
         text_parts = [t.get("name", ""), t.get("detail", ""), " ".join(t.get("tags", [])), t.get("source", "")]
         text_feature = " ".join(text_parts)
         
-        # Try to infer port if not explicitly set but present in string
         port_num = t.get("port", 0)
         if not port_num:
             port_match = re.search(r'Port (\d+)', text_feature, re.IGNORECASE)
@@ -1081,7 +984,6 @@ def train_ml_model():
 
     sensitive_port_transformer = FunctionTransformer(extract_is_sensitive_port, validate=False)
 
-    # Pipeline: ColumnTransformer for multi-modal features
     preprocessor = ColumnTransformer(
         transformers=[
             ('text', TfidfVectorizer(max_features=2500, ngram_range=(1, 3), sublinear_tf=True), 'text'),
@@ -1090,7 +992,6 @@ def train_ml_model():
             ('sensitive', sensitive_port_transformer, ['port'])
         ])
 
-    # Ensemble Base Models
     rf = RandomForestClassifier(random_state=42, class_weight="balanced")
     gbt = GradientBoostingClassifier(random_state=42)
     mlp = MLPClassifier(hidden_layer_sizes=(64,), max_iter=300, random_state=42, early_stopping=True)
@@ -1122,12 +1023,10 @@ def train_ml_model():
         print(f"[!] Hyperparameter tuning failed: {e}. Using defaults.")
         best_params = {}
 
-    # Apply best params to the ensemble elements
     if best_params:
         rf.set_params(n_estimators=best_params.get('classifier__rf__n_estimators', 100))
         gbt.set_params(learning_rate=best_params.get('classifier__gbt__learning_rate', 0.1))
 
-    # Final Pipeline with CalibratedClassifierCV
     final_pipeline = Pipeline([
         ('preprocessor', preprocessor),
         ('classifier', CalibratedClassifierCV(estimator=ensemble, cv=cv_folds))
@@ -1138,7 +1037,6 @@ def train_ml_model():
     joblib.dump(final_pipeline, MODEL_PATH)
     print(f"[+] AI pipeline (Ensemble+Tuning+Calibration) trained and saved to {MODEL_PATH}!")
     
-    # Save the TF-IDF Vectorizer separately
     try:
         vectorizer = final_pipeline.named_steps['preprocessor'].named_transformers_['text']
         joblib.dump(vectorizer, VECTORIZER_PATH)
@@ -1170,7 +1068,6 @@ def _engine_ml_predict(ctx):
         probs = pipeline.predict_proba(df_pred)[0]
         max_prob = max(probs)
 
-        # High/critical risk with > 60% calibrated confidence
         if pred in ["high", "critical"] and max_prob > 0.60:
             confidence_label = "Very High" if max_prob > 0.90 else "High" if max_prob > 0.80 else "Moderate"
             return [_make_threat(
@@ -1190,10 +1087,6 @@ def _engine_ml_predict(ctx):
     return []
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Engine 9 — CVE Correlation Engine
-# ═════════════════════════════════════════════════════════════════════
-
 def _engine_cve_correlation(ctx):
     """Cross-reference discovered services with cached CVE data from NVD using CPE and version matching."""
     if not check_connection():
@@ -1209,25 +1102,20 @@ def _engine_cve_correlation(ctx):
     service = ctx.get("service", "")
     explicit_cves = ctx.get("cves", [])
 
-    # Without an installed version or explicit vulnerability script findings,
-    # attributing specific CVEs results in high false-positive rates.
     if not version and not explicit_cves:
         return []
 
     matched_cves = []
     seen_ids = set()
 
-    # 0. Explicit CVE matching (from Nmap script output)
     if explicit_cves:
         for cve_id in explicit_cves:
-            # First check cve_cache
             cached = cve_cache.find_one({"cve_id": cve_id})
             if cached:
                 if cve_id not in seen_ids:
                     matched_cves.append(cached)
                     seen_ids.add(cve_id)
             else:
-                # Fallback: parse directly from the local folder
                 local_data = _parse_cvelist_v5(cve_id)
                 if local_data:
                     cve_cache.update_one(
@@ -1239,11 +1127,9 @@ def _engine_cve_correlation(ctx):
                         matched_cves.append(local_data)
                         seen_ids.add(cve_id)
 
-    # 1. CPE-Based Matching (requires installed version)
     if cpe and version:
         cpe_23 = normalize_cpe(cpe)
         
-        # 1a. Search local cache first
         cpe_parts = cpe_23.split(":")
         product_name = cpe_parts[4] if len(cpe_parts) > 4 else ""
         
@@ -1256,7 +1142,6 @@ def _engine_cve_correlation(ctx):
             except Exception as e:
                 logger.debug("Failed querying cve_cache by product '%s': %s", product_name, e)
             
-            # Fetch directly from local cvelistV5 directory using index
             try:
                 local_cves = get_local_cves_by_product(product_name)
                 existing_ids = {doc.get("cve_id") for doc in local_candidates if doc.get("cve_id")}
@@ -1288,7 +1173,6 @@ def _engine_cve_correlation(ctx):
             if len(matched_cves) >= 3:
                 break
 
-        # 1b. If no local match, query NVD API (if version is not wildcard '*')
         if not matched_cves and len(cpe_parts) > 5 and cpe_parts[5] != "*":
             try:
                 api_res = lookup_by_cpe(cpe_23, results_per_page=5)
@@ -1297,16 +1181,13 @@ def _engine_cve_correlation(ctx):
             except Exception as e:
                 logger.debug("Failed querying NVD API by CPE '%s': %s", cpe_23, e)
 
-    # 2. Product + Version Keyword Search (fallback if CPE matching yielded nothing)
     if not matched_cves and product and version:
-        # 2a. Search local cache first
         syn_cpe = f"cpe:2.3:a:*:{product.replace(' ', '_').lower()}:{version}:*:*:*:*:*:*:*"
         try:
             local_candidates = list(cve_cache.find({
                 "cpes": {"$regex": f":{product.replace(' ', '_').lower()}:", "$options": "i"}
             }))
             
-            # Fetch directly from local cvelistV5 directory using index
             try:
                 local_cves = get_local_cves_by_product(product)
                 existing_ids = {doc.get("cve_id") for doc in local_candidates if doc.get("cve_id")}
@@ -1340,7 +1221,6 @@ def _engine_cve_correlation(ctx):
         except Exception as e:
             logger.debug("Failed searching local candidates for fallback '%s': %s", product, e)
 
-        # 2b. If no local match, query NVD API using keywordSearch
         if not matched_cves:
             try:
                 query_res = _query_nvd({"keywordSearch": f"{product} {version}", "resultsPerPage": 3})
@@ -1349,7 +1229,6 @@ def _engine_cve_correlation(ctx):
                     for v in vulns:
                         parsed = _parse_cve_item(v.get("cve", {}))
                         matched_cves.append(parsed)
-                        # Save to cache
                         cve_cache.update_one(
                             {"cve_id": parsed["cve_id"]},
                             {"$set": {**parsed, "fetched_at": datetime.now(timezone.utc)}},
@@ -1358,7 +1237,6 @@ def _engine_cve_correlation(ctx):
             except Exception as e:
                 logger.debug("Failed NVD keyword search for '%s %s': %s", product, version, e)
 
-    # Build threats from matched CVEs
     results = []
     seen_ids = set()
     for cve_doc in matched_cves:
@@ -1373,11 +1251,9 @@ def _engine_cve_correlation(ctx):
         epss_score = float(cve_doc.get("epss_score", 0.0))
         epss_pct = float(cve_doc.get("epss_percentile", 0.0))
 
-        # Only flag medium+ severity CVEs unless high EPSS probability
         if cve_sev in ["low", "info", "unknown"] and epss_score < 0.10:
             continue
 
-        # Elevate severity if high EPSS probability (> 10% active exploitation likelihood)
         if epss_score >= 0.10 and cve_sev in ["medium", "low"]:
             cve_sev = "high"
 
@@ -1396,14 +1272,9 @@ def _engine_cve_correlation(ctx):
             tags=["cve_correlation", "nvd", "epss", "automated"],
         ))
         
-    return results[:2]  # Limit to 2 threats per port
+    return results[:2]
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Engine 10 — Encryption Weakness Detection
-# ═════════════════════════════════════════════════════════════════════
-
-# Ports expected to use encryption
 ENCRYPTION_EXPECTED = {
     80:   {"should_be": 443,  "issue": "HTTP without TLS"},
     21:   {"should_be": 990,  "issue": "FTP without FTPS"},
@@ -1422,11 +1293,9 @@ def _engine_encryption(ctx):
     product = ctx["product"].lower()
     results = []
 
-    # Check for unencrypted protocols
     if port in ENCRYPTION_EXPECTED:
         info = ENCRYPTION_EXPECTED[port]
         host_ports = ctx.get("host_ports") or set()
-        # Port 80 accompanied by 443 indicates standard HTTP->HTTPS redirect
         sev = "low" if (port == 80 and 443 in host_ports) else "medium" if port == 80 else "high"
         results.append(_make_threat(
             name=f"Unencrypted: {info['issue']}",
@@ -1442,7 +1311,6 @@ def _engine_encryption(ctx):
             tags=["encryption", "hardening", "cleartext"],
         ))
 
-    # Detect weak SSL/TLS versions
     version_str = f"{product} {ctx['version']}".lower()
     if any(weak in version_str for weak in ["sslv2", "sslv3", "tls 1.0", "tlsv1.0", "tls1.0"]):
         results.append(_make_threat(
@@ -1461,11 +1329,6 @@ def _engine_encryption(ctx):
     return results
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Engine 12 — Attack Surface Exposure Scoring
-# ═════════════════════════════════════════════════════════════════════
-
-# Ports that significantly increase attack surface
 HIGH_EXPOSURE_PORTS = {
     21, 22, 23, 25, 53, 110, 111, 135, 139, 143, 445, 1433, 1521,
     2049, 3306, 3389, 4444, 5432, 5900, 5985, 6379, 6443, 8080,
@@ -1482,7 +1345,6 @@ def _engine_exposure_score(ctx):
     if port not in HIGH_EXPOSURE_PORTS:
         return []
 
-    # Exposure factors
     is_database = any(db in service or db in product for db in ["mysql", "postgres", "mongo", "redis", "elastic", "memcache"])
     is_admin = any(adm in service or adm in product for adm in ["admin", "management", "console", "webmin", "jenkins"])
     is_remote_access = port in {22, 23, 3389, 5900, 5985}
@@ -1504,14 +1366,11 @@ def _engine_exposure_score(ctx):
     if not score_factors:
         return []
 
-    # Calibrate exposure severity responsibly:
-    # Critical reserved for unauthenticated DBs, unencrypted remote access (Telnet), or high-risk combos
     if (is_database and port in (6379, 11211, 27017, 9200)) or is_unencrypted_remote or (is_database and is_admin):
         severity = "critical"
     elif is_database or (is_remote_access and port != 22) or is_admin:
         severity = "high"
     else:
-        # Standard SSH (22), standard web dev ports (8080/8443)
         severity = "medium"
 
     factor_str = ", ".join(score_factors)
@@ -1531,11 +1390,6 @@ def _engine_exposure_score(ctx):
     )]
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Engine 13 — Credential Dump Risk Detection (T1003)
-# ═════════════════════════════════════════════════════════════════════
-
-# Ports commonly targeted for credential harvesting attacks
 CRED_DUMP_PORTS = {
     88:   {"technique": "T1003.006", "name": "Kerberos", "risk": "DCSync / Kerberoasting via Kerberos TGS"},
     389:  {"technique": "T1003.003", "name": "LDAP",     "risk": "NTDS.dit extraction via LDAP queries"},
@@ -1574,11 +1428,6 @@ def _engine_credential_dump(ctx):
     )]
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Engine 14 — Persistence Mechanism Detection (T1053/T1505)
-# ═════════════════════════════════════════════════════════════════════
-
-# Service combinations that enable persistence mechanisms
 PERSISTENCE_INDICATORS = {
     22:   {"technique": "T1053.005", "vector": "SSH authorized_keys injection for persistent access"},
     5985: {"technique": "T1053.005", "vector": "WinRM enables remote scheduled task creation via PowerShell"},
@@ -1604,8 +1453,6 @@ def _engine_persistence_audit(ctx):
     technique = info["technique"]
     technique_name = MITRE_TECHNIQUES.get(technique, "Persistence")
 
-    # Only flag if the service looks like it could actually enable persistence
-    # (avoids false positives on repurposed ports)
     expected_services = {
         22: ["ssh"], 5985: ["wsman", "winrm", "http"], 5986: ["wsman", "winrm", "https"],
         4848: ["glassfish", "http"], 7001: ["weblogic", "http"], 8080: ["http", "tomcat", "jenkins"],
@@ -1614,7 +1461,7 @@ def _engine_persistence_audit(ctx):
 
     port_expected = expected_services.get(port, [])
     if port_expected and not any(e in service or e in product for e in port_expected):
-        return []  # Service doesn't match expected — skip to avoid noise
+        return []
 
     sev = "medium" if port in (22, 8080) else "high"
     return [_make_threat(
@@ -1634,11 +1481,6 @@ def _engine_persistence_audit(ctx):
     )]
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Engine 15 — DLL Side-Loading Risk Detection (T1574.002)
-# ═════════════════════════════════════════════════════════════════════
-
-# Windows services susceptible to DLL hijacking / side-loading
 DLL_HIJACK_PORTS = {
     445:  {"service": "SMB",   "risk": "SMB service DLLs can be hijacked for privilege escalation"},
     3389: {"service": "RDP",   "risk": "RDP service DLLs (mstscax.dll) targeted for side-loading"},
@@ -1647,7 +1489,6 @@ DLL_HIJACK_PORTS = {
     5985: {"service": "WinRM", "risk": "WinRM plugin DLLs can be replaced for backdoor access"},
 }
 
-# Windows OS indicators from service banners
 WINDOWS_INDICATORS = ["windows", "microsoft", "iis", "mssql", "ms-wbt", "msrpc", "netbios"]
 
 
@@ -1660,7 +1501,6 @@ def _engine_dll_hijack(ctx):
     service = ctx["service"].lower()
     product = ctx["product"].lower()
 
-    # Only flag if there's evidence this is a Windows host
     is_windows = any(
         indicator in service or indicator in product
         for indicator in WINDOWS_INDICATORS
@@ -1687,10 +1527,6 @@ def _engine_dll_hijack(ctx):
     )]
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Engine 16 — Zero-Day Heuristics (Entropy & Anomaly Detection)
-# ═════════════════════════════════════════════════════════════════════
-
 def _calculate_entropy(text):
     """Calculates Shannon entropy for a given string."""
     import math
@@ -1714,12 +1550,10 @@ def _engine_zero_day_heuristics(ctx):
     
     findings = []
     
-    # 1. High Entropy Banner (Indicator of encrypted C2 or obfuscated backdoor)
-    # Exclude common noisy strings or base64 SSH keys
     combined_banner = f"{product} {version}".strip()
     if combined_banner and not any(k in combined_banner for k in ["ssh", "ssl", "tls", "rsa", "openssh", "nginx", "apache"]):
         entropy = _calculate_entropy(combined_banner)
-        if entropy > 4.5 and len(combined_banner) > 15:  # High randomness threshold
+        if entropy > 4.5 and len(combined_banner) > 15:
             findings.append(_make_threat(
                 name="Heuristics: High-Entropy Banner (Possible C2/Backdoor)",
                 severity="critical",
@@ -1734,7 +1568,6 @@ def _engine_zero_day_heuristics(ctx):
                 tags=["heuristics", "entropy", "zero_day", "c2_beacon", "backdoor"]
             ))
 
-    # 2. Port/Service Anomaly Mismatch (e.g., SSH running on port 80 or 443)
     standard_mapping = {
         80: ["http", "tcpwrapped"], 443: ["https", "http", "ssl", "tcpwrapped"], 
         22: ["ssh", "tcpwrapped"], 21: ["ftp", "tcpwrapped"], 
@@ -1759,7 +1592,6 @@ def _engine_zero_day_heuristics(ctx):
                 tags=["heuristics", "anomaly", "evasion", "zero_day"]
             ))
 
-    # 3. Hidden Services or Suspicious Naming
     if service.startswith(".") or "backdoor" in service or "trojan" in service or "rootkit" in service:
         findings.append(_make_threat(
             name="Heuristics: Suspicious Service Name",
@@ -1776,10 +1608,6 @@ def _engine_zero_day_heuristics(ctx):
 
     return findings
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  Risk Scoring Engine (Enhanced v3 — Recency + Critical Multiplier)
-# ═════════════════════════════════════════════════════════════════════
 
 def compute_risk_scores(persist=True):
     """
@@ -1819,21 +1647,16 @@ def compute_risk_scores(persist=True):
 
         severities = group["severities"]
 
-        # 1. Weighted severity sum (Core Risk)
         sev_score = sum(SEVERITY_WEIGHTS.get(str(s).lower(), 0) for s in severities)
 
-        # 2. Diversity bonus — more engines = higher systemic confidence
         engine_count = len(group["engines"])
         engine_bonus = engine_count * 2.5
 
-        # 3. Volume factor (capped)
         volume_factor = min(group["threat_count"] * 0.5, 20)
 
-        # 4. Critical multiplier — hosts with critical threats get boosted
         critical_count = severities.count("critical")
-        critical_multiplier = 1.0 + (min(critical_count, 5) * 0.1)  # Up to 1.5x
+        critical_multiplier = 1.0 + (min(critical_count, 5) * 0.1)
 
-        # 5. Recency boost — threats detected recently score higher
         recency_boost = 0
         latest = group.get("latest")
         if latest:
@@ -1851,18 +1674,17 @@ def compute_risk_scores(persist=True):
                     now = datetime.now(timezone.utc)
                     age_hours = (now - dt_latest).total_seconds() / 3600
                     if age_hours < 1:
-                        recency_boost = 8   # Last hour
+                        recency_boost = 8
                     elif age_hours < 24:
-                        recency_boost = 5   # Last day
+                        recency_boost = 5
                     elif age_hours < 168:
-                        recency_boost = 2   # Last week
+                        recency_boost = 2
             except Exception as e:
                 logger.debug("Failed calculating recency boost for host %s: %s", host, e)
 
         raw_total = sev_score + engine_bonus + volume_factor + recency_boost
         total = round(raw_total * critical_multiplier, 1)
 
-        # Determine Qualitative Risk Level (5 tiers)
         risk_level = (
             "critical" if total >= 50 else
             "high" if total >= 30 else
@@ -1880,7 +1702,6 @@ def compute_risk_scores(persist=True):
             "recency_boost": recency_boost,
         }
 
-        # Tag the threats in the DB for faceted search/filtering
         if persist:
             threats.update_many(
                 {"host": host},
@@ -1892,10 +1713,6 @@ def compute_risk_scores(persist=True):
 
     return scores
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  Deduplication Engine
-# ═════════════════════════════════════════════════════════════════════
 
 def identify_duplicates():
     """Find threats sharing the same CVE ID + host (count > 1)."""
@@ -1929,7 +1746,6 @@ def merge_duplicates():
 
     removed = 0
     try:
-        # Purge any informational items that slipped in
         info_res = threats.delete_many({"severity": "info"})
         if hasattr(info_res, "deleted_count"):
             removed += info_res.deleted_count
@@ -1966,7 +1782,6 @@ def merge_duplicates():
         threats.delete_many({"_id": {"$in": discard_ids}})
         removed += len(discard_ids)
 
-    # Secondary dedup pass: group by identical name + host for heuristic findings
     try:
         name_pipeline = [
             {"$group": {
@@ -1990,10 +1805,6 @@ def merge_duplicates():
     return removed
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Helpers
-# ═════════════════════════════════════════════════════════════════════
-
 def _make_threat(name, severity, host, cve_id, source, detail, tags=None):
     """Create a standardized threat document validated against schemas.ThreatItem."""
     sev = (severity or 'info').lower().strip()
@@ -2014,7 +1825,6 @@ def _make_threat(name, severity, host, cve_id, source, detail, tags=None):
         return doc
     except Exception as e:
         logger.debug("ThreatItem validation fallback triggered for %s: %s", name, e)
-        # Fallback if validation fails
         return {
             "name": name,
             "severity": sev if sev in {"info", "low", "medium", "high", "critical"} else "info",
@@ -2027,7 +1837,6 @@ def _make_threat(name, severity, host, cve_id, source, detail, tags=None):
         }
 
 
-
 def _threat_hash(threat):
     """Generate a unique hash for dedup within a single run. Normalizes fields."""
     cve = str(threat.get('cve_id') or '').lower()
@@ -2036,10 +1845,6 @@ def _threat_hash(threat):
     key = f"{cve}|{host}|{src}"
     return hashlib.sha256(key.encode('utf-8')).hexdigest()
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  Standalone execution
-# ═════════════════════════════════════════════════════════════════════
 
 if __name__ == "__main__":
     print("=" * 58)

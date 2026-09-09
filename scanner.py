@@ -16,14 +16,10 @@ from config import network_scans, check_connection  # type: ignore
 
 logger = logging.getLogger(__name__)
 
-# ═════════════════════════════════════════════════════════════════════
-#  Constants & Defaults
-# ═════════════════════════════════════════════════════════════════════
 
 DEFAULT_PORTS = "22,80,443,8080,8443,3306,5432,6379,27017,21,25,53,110,143"
 DEFAULT_TARGET = "192.168.1.0/24"
 
-# Scan type presets — nmap argument strings
 SCAN_TYPES = {
     "quick":   {"args": "-sT -T4 --top-ports 100",           "label": "Quick TCP Connect (Top 100)"},
     "default": {"args": "-sV -T4",                            "label": "Service Version Detection"},
@@ -36,9 +32,6 @@ SCAN_TYPES = {
     "full":    {"args": "-sV -sC -O -A -T3 --version-intensity 7 -p-", "label": "Full Comprehensive (All Ports + Scripts + OS)"},
 }
 
-# ═════════════════════════════════════════════════════════════════════
-#  Scan Lock — prevents concurrent scans
-# ═════════════════════════════════════════════════════════════════════
 
 _scan_lock = threading.Lock()
 _status_lock = threading.Lock()
@@ -57,10 +50,6 @@ def get_scan_status():
         return dict(_active_scan)
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Nmap Dependency Check
-# ═════════════════════════════════════════════════════════════════════
-
 def check_nmap_installed():
     """
     Deep dependency check for nmap binary.
@@ -68,7 +57,6 @@ def check_nmap_installed():
     """
     info = {"installed": False, "path": None, "version": None, "error": None}
 
-    # 1. Check if nmap binary exists on PATH
     nmap_path = shutil.which("nmap")
     if not nmap_path:
         info["error"] = (
@@ -80,7 +68,6 @@ def check_nmap_installed():
 
     info["path"] = nmap_path
 
-    # 2. Try to instantiate python-nmap and get version
     try:
         scanner = nmap.PortScanner()  # type: ignore
         version = scanner.nmap_version()  # type: ignore
@@ -96,10 +83,6 @@ def check_nmap_installed():
     return True, info
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  IP / Target Validation
-# ═════════════════════════════════════════════════════════════════════
-
 def validate_target(target: str) -> dict:
     """
     Validate and classify a scan target.
@@ -110,7 +93,6 @@ def validate_target(target: str) -> dict:
     if not target:
         return {"valid": False, "type": None, "value": target, "error": "Target is empty."}
 
-    # Try as IP address
     try:
         addr = ipaddress.ip_address(target)
         return {
@@ -124,7 +106,6 @@ def validate_target(target: str) -> dict:
     except ValueError:
         pass
 
-    # Try as CIDR network
     try:
         net = ipaddress.ip_network(target, strict=False)
         host_count = net.num_addresses
@@ -142,17 +123,13 @@ def validate_target(target: str) -> dict:
     except ValueError:
         pass
 
-    # Reject invalid 4-octet IPs before falling back to hostname check
     if re.match(r"^\d{1,3}(\.\d{1,3}){3}$", target):
         return {"valid": False, "type": None, "value": target, "error": "Invalid IP address format."}
 
-    # Treat as hostname (basic validation)
-    # Allows valid FQDNs and single-label hosts like 'localhost'
     hostname_re = re.compile(r"^[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$")
     if hostname_re.match(target):
         return {"valid": True, "type": "hostname", "value": target, "error": None}
 
-    # Nmap-style target (e.g. "192.168.1.1-50")
     range_re = re.compile(r"^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}-\d{1,3}$")
     if range_re.match(target):
         return {"valid": True, "type": "range", "value": target, "error": None}
@@ -160,10 +137,6 @@ def validate_target(target: str) -> dict:
     return {"valid": False, "type": None, "value": target,
             "error": "Invalid target. Use an IP, CIDR (e.g. 192.168.1.0/24), hostname, or range."}
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  Core Scan Engine
-# ═════════════════════════════════════════════════════════════════════
 
 def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
              progress_callback=None):
@@ -183,17 +156,14 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
         RuntimeError: If nmap not installed or scan already running.
         ValueError: If target is invalid.
     """
-    # ── Dependency lock check ────────────────────────────────────
     ok, nmap_info = check_nmap_installed()
     if not ok:
         raise RuntimeError(f"NMAP_DEPENDENCY_FAILED: {nmap_info['error']}")
 
-    # ── Validate target ──────────────────────────────────────────
     validation = validate_target(target)
     if not validation["valid"]:
         raise ValueError(f"INVALID_TARGET: {validation['error']}")
 
-    # ── Concurrency lock ─────────────────────────────────────────
     if not _scan_lock.acquire(blocking=False):
         raise RuntimeError("SCAN_LOCKED: Another scan is already running. Wait for it to finish.")
 
@@ -228,7 +198,6 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
 
         update_progress(5, f"Initializing {scan_type} scan on {target}...")
 
-        # ── Resolve scan arguments ───────────────────────────────
         preset = SCAN_TYPES.get(scan_type, SCAN_TYPES["default"])
         scan_args = preset["args"]
         ports = (ports or DEFAULT_PORTS).strip()
@@ -243,12 +212,10 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
 
         update_progress(10, "Executing nmap scan...")
 
-        # ── Execute nmap with fluctuating progress ───────────────
         fluctuation_thread = threading.Thread(target=fluctuate_progress, daemon=True)
         fluctuation_thread.start()
 
         try:
-            # For UDP, Quick, and Full scans, ports are handled by nmap flags directly in scan_args
             if scan_type in ("udp", "quick", "full"):
                 scanner.scan(hosts=target, arguments=scan_args)  # type: ignore
             else:
@@ -266,7 +233,6 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
         results = []
 
         for idx, host in enumerate(all_hosts):
-            # ── Build enriched host document ─────────────────────
             host_data = {
                 "scan_id": scan_id,
                 "target": target,
@@ -284,7 +250,6 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
                 "scanned_at": datetime.now(timezone.utc),
             }
 
-            # ── OS Detection (if available) ──────────────────────
             try:
                 os_matches = scanner[host].get("osmatch", [])  # type: ignore
                 if os_matches:
@@ -302,7 +267,6 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
             except Exception as e:
                 logger.debug("Failed parsing OS fingerprint for host %s: %s", host, e)
 
-            # ── MAC Address ──────────────────────────────────────
             try:
                 addresses = scanner[host].get("addresses", {})  # type: ignore
                 if "mac" in addresses:
@@ -313,7 +277,6 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
             except Exception as e:
                 logger.debug("Failed parsing MAC/vendor info for host %s: %s", host, e)
 
-            # ── IP Geolocation & ASN ─────────────────────────────
             try:
                 from ip_lookup import lookup_ip
                 geo_info = lookup_ip(host)
@@ -329,7 +292,6 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
                 logger.debug("Failed resolving IP geolocation for %s: %s", host, e)
                 host_data["geo"] = {}
 
-            # ── Port / Protocol Data ─────────────────────────────
             open_count = 0
             services = []
 
@@ -350,13 +312,11 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
                         "reason": port_detail.get("reason", ""),
                     }
 
-                    # Script output (for deep/vuln scans)
                     script_output = port_detail.get("script", {})
                     if script_output:
                         port_doc["scripts"] = {
                             k: str(v)[:500] for k, v in script_output.items()
                         }
-                        # Extract CVE IDs from Nmap script output
                         cves_found = set()
                         for v in script_output.values():
                             for match in re.findall(r"CVE-\d{4}-\d+", str(v), re.IGNORECASE):
@@ -384,7 +344,6 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
             pct = 60 + int((idx + 1) / max(total_hosts, 1) * 30)
             update_progress(pct, f"Processed {idx + 1}/{total_hosts} hosts")
 
-        # ── Persist to MongoDB ───────────────────────────────────
         if results and check_connection():
             network_scans.insert_many(results)
             logger.info("Saved %d host records to MongoDB (scan %s)", len(results), scan_id)
@@ -404,14 +363,9 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
         _scan_lock.release()
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Standalone CLI
-# ═════════════════════════════════════════════════════════════════════
-
 if __name__ == "__main__":
     import sys
 
-    # Check nmap first
     ok, info = check_nmap_installed()
     print(f"nmap installed: {ok}")
     for k, v in info.items():
@@ -429,4 +383,3 @@ if __name__ == "__main__":
 
     data = run_scan(target, ports, scan_type, progress_callback=on_progress)
     print(f"\n[✓] Scan complete — {len(data)} host(s) found.")
-    # End of scanner.py

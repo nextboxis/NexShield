@@ -22,9 +22,6 @@ logger = logging.getLogger(__name__)
 _ROOT = Path(__file__).resolve().parent
 DATA_DIR = _ROOT / "data" / "ip_location"
 
-# ═════════════════════════════════════════════════════════════════════
-#  ISO 3166-1 Alpha-2 Country Code to Full Name Mapping
-# ═════════════════════════════════════════════════════════════════════
 COUNTRY_NAMES: Dict[str, str] = {
     "AD": "Andorra", "AE": "United Arab Emirates", "AF": "Afghanistan", "AG": "Antigua and Barbuda",
     "AI": "Anguilla", "AL": "Albania", "AM": "Armenia", "AO": "Angola", "AQ": "Antarctica",
@@ -82,10 +79,6 @@ COUNTRY_NAMES: Dict[str, str] = {
     "WS": "Samoa", "YE": "Yemen", "YT": "Mayotte", "ZA": "South Africa", "ZM": "Zambia", "ZW": "Zimbabwe"
 }
 
-# ═════════════════════════════════════════════════════════════════════
-#  Special / Private IP Range Definitions
-# ═════════════════════════════════════════════════════════════════════
-# (start_int, end_int, network_type, description)
 SPECIAL_RANGES = [
     (0, 16777215, "unspecified", "Current Network (RFC 1122)"),
     (167772160, 184549375, "private", "Private Network (RFC 1918 10.0.0.0/8)"),
@@ -127,11 +120,9 @@ class IPLocationEngine:
         self._lock = threading.RLock()
         self._initialized = False
 
-        # Country tables: (start_int, end_int, country_code)
         self._country_ranges: List[Tuple[int, int, str]] = []
         self._country_starts: List[int] = []
 
-        # ASN tables: (start_int, end_int, asn_int, as_name)
         self._asn_ranges: List[Tuple[int, int, int, str]] = []
         self._asn_starts: List[int] = []
 
@@ -156,7 +147,6 @@ class IPLocationEngine:
         asn_file = self.data_dir / "asn-ipv4.csv"
         alt_asn_file = self.data_dir / "dbip-asn-ipv4.csv"
 
-        # Load Country Dataset
         country_ranges = []
         if country_file.exists():
             logger.info("Loading numeric country database from %s", country_file)
@@ -196,13 +186,11 @@ class IPLocationEngine:
             except Exception as e:
                 logger.error("Error reading alternate country database: %s", e)
 
-        # Sort and index country ranges
         country_ranges.sort(key=lambda x: x[0])
         self._country_ranges = country_ranges
         self._country_starts = [r[0] for r in country_ranges]
         logger.info("Loaded %d country ranges for IP geolocation", len(country_ranges))
 
-        # Load ASN Dataset
         target_asn_file = asn_file if asn_file.exists() else (alt_asn_file if alt_asn_file.exists() else None)
         asn_ranges = []
         if target_asn_file:
@@ -213,7 +201,6 @@ class IPLocationEngine:
                         line = line.strip()
                         if not line or line.startswith("#"):
                             continue
-                        # Standard format: start_ip,end_ip,asn,as_name
                         parts = line.split(",", 3)
                         if len(parts) >= 3:
                             s_int = ip_to_int(parts[0])
@@ -248,7 +235,6 @@ class IPLocationEngine:
         self._ensure_loaded()
         clean_ip = ip_str.strip()
 
-        # 1. Query persistent cache if enabled
         if use_cache and check_connection():
             try:
                 cached = ip_geo_cache.find_one({"ip": clean_ip})
@@ -261,7 +247,6 @@ class IPLocationEngine:
             except Exception as e:
                 logger.debug("ip_geo_cache lookup error for %s: %s", clean_ip, e)
 
-        # 2. Parse IP to integer
         ip_int = ip_to_int(clean_ip)
         if ip_int is None:
             return {
@@ -276,7 +261,6 @@ class IPLocationEngine:
                 "cached": False,
             }
 
-        # 3. Check for private/reserved/loopback IP space
         special = self._check_special_ip(ip_int)
         if special:
             net_type, desc = special
@@ -294,7 +278,6 @@ class IPLocationEngine:
             self._save_to_cache(clean_ip, result)
             return result
 
-        # 4. Binary search country dataset (O(log N))
         country_code = ""
         if self._country_starts:
             idx = bisect.bisect_right(self._country_starts, ip_int) - 1
@@ -305,7 +288,6 @@ class IPLocationEngine:
 
         country_name = COUNTRY_NAMES.get(country_code, country_code if country_code else "Unknown")
 
-        # 5. Binary search ASN dataset (O(log N))
         asn = 0
         as_name = ""
         if self._asn_starts:
@@ -343,7 +325,6 @@ class IPLocationEngine:
             logger.debug("Failed caching geo lookup for %s: %s", ip_str, e)
 
 
-# Global singleton instance
 _engine: Optional[IPLocationEngine] = None
 _engine_lock = threading.Lock()
 
@@ -357,10 +338,6 @@ def get_engine() -> IPLocationEngine:
                 _engine = IPLocationEngine()
     return _engine
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  Public Convenience Functions
-# ═════════════════════════════════════════════════════════════════════
 
 def lookup_ip(ip_str: str, use_cache: bool = True) -> Dict[str, Any]:
     """Resolve an IP address to its Country, ASN, and network metadata."""

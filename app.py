@@ -20,14 +20,12 @@ from werkzeug.security import generate_password_hash, check_password_hash # type
 from functools import wraps
 from datetime import datetime, timezone, timedelta, date
 
-# Optional BSON support (only available with MongoDB/pymongo)
 try:
     from bson import ObjectId, json_util  # type: ignore
     _HAS_BSON = True
 except ImportError:
     _HAS_BSON = False
 
-# Internal Logic Modules
 from ai_logic import compute_risk_scores # type: ignore
 from config import threats, network_scans, activity_log, users, cve_cache, ip_geo_cache, scan_jobs, check_connection # type: ignore
 
@@ -52,10 +50,6 @@ TARGET_RE = re.compile(r"^[A-Za-z0-9.,:/\-\s]+$")
 PORTS_RE = re.compile(r"^[0-9,\-\s]*$")
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Utility & Logging
-# ═════════════════════════════════════════════════════════════════════
-
 def _serialize(doc):
     """
     Standardizes document serialization for JSON-safe API delivery.
@@ -65,7 +59,6 @@ def _serialize(doc):
     if _HAS_BSON:
         return json.loads(json_util.dumps(doc))
 
-    # TinyDB fallback: manual serialization
     def _convert(obj):
         if isinstance(obj, datetime):
             return obj.isoformat()
@@ -182,13 +175,6 @@ def add_security_headers(response):
     return response
 
 
-# No global CORS needed if running on same origin/proxy
-
-
-# ═════════════════════════════════════════════════════════════════════
-#  Authentication Helpers
-# ═════════════════════════════════════════════════════════════════════
-
 def login_required(f):
     """Decorator: rejects unauthenticated requests with HTTP 401."""
     @wraps(f)
@@ -211,11 +197,9 @@ def _safe_next_path(next_path: str | None, fallback: str = DEFAULT_DASHBOARD_PAT
     from urllib.parse import urlparse
     parsed = urlparse(candidate)
     
-    # Must not have a netloc or scheme (must be a relative path)
     if parsed.netloc or parsed.scheme:
         return fallback
     
-    # Must start with a slash
     if not parsed.path.startswith("/"):
         return fallback
         
@@ -247,7 +231,6 @@ def _validate_host(host_str: str | None) -> str:
     raise ValueError("Invalid host format.")
 
 
-# ── In-memory rate limiter ───────────────────────────────────────────
 _rate_limit_store: dict[str, list[float]] = defaultdict(list)
 
 _rate_limit_call_count: int = 0
@@ -258,7 +241,6 @@ def _rate_limit(key: str, max_requests: int = 10, window_sec: int = 60) -> bool:
     now = _time.time()
     _rate_limit_store[key] = [t for t in _rate_limit_store[key] if now - t < window_sec]
 
-    # Periodic cleanup: every 100 calls, purge stale keys across all entries
     _rate_limit_call_count += 1
     if _rate_limit_call_count >= 100:
         _rate_limit_call_count = 0
@@ -275,11 +257,6 @@ def _rate_limit(key: str, max_requests: int = 10, window_sec: int = 60) -> bool:
     return False
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Security / Authentication
-# ═════════════════════════════════════════════════════════════════════
-
-# Generate a secure random token for this server session
 WS_TOKEN = os.environ.get("WS_TOKEN", secrets.token_hex(16))
 
 @app.route("/api/auth/token", methods=["GET"])
@@ -294,13 +271,9 @@ def handle_connect(auth):
     if not auth or auth.get("token") != WS_TOKEN:
         _log_activity("security", f"Blocked unauthorized WebSocket connection (IP: {request.remote_addr})", "high")
         raise ConnectionRefusedError("Unauthorized: Invalid or missing token")
-    # Connection accepted
 
-# ═════════════════════════════════════════════════════════════════════
-#  API — User Registration / Login / Logout
-# ═════════════════════════════════════════════════════════════════════
 
-PASSWORD_RE = re.compile(r"^.{5,128}$")  # Minimum 5 characters
+PASSWORD_RE = re.compile(r"^.{5,128}$")
 
 @app.route("/api/auth/register", methods=["POST"])
 def register():
@@ -328,7 +301,6 @@ def login():
 
     user_doc = users.find_one({"username": username})
     if not user_doc:
-        # Case-insensitive fallback
         user_doc = users.find_one({"username": {"$regex": f"^{re.escape(username)}$", "$options": "i"}})
     if not user_doc or not check_password_hash(user_doc["password_hash"], password):
         _log_activity("security", f"Failed login attempt for '{username}' from {request.remote_addr}", "warning")
@@ -424,10 +396,6 @@ def health_check():
     }), 200 if db_ok else 503
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Frontend
-# ═════════════════════════════════════════════════════════════════════
-
 @app.route("/")
 def root_redirect():
     """Send users to the right frontend entry point for their session state."""
@@ -457,13 +425,6 @@ def serve_report():
         return redirect(url_for("serve_login", next="/report"))
     return render_template("report.html")
 
-
-
-
-
-# ═════════════════════════════════════════════════════════════════════
-#  API — Seed Data (Bootstrap AI)
-# ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/seed-data", methods=["POST"])
 def seed_data():
@@ -509,12 +470,6 @@ def reset_data():
     })
 
 
-
-
-# ═════════════════════════════════════════════════════════════════════
-#  API — Threats
-# ═════════════════════════════════════════════════════════════════════
-
 @app.route("/api/threats", methods=["GET"])
 @login_required
 def get_threats():
@@ -530,7 +485,6 @@ def get_threats():
         .limit(limit)
     )
     
-    # Enrich with weaponization metadata
     enriched = []
     for t in docs:
         t_serialized = _serialize(t)
@@ -543,10 +497,6 @@ def get_threats():
 
     return jsonify({"status": "complete", "threats": enriched})
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  API — Active Response (Zero-Trust)
-# ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/quarantine", methods=["POST"])
 @login_required
@@ -561,7 +511,6 @@ def quarantine_host():
     except ValueError as exc:
         return jsonify({"status": "error", "message": str(exc)}), 400
 
-    # Quarantine logic: Update all active threats for this host
     result = threats.update_many(
         {"host": host, "severity": {"$ne": "low"}},
         {"$set": {
@@ -574,14 +523,12 @@ def quarantine_host():
         current_user = session.get("user", "unknown")
         _log_activity("security", f"Host {host} quarantined by {current_user}", "critical")
         
-        # Trigger risk score recalculation
         try:
             from ai_logic import compute_risk_scores # type: ignore
             compute_risk_scores()
         except Exception as e:
             logger.warning("Risk recalculation failed post-quarantine: %s", e)
 
-        # Broadcast update
         socketio.emit("quarantine_complete", {
             "status": "success",
             "message": f"Host {host} successfully isolated.",
@@ -598,9 +545,6 @@ def quarantine_host():
             "message": f"Host {host} has no active threats to quarantine."
         })
 
-# ═════════════════════════════════════════════════════════════════════
-#  API — Target Node Profiling
-# ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/host/<path:ip>", methods=["GET"])
 @login_required
@@ -611,7 +555,6 @@ def get_host_profile(ip):
 
     ip = ip.strip()
     
-    # Retrieve the latest scan footprint for this host
     scan_doc = network_scans.find_one(
         {"host": ip},
         sort=[("scanned_at", -1)]
@@ -680,9 +623,6 @@ def export_scan():
         headers={"Content-Disposition": f"attachment;filename=scan_footprint_{ip.replace('.','_')}.json"}
     )
 
-# ═════════════════════════════════════════════════════════════════════
-#  API — Stats
-# ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/stats", methods=["GET"])
 @login_required
@@ -723,7 +663,6 @@ def dashboard_summary():
     if not check_connection():
         return jsonify({"status": "error", "message": "Database unavailable"}), 503
 
-    # Stats
     total_threats = threats.count_documents({})
     total_scans = network_scans.count_documents({})
     critical = threats.count_documents({"severity": "critical"})
@@ -731,7 +670,6 @@ def dashboard_summary():
     medium = threats.count_documents({"severity": "medium"})
     low = threats.count_documents({"severity": "low"})
 
-    # Recent threats
     recent_threats = list(threats.find().sort("detected_at", -1).limit(10))
     enriched = []
     for t in recent_threats:
@@ -739,7 +677,6 @@ def dashboard_summary():
         t_ser["exploit_module"] = map_threat_to_module(t)
         enriched.append(t_ser)
 
-    # Recent activity
     recent_activity = list(activity_log.find().sort("timestamp", -1).limit(20))
 
     return jsonify({
@@ -757,11 +694,6 @@ def dashboard_summary():
         "recent_activity": _serialize(recent_activity),
     })
     
-
-
-# ═════════════════════════════════════════════════════════════════════
-#  API — Severity Timeline (last 7 days)
-# ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/timeline", methods=["GET"])
 @login_required
@@ -783,7 +715,6 @@ def get_timeline():
 
         if isinstance(dt_val, str):
             try:
-                # Replace 'Z' with '+00:00' to ensure fromisoformat works on older Python
                 dt_str = dt_val.replace('Z', '+00:00')
                 dt = datetime.fromisoformat(dt_str)
                 day = dt.strftime("%Y-%m-%d")
@@ -800,7 +731,6 @@ def get_timeline():
         if sev in timeline[day]:
             timeline[day][sev] += 1
 
-    # Fill in missing days with zeros
     all_days = []
     for i in range(days):
         d = (datetime.now(timezone.utc) - timedelta(days=days - 1 - i)).strftime("%Y-%m-%d")
@@ -814,10 +744,6 @@ def get_timeline():
         "timeline": timeline,
     })
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  API — Scan trigger (Enhanced with scan types, nmap lock, progress)
-# ═════════════════════════════════════════════════════════════════════
 
 ALLOWED_SCAN_TYPES = {"quick", "default", "deep", "stealth", "udp", "vuln", "os", "ssl", "full"}
 
@@ -850,7 +776,6 @@ def trigger_scan():
     try:
         from scanner import run_scan, DEFAULT_PORTS, SCAN_TYPES, is_scan_running, validate_target  # type: ignore
 
-        # Check nmap lock — prevent concurrent scans
         if is_scan_running():
             return jsonify({
                 "status": "error",
@@ -864,19 +789,16 @@ def trigger_scan():
             DEFAULT_PORTS,
         )
 
-        # Validate scan type
         scan_type = (body.get("scan_type") or "default").strip().lower()
         if scan_type not in ALLOWED_SCAN_TYPES:
             return jsonify({"status": "error", "message": f"Invalid scan type. Use: {', '.join(sorted(ALLOWED_SCAN_TYPES))}"}), 400
 
-        # Deep target validation via scanner module
         tv = validate_target(target)
         if not tv["valid"]:
             return jsonify({"status": "error", "message": tv["error"]}), 400
 
         scan_label = SCAN_TYPES.get(scan_type, {}).get("label", scan_type)
 
-        # Run scan in the background to prevent HTTP timeout
         _start_background_task(background_scan, target, ports, scan_type)
 
         return jsonify({
@@ -953,7 +875,6 @@ def list_hosts():
         ip = h["_id"]
         if not ip:
             continue
-        # Get threat count for this host
         threat_count = threats.count_documents({"host": ip})
 
         geo_info = {}
@@ -1088,10 +1009,6 @@ def host_scan_history(ip):
     })
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  API — Analyze & Deduplicate
-# ═════════════════════════════════════════════════════════════════════
-
 @app.route("/api/analyze", methods=["POST"])
 @login_required
 def trigger_analysis():
@@ -1132,10 +1049,6 @@ def trigger_analysis():
         return jsonify({"status": "error", "message": "An internal error occurred. Check server logs."}), 500
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  API — Train ML Model
-# ═════════════════════════════════════════════════════════════════════
-
 @app.route("/api/train", methods=["POST"])
 @login_required
 def trigger_training():
@@ -1160,7 +1073,6 @@ def trigger_training():
             socketio.emit("training_complete", {"status": "error", "message": f"ML training failed: {str(e)}"})
 
     try:
-        # Run training in the background to prevent HTTP timeout
         _start_background_task(background_train)
 
         return jsonify({
@@ -1172,10 +1084,6 @@ def trigger_training():
         logger.error("Training trigger error: %s", e)
         return jsonify({"status": "error", "message": "An internal error occurred. Check server logs."}), 500
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  API — Scan History
-# ═════════════════════════════════════════════════════════════════════
 
 @app.route("/api/scan-history", methods=["GET"])
 @login_required
@@ -1199,10 +1107,6 @@ def get_scan_history():
     return jsonify({"status": "complete", "scans": _serialize(results)})
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  API — Export (CSV / JSON)
-# ═════════════════════════════════════════════════════════════════════
-
 @app.route("/api/export", methods=["GET"])
 @login_required
 def export_threats():
@@ -1219,7 +1123,6 @@ def export_threats():
     if severity and severity not in ALLOWED_SEVERITIES:
         return jsonify({"status": "error", "message": "Invalid severity filter."}), 400
 
-    # Build Filter Query
     query = {}
     if host:
         query["host"] = host
@@ -1228,12 +1131,10 @@ def export_threats():
 
     docs = list(threats.find(query).sort("detected_at", -1).limit(1000))
     
-    # Activity logging
     log_msg = f"Threat data exported as {fmt.upper()} ({len(docs)} records)"
     if host: log_msg += f" for host {host}"
     _log_activity("export", log_msg)
 
-    # Filename construction
     timestamp = datetime.now().strftime("%Y%m%d_%H%M")
     base_name = f"nexshield_report_{timestamp}"
     if host:
@@ -1260,7 +1161,6 @@ def export_threats():
             headers={"Content-Disposition": f"attachment; filename={filename}"},
         )
 
-    # Default: JSON
     if _HAS_BSON:
         json_data = json_util.dumps(docs, indent=2)
     else:
@@ -1272,10 +1172,6 @@ def export_threats():
     )
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  API — CVE Lookup
-# ═════════════════════════════════════════════════════════════════════
-
 @app.route("/api/cve/recent", methods=["GET"])
 @login_required
 def get_recent_cves():
@@ -1283,7 +1179,6 @@ def get_recent_cves():
     try:
         limit = _normalize_limit(request.args.get("limit", 50, type=int), 50, 100)
         from cve_lookup import CVELIST_DIR, _parse_cvelist_v5
-
 
 
         cves_dir = CVELIST_DIR
@@ -1577,10 +1472,6 @@ def api_download_report():
     return response
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  API — RAG (Retrieval-Augmented Generation) Intelligence Endpoints
-# ═════════════════════════════════════════════════════════════════════
-
 @app.route("/api/rag/status", methods=["GET"])
 @login_required
 def api_rag_status():
@@ -1697,10 +1588,6 @@ def api_self_test():
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  API — Activity Log
-# ═════════════════════════════════════════════════════════════════════
-
 @app.route("/api/activity", methods=["GET"])
 @login_required
 def get_activity():
@@ -1727,7 +1614,6 @@ def get_raw_threats():
 
     min_severity = request.args.get("severity", "medium").lower()
     
-    # Severity hierarchy
     sev_levels = {"info": 0, "low": 1, "medium": 2, "high": 3, "critical": 4}
     target_level = sev_levels.get(min_severity, 2)
     
@@ -1740,13 +1626,6 @@ def get_raw_threats():
     
     docs = list(threats.aggregate(pipeline))
     return jsonify({"status": "complete", "threats": _serialize(docs), "count": len(docs)})
-
-# Mapping common signatures to Metasploit modules
-# ═════════════════════════════════════════════════════════════════════
-#  Exploit Intelligence Database (v5.0)
-# ═════════════════════════════════════════════════════════════════════
-
-# EXPLOIT_DATABASE and MSF_MAPPINGS have been moved to msf_utils.py
 
 
 @app.route("/api/exploit/generate", methods=["GET"])
@@ -1868,10 +1747,6 @@ def api_execute_exploit():
         return jsonify({"status": "error", "message": "An internal error occurred. Check server logs."}), 500
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  API — Host Risk Scores
-# ═════════════════════════════════════════════════════════════════════
-
 @app.route("/api/risk-scores", methods=["GET"])
 @login_required
 def get_risk_scores():
@@ -1882,9 +1757,8 @@ def get_risk_scores():
     if not check_connection():
         return jsonify({"status": "error", "message": "Database unavailable"}), 503
 
-    scores = compute_risk_scores(persist=False) # Don't re-tag every GET
+    scores = compute_risk_scores(persist=False)
     
-    # Format for frontend grid
     formatted = []
     for host, data in scores.items():
         formatted.append({
@@ -1898,10 +1772,6 @@ def get_risk_scores():
     return jsonify({"status": "complete", "scores": formatted})
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  API — Threat Trends (Severity Distribution + Type Breakdown)
-# ═════════════════════════════════════════════════════════════════════
-
 @app.route("/api/threat-trends", methods=["GET"])
 @login_required
 def get_threat_trends():
@@ -1909,7 +1779,6 @@ def get_threat_trends():
     if not check_connection():
         return jsonify({"status": "error", "message": "Database unavailable"}), 503
 
-    # Severity distribution
     sev_pipeline = [
         {"$group": {"_id": "$severity", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
@@ -1917,7 +1786,6 @@ def get_threat_trends():
     sev_results = list(threats.aggregate(sev_pipeline))
     severity_dist = {r["_id"]: r["count"] for r in sev_results if r["_id"]}
 
-    # Source engine breakdown
     src_pipeline = [
         {"$group": {"_id": "$source", "count": {"$sum": 1}}},
         {"$sort": {"count": -1}},
@@ -1925,7 +1793,6 @@ def get_threat_trends():
     src_results = list(threats.aggregate(src_pipeline))
     source_dist = {r["_id"]: r["count"] for r in src_results if r["_id"]}
 
-    # Tag frequency
     tag_pipeline = [
         {"$unwind": "$tags"},
         {"$group": {"_id": "$tags", "count": {"$sum": 1}}},
@@ -1959,7 +1826,6 @@ def add_threat_note(tid):
     if not note_text or len(note_text) > 2000:
         return jsonify({"status": "error", "message": "Note must be 1-2000 characters."}), 400
 
-    # Find the threat
     if _HAS_BSON:
         from bson import ObjectId
         try:
@@ -2032,11 +1898,6 @@ def bulk_threat_action():
     return jsonify({"status": "complete", "message": f"{action.title()}d {modified} threats.", "modified": modified})
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  API — Pentest Report Generator
-# ═════════════════════════════════════════════════════════════════════
-
-# Severity-based remediation templates for auto-generated reports
 _REMEDIATION_MAP = {
     "SMB Exposed":            "Disable SMBv1, restrict SMB to internal VLANs, enforce SMB signing.",
     "RDP Exposed":            "Restrict RDP to VPN-only, enable NLA, enforce MFA, use RD Gateway.",
@@ -2072,7 +1933,6 @@ def generate_report():
     try:
         from ai_logic import MODELS, MITRE_TECHNIQUES, SEVERITY_WEIGHTS  # type: ignore
 
-        # ── 1. Executive Summary ─────────────────────────────────
         total_threats = threats.count_documents({})
         total_scans = network_scans.count_documents({})
         sev_counts = {
@@ -2086,7 +1946,6 @@ def generate_report():
         unique_cves = [c for c in threats.distinct("cve_id") if c and c.startswith("CVE-")]
         engines_active = threats.distinct("source")
 
-        # Overall risk assessment
         if sev_counts["critical"] > 5:
             overall_risk = "CRITICAL"
             overall_summary = "Multiple critical vulnerabilities detected. Immediate remediation required."
@@ -2112,7 +1971,6 @@ def generate_report():
             "generated_at": datetime.now(timezone.utc).isoformat(),
         }
 
-        # ── 2. Target Environment ────────────────────────────────
         host_pipeline = [
             {"$group": {
                 "_id": "$host",
@@ -2151,7 +2009,6 @@ def generate_report():
                 "mac_vendor": h.get("mac_vendor", ""),
             })
 
-        # ── 3. Vulnerability Findings (grouped by host) ──────────
         findings_pipeline = [
             {"$sort": {"detected_at": -1}},
             {"$group": {
@@ -2173,12 +2030,10 @@ def generate_report():
         ]
         findings_raw = list(threats.aggregate(findings_pipeline))
         vulnerability_findings = []
-        # Enriching data...
         for f in findings_raw:
             if not f["_id"]:
                 continue
             
-            # Enrich threats with deep Metasploit intelligence
             enriched_threats = []
             for t in f["threats"]:
                 intel = None
@@ -2186,7 +2041,6 @@ def generate_report():
                 n_low = str(t.get("name") or "").lower()
                 c_low = str(t.get("cve_id") or "").lower()
                 
-                # Check for detailed intel first
                 for keyword, info in EXPLOIT_DATABASE.items():
                     if keyword in d_low or keyword in n_low or keyword in c_low:
                         intel = info
@@ -2199,7 +2053,6 @@ def generate_report():
                     t["exploit_desc"] = intel["desc"]
                     t["exploit_check"] = intel["check"]
                 else:
-                    # Fallback to simple mapping
                     m_path = ""
                     for k, m in MSF_MAPPINGS.items():
                         if k in d_low or k in n_low or k in c_low:
@@ -2220,7 +2073,6 @@ def generate_report():
                 "threats": _serialize(enriched_threats[:50]),
             })
 
-        # ── 4. Risk Scores ───────────────────────────────────────
         scores = compute_risk_scores(persist=False)
         risk_scores = [
             {
@@ -2234,7 +2086,6 @@ def generate_report():
             for host, data in sorted(scores.items(), key=lambda x: -x[1]["score"])
         ]
 
-        # ── 5. MITRE ATT&CK Coverage ─────────────────────────────
         tag_pipeline = [
             {"$unwind": "$tags"},
             {"$match": {"tags": {"$regex": "^T\\d{4}"}}},
@@ -2256,16 +2107,13 @@ def generate_report():
                 "occurrences": m["count"],
             })
 
-        # ── 6. Recommendations ───────────────────────────────────
         recommendations = []
         seen_recs = set()
 
-        # Generate recommendations from threat names
         all_threat_names = threats.distinct("name")
         for threat_name in all_threat_names:
             for pattern, remediation in _REMEDIATION_MAP.items():
                 if pattern.lower() in str(threat_name).lower() and pattern not in seen_recs:
-                    # Determine priority from severity
                     sample = threats.find_one({"name": threat_name})
                     sev = sample.get("severity", "medium") if sample else "medium"
                     priority = "P0 — Immediate" if sev == "critical" else "P1 — High" if sev == "high" else "P2 — Medium"
@@ -2279,11 +2127,9 @@ def generate_report():
                     seen_recs.add(pattern)
                     break
 
-        # Sort by priority
         priority_order = {"P0 — Immediate": 0, "P1 — High": 1, "P2 — Medium": 2}
         recommendations.sort(key=lambda r: priority_order.get(r["priority"], 3))
 
-        # ── 7. Scan Metadata ─────────────────────────────────────
         latest_scan = network_scans.find_one(sort=[("scanned_at", -1)])
         scan_metadata = {
             "total_scan_records": total_scans,
@@ -2294,7 +2140,6 @@ def generate_report():
             "engine_registry": {k: v for k, v in MODELS.items()},
         }
 
-        # ── Assemble Final Report ─────────────────────────────────
         report = {
             "status": "complete",
             "report_title": "NexShield Penetration Testing Report",
@@ -2362,10 +2207,6 @@ def download_report_rc():
         return str(e), 500
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  Run
-# ═════════════════════════════════════════════════════════════════════
-
 def _provision_admin_user():
     """Initialize or sync the default admin account. Always refreshes the password hash on startup."""
     try:
@@ -2377,21 +2218,17 @@ def _provision_admin_user():
         default_password = os.environ.get("ADMIN_PASSWORD", "admin")
         password_hash = generate_password_hash(default_password)
 
-        # Find existing admin user (case-insensitive)
         existing = users.find_one({"username": default_username})
         if not existing:
             existing = users.find_one({"username": {"$regex": f"^{re.escape(default_username)}$", "$options": "i"}})
 
-        # Clean up any duplicate admin accounts (e.g. "Admin" + "admin")
         all_admins = list(users.find({"role": "admin"}))
         if len(all_admins) > 1:
-            # Keep only the first one, remove duplicates
             for dup in all_admins[1:]:
                 users.delete_many({"username": dup["username"]})
             logger.info("Cleaned up %d duplicate admin account(s)", len(all_admins) - 1)
 
         if existing:
-            # Always sync username and password hash on startup
             users.update_one(
                 {"username": existing["username"]},
                 {"$set": {
@@ -2403,7 +2240,6 @@ def _provision_admin_user():
             logger.info("Admin account synced: %s", default_username)
             return True
 
-        # Create fresh admin account
         users.insert_one({
             "username": default_username,
             "password_hash": password_hash,
@@ -2437,7 +2273,6 @@ def _startup_banner():
 if __name__ == "__main__":
     import sys
     
-    # Configure logging
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -2449,20 +2284,15 @@ if __name__ == "__main__":
     
     _startup_banner()
     
-    # Provision admin user
     _provision_admin_user()
     
-    # Log startup
     _log_activity("system", "NexShield platform started", "info")
     
-    # Production vs Development mode
     is_production = os.environ.get("FLASK_ENV", "development") == "production"
     
     if is_production:
         logger.warning("⚠️  Running in PRODUCTION mode. Use a proper WSGI server (Gunicorn/Waitress).")
         logger.warning("   Example: gunicorn -w 4 -b 0.0.0.0:5000 'app:app'")
-        # For production, the app should be run with gunicorn/waitress
-        # This fallback uses the development server with warnings disabled
         socketio.run(
             app,
             debug=False,
@@ -2483,10 +2313,6 @@ if __name__ == "__main__":
         )
 
 
-# ═════════════════════════════════════════════════════════════════════
-#  API — Single Threat Lookup
-# ═════════════════════════════════════════════════════════════════════
-
 @app.route("/api/threat/<tid>", methods=["GET"])
 @login_required
 def get_threat(tid):
@@ -2499,7 +2325,6 @@ def get_threat(tid):
             return jsonify({"status": "error", "message": "Invalid id"}), 400
         doc = threats.find_one({"_id": oid})
     else:
-        # TinyDB: search by string _id
         doc = threats.find_one({"_id": tid})
 
     if not doc:

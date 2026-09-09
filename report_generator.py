@@ -17,7 +17,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Compliance Framework Mapping Rules
 COMPLIANCE_RULES: dict[str, list[dict[str, str]]] = {
     "smb": [
         {"framework": "PCI-DSS 4.0", "control": "Req 2.2.4 / 6.3.1", "desc": "Insecure legacy SMBv1 services must be disabled."},
@@ -66,7 +65,6 @@ def map_compliance(threat: dict) -> list[dict[str, str]]:
     if cve_id.startswith("cve-"):
         mapped.extend(COMPLIANCE_RULES["cve"])
 
-    # Deduplicate entries by framework + control
     seen = set()
     unique_mapped = []
     for item in mapped:
@@ -86,7 +84,6 @@ def compute_executive_summary(threats: list[dict], scans: list[dict]) -> dict:
     medium_count = sum(1 for t in threats if str(t.get("severity")).lower() == "medium")
     low_count = sum(1 for t in threats if str(t.get("severity")).lower() == "low")
 
-    # Risk score calculation formula
     risk_score = min(100, (critical_count * 25) + (high_count * 15) + (medium_count * 5) + (low_count * 1))
 
     if risk_score >= 75:
@@ -102,7 +99,6 @@ def compute_executive_summary(threats: list[dict], scans: list[dict]) -> dict:
         posture = "SECURE / LOW RISK"
         narrative = "No critical vulnerability patterns detected. System maintains robust baseline security posture."
 
-    # Enrich narrative with RAG intelligence context if threats exist
     rag_threats = [t for t in threats if t.get("source") == "RAGThreat-Engine-v1" or "rag" in t.get("tags", [])]
     if rag_threats:
         narrative += f" Grounded AI RAG model verified {len(rag_threats)} prioritized attack vectors with direct MITRE ATT&CK and NVD CVE citations."

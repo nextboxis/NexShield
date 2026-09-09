@@ -13,7 +13,6 @@ import urllib.error
 from pathlib import Path
 from datetime import datetime, timezone
 
-# Add parent directory to path for config access if needed
 _ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(_ROOT))
 
@@ -75,7 +74,6 @@ def download_file(url: str, dest_path: Path, alt_url: str = None) -> bool:
 
                 print()
 
-            # Atomically replace destination file
             if temp_path.exists():
                 if dest_path.exists():
                     dest_path.unlink()
@@ -104,7 +102,6 @@ def print_dataset_stats(data_dir: Path = DATA_DIR):
             size_mb = file_path.stat().st_size / (1024 * 1024)
             mtime = datetime.fromtimestamp(file_path.stat().st_mtime, tz=timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
             
-            # Count records (lines)
             line_count = 0
             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 for _ in f:
@@ -130,35 +127,21 @@ def create_starter_dataset(data_dir: Path = DATA_DIR):
     country_file = data_dir / "country-ipv4-num.csv"
     asn_file = data_dir / "asn-ipv4.csv"
 
-    # Starter country ranges (integer start, integer end, country)
     starter_countries = [
-        # 1.0.0.0 - 1.0.0.255 (Cloudflare Australia)
         (16777216, 16777471, "AU"),
-        # 1.1.1.0 - 1.1.1.255 (Cloudflare Australia/US)
         (16843008, 16843263, "AU"),
-        # 8.8.4.0 - 8.8.8.255 (Google US)
         (134743040, 134744319, "US"),
-        # 9.9.9.0 - 9.9.9.255 (Quad9 US)
         (151587072, 151587327, "US"),
-        # 13.64.0.0 - 13.107.255.255 (Microsoft Azure US)
         (222298112, 225181695, "US"),
-        # 20.0.0.0 - 20.255.255.255 (Microsoft US)
         (335544320, 352321535, "US"),
-        # 52.0.0.0 - 52.255.255.255 (Amazon AWS US)
         (872415232, 889192447, "US"),
-        # 54.0.0.0 - 54.255.255.255 (Amazon AWS US)
         (905969664, 922746879, "US"),
-        # 104.16.0.0 - 104.31.255.255 (Cloudflare US)
         (1745879040, 1746927615, "US"),
-        # 140.82.112.0 - 140.82.127.255 (GitHub / Fastly US)
         (2354212864, 2354216959, "US"),
-        # 151.101.0.0 - 151.101.255.255 (Fastly CDN US)
         (2540044288, 2540109823, "US"),
-        # 185.199.108.0 - 185.199.111.255 (GitHub Pages US)
         (3116887040, 3116888063, "US"),
     ]
 
-    # Starter ASN ranges (start_ip, end_ip, asn, as_name)
     starter_asns = [
         ("1.0.0.0", "1.0.0.255", 13335, "Cloudflare, Inc."),
         ("1.1.1.0", "1.1.1.255", 13335, "Cloudflare, Inc."),

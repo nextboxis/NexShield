@@ -27,14 +27,12 @@ def run_self_test() -> bool:
     _print_header("System Self-Test Suite")
     results: List[Tuple[str, bool]] = []
 
-    # 1. Database Check
     try:
         from config import check_connection
         results.append(("Database Read/Write", check_connection()))
     except Exception:
         results.append(("Database Read/Write", False))
 
-    # 2. AI Logic Engine Check
     try:
         from ai_logic import _make_threat
         threat = _make_threat("Test Threat", "high", "127.0.0.1", "CVE-2023-0001", "SelfTest", "Test detail")
@@ -42,7 +40,6 @@ def run_self_test() -> bool:
     except Exception:
         results.append(("21-Engine AI Logic", False))
 
-    # 3. CVE 5.0 Version Bounds Matching Check
     try:
         from cve_lookup import compare_versions, match_cpe
         ver_ok = compare_versions("2.4.41", "2.4.52") == -1 and match_cpe(
@@ -53,7 +50,6 @@ def run_self_test() -> bool:
     except Exception:
         results.append(("CVE 5.0 Version Matching", False))
 
-    # 4. Remediation Code Generator Check
     try:
         from remediation_generator import generate_remediation_script
         ansible_code = generate_remediation_script(
@@ -63,7 +59,6 @@ def run_self_test() -> bool:
     except Exception:
         results.append(("Remediation Generator", False))
 
-    # 5. Report Exporter Check
     try:
         from report_generator import generate_report_content
         rpt_code = generate_report_content(
@@ -75,7 +70,6 @@ def run_self_test() -> bool:
     except Exception:
         results.append(("Multi-Format Report Generator", False))
 
-    # 6. Webhook Alerting Check
     try:
         from webhook_notifier import dispatch_webhook_alert
         res = dispatch_webhook_alert({"name": "SelfTest Alert", "severity": "low"})
@@ -83,7 +77,6 @@ def run_self_test() -> bool:
     except Exception:
         results.append(("Webhook Alert Dispatcher", False))
 
-    # 7. RAG Intelligence Engine Check
     try:
         from rag_engine import knowledge_store, rag_retriever
         docs = rag_retriever.retrieve("SMB EternalBlue", top_k=1)
@@ -91,7 +84,6 @@ def run_self_test() -> bool:
     except Exception:
         results.append(("RAG Intelligence Engine", False))
 
-    # 8. IP Geolocation & ASN Intelligence Check
     try:
         from ip_lookup import lookup_ip, is_private_ip
         lan_check = is_private_ip("192.168.1.1")

@@ -33,19 +33,15 @@ def dispatch_webhook_alert(threat_data: dict[str, Any]) -> dict[str, Any]:
     detail = threat_data.get("detail", "N/A")
     results = {"slack": False, "discord": False, "teams": False, "generic": False}
 
-    # 1. Slack Webhook Dispatch
     if SLACK_WEBHOOK_URL:
         results["slack"] = _send_slack(SLACK_WEBHOOK_URL, name, severity, host, cve_id, detail)
 
-    # 2. Discord Webhook Dispatch
     if DISCORD_WEBHOOK_URL:
         results["discord"] = _send_discord(DISCORD_WEBHOOK_URL, name, severity, host, cve_id, detail)
 
-    # 3. Teams Webhook Dispatch
     if TEAMS_WEBHOOK_URL:
         results["teams"] = _send_teams(TEAMS_WEBHOOK_URL, name, severity, host, cve_id, detail)
 
-    # 4. Generic JSON Webhook Dispatch
     if GENERIC_WEBHOOK_URL:
         results["generic"] = _send_generic(GENERIC_WEBHOOK_URL, threat_data)
 

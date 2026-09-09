@@ -108,7 +108,7 @@ function updateSystemClock() {
 const socket = io({
     auth: async (cb) => {
         try {
-            const res = await fetch("/api/auth/token");
+            const res = await fetch("/api/auth/token", { signal: AbortSignal.timeout(10000) });
             const data = await res.json();
             cb({ token: data.token });
         } catch (e) {
@@ -1535,7 +1535,7 @@ function toggleProfileMenu() {
 
 async function doLogout() {
     try {
-        await fetch("/api/auth/logout", { method: "POST" });
+        await fetch("/api/auth/logout", { method: "POST", signal: AbortSignal.timeout(5000) });
     } catch (err) {
         console.error("Logout error:", err);
     }

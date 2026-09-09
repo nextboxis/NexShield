@@ -14,7 +14,6 @@ import os
 import sys
 import logging
 
-# Configure production logging
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -22,14 +21,11 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-# Set Flask environment
 os.environ.setdefault("FLASK_ENV", "production")
 os.environ.setdefault("FLASK_DEBUG", "false")
 
-# Suppress Werkzeug development server warning
 os.environ["WERKZEUG_RUN_MAIN"] = "true"
 
-# Import after env setup
 from app import app, socketio, _startup_banner, _provision_admin_user, _log_activity  # type: ignore
 
 
@@ -42,11 +38,9 @@ def init_app():
     return app
 
 
-# For WSGI servers
 app = init_app()
 
 if __name__ == "__main__":
-    # Fallback for direct execution (not recommended for production)
     logger.warning("⚠️  Direct execution detected. Use Gunicorn or Waitress instead!")
     logger.warning("    Example: gunicorn -w 4 -b 0.0.0.0:5000 --timeout 120 wsgi:app")
     

@@ -23,7 +23,6 @@ from datetime import datetime, timezone
 
 _db_lock = threading.RLock()
 
-# ─── Load .env automatically ────────────────────────────────────────
 try:
     from dotenv import load_dotenv  # type: ignore
     _env_path = Path(__file__).parent / ".env"
@@ -31,7 +30,6 @@ try:
         load_dotenv(_env_path)
         print("   [+] Loaded .env configuration file.")
     else:
-        # Try to auto-create from .env.example
         _example_path = Path(__file__).parent / ".env.example"
         if _example_path.exists():
             import shutil
@@ -39,10 +37,9 @@ try:
             load_dotenv(_env_path)
             print("   [+] Created .env from .env.example (edit it to customize).")
 except ImportError:
-    pass  # python-dotenv not installed, rely on system env vars
+    pass
 
 
-# ─── Database Selection ─────────────────────────────────────────────
 MONGO_URI = os.environ.get("MONGO_URI", "").strip()
 DB_NAME = os.environ.get("MONGO_DB", "threat_intel")
 DATA_DIR = Path(__file__).parent / "data"
@@ -50,10 +47,6 @@ DATA_DIR = Path(__file__).parent / "data"
 _db_ready = False
 _using_mongodb = False
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  TinyDB Collection Wrapper — MongoDB-compatible API
-# ═════════════════════════════════════════════════════════════════════
 
 class _DBResult:
     """Standard operation result matching pymongo return conventions."""
@@ -155,7 +148,6 @@ class TinyCollection:
         self._db = db_instance
         self._Q = Query
 
-    # ── Insert ───────────────────────────────────────────────────
     def insert_one(self, doc: dict) -> Any:
         """Insert a single document."""
         with _db_lock:
@@ -170,7 +162,6 @@ class TinyCollection:
             ids = self._table.insert_multiple(prepared)
         return _DBResult(inserted_ids=ids)
 
-    # ── Find ─────────────────────────────────────────────────────
     def find(self, query: Optional[dict] = None, sort=None, **kwargs) -> '_TinyCursor':
         """Return a cursor-like object over matching documents."""
         with _db_lock:
@@ -185,7 +176,6 @@ class TinyCollection:
             docs = _TinyCursor._sort_docs(docs, sort)
         return docs[0] if docs else None
 
-    # ── Update ───────────────────────────────────────────────────
     def update_many(self, query: dict, update: dict) -> Any:
         """Update all documents matching query."""
         with _db_lock:
@@ -193,7 +183,6 @@ class TinyCollection:
             count = 0
             set_fields = update.get("$set", {})
             
-            # Convert datetime objects to ISO strings for JSON storage
             for k, v in set_fields.items():
                 if isinstance(v, datetime):
                     set_fields[k] = v.isoformat()
@@ -218,7 +207,6 @@ class TinyCollection:
             count = 0
             set_fields = update.get("$set", {})
             
-            # Convert datetime objects to ISO strings for JSON storage
             for k, v in set_fields.items():
                 if isinstance(v, datetime):
                     set_fields[k] = v.isoformat()
@@ -234,10 +222,9 @@ class TinyCollection:
                     self._table.update(set_fields, doc_ids=[doc_id])
                     count = 1
             elif upsert and set_fields:
-                # No matching doc found — insert a new one with query fields + set_fields
                 new_doc = {}
                 for k, v in query.items():
-                    if not isinstance(v, dict):  # Skip operators like $regex
+                    if not isinstance(v, dict):
                         new_doc[k] = v
                 new_doc.update(set_fields)
                 new_doc = self._prepare_doc(new_doc)
@@ -246,7 +233,6 @@ class TinyCollection:
 
         return _DBResult(modified_count=count)
 
-    # ── Delete ───────────────────────────────────────────────────
     def delete_many(self, query: Optional[dict] = None) -> Any:
         """Delete all matching documents. Empty query = delete all."""
         with _db_lock:
@@ -261,7 +247,6 @@ class TinyCollection:
 
         return _DBResult(deleted_count=count)
 
-    # ── Count & Distinct ─────────────────────────────────────────
     def count_documents(self, query: Optional[dict] = None) -> int:
         """Count matching documents."""
         with _db_lock:
@@ -284,7 +269,6 @@ class TinyCollection:
                     result.append(val)
         return result
 
-    # ── Aggregate (basic pipeline support) ───────────────────────
     def aggregate(self, pipeline: list) -> list:
         """
         Basic MongoDB aggregation pipeline support.
@@ -293,7 +277,6 @@ class TinyCollection:
         """
         with _db_lock:
             docs = list(self._table.all())
-        # Add _id field simulation
         for d in docs:
             if "_id" not in d:
                 d["_id"] = d.get("_tinydb_id", id(d))
@@ -334,14 +317,11 @@ class TinyCollection:
 
         return docs
 
-    # ── Internal Helpers ─────────────────────────────────────────
     def _prepare_doc(self, doc: dict) -> dict:
         """Prepare a document for insertion."""
-        doc = dict(doc)  # Copy
-        # Generate a string _id if not present (UUID4 for collision safety)
+        doc = dict(doc)
         if "_id" not in doc:
             doc["_id"] = uuid.uuid4().hex[:24]
-        # Convert datetime objects to ISO strings for JSON storage
         for k, v in doc.items():
             if isinstance(v, datetime):
                 doc[k] = v.isoformat()
@@ -359,7 +339,6 @@ class TinyCollection:
         else:
             docs = [d for d in self._table.all() if self._matches_query(d, query)]
 
-        # Add TinyDB doc_id for update/delete operations
         result = []
         for d in docs:
             doc = dict(d)
@@ -401,7 +380,6 @@ class TinyCollection:
 
         groups: dict = {}
         for doc in docs:
-            # Resolve group key
             if isinstance(group_key, dict):
                 key_val = tuple(
                     (k, _resolve_doc_field(doc, v))
@@ -420,7 +398,6 @@ class TinyCollection:
                 groups[hashable_key] = {"_id": key_display, "_docs": []}
             groups[hashable_key]["_docs"].append(doc)
 
-        # Apply accumulators
         results = []
         for key, group in groups.items():
             result = {"_id": group["_id"]}
@@ -432,7 +409,6 @@ class TinyCollection:
 
                     if op == "$sum":
                         if isinstance(operand, dict) and "$cond" in operand:
-                            # Handle $cond inside $sum
                             cond = operand["$cond"]
                             total = 0
                             for d in group_docs:
@@ -507,7 +483,6 @@ class _TinyCursor:
         self._docs = list(docs)
         if sort_spec:
             if isinstance(sort_spec, list):
-                # MongoDB-style: [("field", direction)]
                 for field, direction in reversed(sort_spec):
                     self._docs = self._sort_docs(self._docs, [(field, direction)])
             elif isinstance(sort_spec, str):
@@ -541,10 +516,6 @@ class _TinyCursor:
     def __list__(self):
         return list(self._docs)
 
-
-# ═════════════════════════════════════════════════════════════════════
-#  Database Initialization
-# ═════════════════════════════════════════════════════════════════════
 
 def _init_tinydb():
     """Initialize TinyDB as the database backend."""
@@ -586,26 +557,21 @@ def _init_mongodb():
         return None
 
 
-# ─── Initialize Database ────────────────────────────────────────────
 client: Any = None
 db: Any = None
 
 if MONGO_URI:
-    # User explicitly wants MongoDB
     client = _init_mongodb()
     if client:
         db = client[DB_NAME]
 
 if db is None:
-    # Default: TinyDB
     _tinydb_instance = _init_tinydb()
     if _tinydb_instance is not None:
         db = _tinydb_instance
-        client = _tinydb_instance  # For compatibility
+        client = _tinydb_instance
 
-# ─── Collection References ──────────────────────────────────────────
 if _using_mongodb and db is not None:
-    # Direct MongoDB collections
     network_scans: Any = db["network_scans"]
     threats: Any = db["threats"]
     activity_log: Any = db["activity_log"]
@@ -614,7 +580,6 @@ if _using_mongodb and db is not None:
     ip_geo_cache: Any = db["ip_geo_cache"]
     scan_jobs: Any = db["scan_jobs"]
 elif db is not None:
-    # TinyDB wrapped collections
     network_scans = TinyCollection(db.table("network_scans"), db)
     threats = TinyCollection(db.table("threats"), db)
     activity_log = TinyCollection(db.table("activity_log"), db)
@@ -623,7 +588,6 @@ elif db is not None:
     ip_geo_cache = TinyCollection(db.table("ip_geo_cache"), db)
     scan_jobs = TinyCollection(db.table("scan_jobs"), db)
 else:
-    # Fallback: dummy objects to prevent import errors
     class DummyCollection:
         def __getattr__(self, name):
             return lambda *args, **kwargs: None
@@ -632,7 +596,6 @@ else:
     users = ip_geo_cache = scan_jobs = DummyCollection()
 
 
-# ─── Connection Check ────────────────────────────────────────────────
 def check_connection() -> bool:
     """Return True if the database is ready."""
     return _db_ready

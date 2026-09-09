@@ -20,13 +20,11 @@ import platform
 import subprocess
 from pathlib import Path
 
-# Fix Windows console encoding for Unicode output
 try:
     sys.stdout.reconfigure(encoding='utf-8')  # type: ignore
 except Exception:
     pass
 
-# ─── Constants ───────────────────────────────────────────────────────
 MIN_PYTHON = (3, 9)
 PROJECT_DIR = Path(__file__).parent.resolve()
 VENV_DIR = PROJECT_DIR / ".venv"
@@ -136,7 +134,6 @@ def check_env_file():
         shutil.copy2(ENV_EXAMPLE, ENV_FILE)
         print_status("+", "Created .env from .env.example")
     else:
-        # Create a minimal .env
         with open(ENV_FILE, "w", encoding="utf-8") as f:
             f.write("# NexShield Configuration\n")
             f.write("FLASK_ENV=development\n")
@@ -294,23 +291,19 @@ Examples:
 
     args = parser.parse_args()
 
-    # Print banner
     print(BANNER)
     print(f"   OS: {platform.system()} {platform.release()}")
     print(f"   Python: {sys.version.split()[0]}")
     print(f"   Project: {PROJECT_DIR}")
 
-    # Handle reset
     if args.reset_db:
         reset_database()
         sys.exit(0)
 
-    # Handle self-test
     if args.self_test:
         test_ok = run_self_test()
         sys.exit(0 if test_ok else 1)
 
-    # Run checks
     ok = run_checks()
 
     if args.check:
@@ -322,12 +315,10 @@ Examples:
         print_status("!", "Or run: pip install -r requirements.txt")
         sys.exit(1)
 
-    # Resolve port and host
     port = args.port or int(os.environ.get("PORT", "5000"))
     host = args.host or os.environ.get("HOST", "127.0.0.1")
     debug = args.debug or os.environ.get("FLASK_DEBUG", "false").lower() == "true"
 
-    # Start server
     start_server(host=host, port=port, debug=debug)
 
 

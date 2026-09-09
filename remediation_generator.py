@@ -10,7 +10,6 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Remediation database mapping vulnerability signatures to automated fixes
 REMEDIATION_DB: dict[str, dict[str, Any]] = {
     "smb": {
         "title": "Disable Insecure SMBv1 and Restrict SMB Access",
@@ -122,7 +121,6 @@ REMEDIATION_DB: dict[str, dict[str, Any]] = {
     },
 }
 
-# Generic fallback fix generator
 GENERIC_FIX = {
     "ansible": [
         "- name: Apply Security Update for Discovered Vulnerability",
@@ -180,7 +178,6 @@ def generate_remediation_script(threats: list[dict], target_host: str, fmt: str 
 
     target_host = target_host or "127.0.0.1"
 
-    # Attempt dynamic RAG remediation synthesis first
     try:
         from rag_engine import rag_generator  # type: ignore
         rag_script = rag_generator.generate_dynamic_remediation(target_host, threats, fmt=fmt)
@@ -189,7 +186,6 @@ def generate_remediation_script(threats: list[dict], target_host: str, fmt: str 
     except Exception as exc:
         logger.debug(f"RAG dynamic remediation fallback to static DB: {exc}")
 
-    # Fallback to static rules
     matched_keys = []
     for threat in threats:
         keys = _match_remediation_keys(threat)

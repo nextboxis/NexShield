@@ -5,7 +5,6 @@ import argparse
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Add parent directory to path to import config
 sys.path.append(str(Path(__file__).parent.parent))
 
 from config import cve_cache, check_connection
@@ -20,11 +19,9 @@ def parse_v5_cve(data):
         
     status = cve_metadata.get("state", "UNKNOWN")
     
-    # Try to extract from CNA (CNA contains the official data)
     containers = data.get("containers", {})
     cna = containers.get("cna", {})
     
-    # Description
     descriptions = cna.get("descriptions", [])
     desc_en = "No description available."
     for d in descriptions:
@@ -32,7 +29,6 @@ def parse_v5_cve(data):
             desc_en = d.get("value", desc_en)
             break
             
-    # Metrics (CVSS)
     metrics = cna.get("metrics", [])
     if not metrics and "adp" in containers:
         for adp in containers["adp"]:
@@ -64,15 +60,12 @@ def parse_v5_cve(data):
             cvss_vector = cvss.get("vectorString", "")
             break
             
-    # Dates
     published = cve_metadata.get("datePublished", "")
     modified = cve_metadata.get("dateUpdated", "")
     
-    # References
     refs = cna.get("references", [])
     ref_urls = [r.get("url", "") for r in refs[:5] if "url" in r]
     
-    # Products / CPEs (approximation, since CPEs aren't strictly in v5 unless added)
     cpes = []
     affected = cna.get("affected", [])
     for aff in affected:
@@ -84,7 +77,6 @@ def parse_v5_cve(data):
         if product == "n/a" or product == "unknown":
             product = "*"
             
-        # Add synthetic CPE for matching purposes
         synthetic_cpe = f"cpe:2.3:a:{vendor}:{product}:*:*:*:*:*:*:*"
         if synthetic_cpe not in cpes:
             cpes.append(synthetic_cpe)
@@ -152,7 +144,6 @@ def main():
                     
                     parsed = parse_v5_cve(data)
                     if parsed:
-                        # Avoid duplicates using O(1) set lookup
                         cve_id = parsed["cve_id"]
                         if cve_id not in existing_cves:
                             batch.append(parsed)
@@ -166,7 +157,6 @@ def main():
                 except Exception as e:
                     print(f"Error processing {json_file}: {e}")
 
-    # Insert remaining
     if batch:
         cve_cache.insert_many(batch)
         total_inserted += len(batch)
