@@ -49,6 +49,7 @@
                 <a href="#hostsGrid" class="liquid-nav__link">Assets</a>
                 <a href="#activityFeed" class="liquid-nav__link">Operations</a>
                 <a href="/report" class="liquid-nav__link">Report</a>
+                <a href="#" class="liquid-nav__link liquid-nav__link--ai" onclick="toggleRagCopilot(); return false;">🧠 AI Copilot <span class="badge-rag-pulse">RAG</span></a>
                 <a href="#" class="liquid-nav__link liquid-nav__link--pill" onclick="showShortcutsHelp(); return false;">Shortcuts</a>
             </div>
             <div class="global-search">
@@ -333,6 +334,58 @@
             </div>
             <div class="modal-body">
                 <pre id="remediationCodeBlock" style="background: rgba(0,0,0,0.6); padding: 1rem; border-radius: 6px; color: #00ff88; font-family: var(--font-mono, monospace); font-size: 0.85rem; max-height: 400px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; border: 1px solid rgba(255,255,255,0.1);"></pre>
+            </div>
+        </div>
+    <!-- ── NexShield RAG AI Copilot Drawer ──────────────────────── -->
+    <div class="rag-drawer d-none" id="ragDrawer" role="dialog" aria-modal="true" aria-labelledby="ragDrawerTitle">
+        <div class="rag-drawer__backdrop" onclick="toggleRagCopilot()"></div>
+        <div class="rag-drawer__panel">
+            <header class="rag-drawer__header">
+                <div class="rag-drawer__title-group">
+                    <span class="rag-icon">🧠</span>
+                    <div>
+                        <h2 class="rag-drawer__title" id="ragDrawerTitle">NEXSHIELD AI COPILOT</h2>
+                        <span class="rag-drawer__subtitle">RAG-Augmented Threat Intelligence & Remediation Engine</span>
+                    </div>
+                </div>
+                <div class="rag-drawer__actions">
+                    <button class="btn-console btn-console--sm" onclick="triggerRagReindex()" title="Reindex Knowledge Base">🔄 REINDEX</button>
+                    <button class="modal-close" onclick="toggleRagCopilot()" aria-label="Close Copilot">&times;</button>
+                </div>
+            </header>
+
+            <div class="rag-drawer__content">
+                <!-- Suggested Quick Queries -->
+                <div class="rag-quick-prompts">
+                    <span class="rag-prompts-label">QUICK PROMPTS:</span>
+                    <button class="rag-prompt-chip" onclick="executeQuickPrompt('Explain lateral movement risks on open SMB port 445')">SMB Port 445 Risks</button>
+                    <button class="rag-prompt-chip" onclick="executeQuickPrompt('How do I harden and isolate RDP port 3389?')">Harden RDP 3389</button>
+                    <button class="rag-prompt-chip" onclick="executeQuickPrompt('What is the exploit chain for EternalBlue CVE-2017-0144?')">CVE-2017-0144 EternalBlue</button>
+                    <button class="rag-prompt-chip" onclick="executeQuickPrompt('PCI-DSS 4.0 requirements for vulnerability patching')">PCI-DSS Patching Rules</button>
+                </div>
+
+                <!-- Chat History / Response Viewer -->
+                <div class="rag-conversation" id="ragConversation">
+                    <div class="rag-message rag-message--assistant">
+                        <div class="rag-message__sender">NEXSHIELD RAG COPILOT</div>
+                        <div class="rag-message__body">
+                            Greetings, Operator. I am NexShield's <strong>Retrieval-Augmented Generation (RAG)</strong> Security Analyst.
+                            I ground all threat assessments in your local CVE repositories, MITRE ATT&CK techniques, and CIS/PCI-DSS compliance baselines.
+                            <br/><br/>
+                            Ask me about any host posture, attack chain, CVE exploitability, or click <code>[AI RAG DEEP DIVE]</code> on any threat item.
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Query Input Form -->
+                <form class="rag-input-form" onsubmit="submitRagQuery(event)">
+                    <div class="rag-input-wrapper">
+                        <input type="text" id="ragQueryInput" class="rag-input" placeholder="Ask AI Copilot about threats, CVEs, attack paths, or remediation..." autocomplete="off" />
+                        <button type="submit" class="btn btn--scan rag-send-btn" id="ragSendBtn">
+                            <span>TRANSMIT</span> ⚡
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

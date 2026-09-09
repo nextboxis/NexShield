@@ -283,9 +283,9 @@ def run_self_test() -> bool:
     try:
         from ai_logic import _make_threat
         threat = _make_threat("Test Threat", "high", "127.0.0.1", "CVE-2023-0001", "SelfTest", "Test detail")
-        results.append(("20-Engine AI Logic", threat["name"] == "Test Threat"))
+        results.append(("21-Engine AI Logic", threat["name"] == "Test Threat"))
     except Exception:
-        results.append(("20-Engine AI Logic", False))
+        results.append(("21-Engine AI Logic", False))
 
     # 3. CVE 5.0 Version Bounds Matching Check
     try:
@@ -318,6 +318,14 @@ def run_self_test() -> bool:
         results.append(("Webhook Alert Dispatcher", isinstance(res, dict)))
     except Exception:
         results.append(("Webhook Alert Dispatcher", False))
+
+    # 7. RAG Intelligence Engine Check
+    try:
+        from rag_engine import knowledge_store, rag_retriever
+        docs = rag_retriever.retrieve("SMB EternalBlue", top_k=1)
+        results.append(("RAG Intelligence Engine", len(docs) > 0 and len(knowledge_store.all_documents()) > 0))
+    except Exception:
+        results.append(("RAG Intelligence Engine", False))
 
     print_header("Self-Test Results")
     all_ok = True

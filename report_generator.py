@@ -102,6 +102,11 @@ def compute_executive_summary(threats: list[dict], scans: list[dict]) -> dict:
         posture = "SECURE / LOW RISK"
         narrative = "No critical vulnerability patterns detected. System maintains robust baseline security posture."
 
+    # Enrich narrative with RAG intelligence context if threats exist
+    rag_threats = [t for t in threats if t.get("source") == "RAGThreat-Engine-v1" or "rag" in t.get("tags", [])]
+    if rag_threats:
+        narrative += f" Grounded AI RAG model verified {len(rag_threats)} prioritized attack vectors with direct MITRE ATT&CK and NVD CVE citations."
+
     return {
         "risk_score": risk_score,
         "risk_posture": posture,

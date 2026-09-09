@@ -206,6 +206,11 @@ NexShield's analysis pipeline runs **16 independent engines** against scan data:
 | 14 | Behavioral Anomaly | Port/service mismatch detection |
 | 15 | Zero-Day Heuristics | High-entropy banners, C2 beacons |
 | 16 | Metasploit Mapping | Automatic exploit module correlation |
+| 17 | Threat Actor Profiling | APT group tactics correlation |
+| 18 | Exploitability Index | Unauthenticated RCE likelihood |
+| 19 | Remediation Effort | DevOps maintenance window estimation |
+| 20 | Attack Graph Engine | Path traversal & pivot risk mapping |
+| 21 | RAG Intelligence | Retrieval-Augmented Generation grounding & citations |
 
 ---
 
@@ -216,7 +221,8 @@ NexShield/
 ├── run.py                     # ⭐ Main launcher — just run this!
 ├── app.py                     # Flask backend — API routes, WebSocket, auth
 ├── config.py                  # Database config (TinyDB/MongoDB auto-detection)
-├── ai_logic.py                # 16-engine AI analysis pipeline & ML training
+├── ai_logic.py                # 21-engine AI analysis pipeline & ML training
+├── rag_engine.py              # 🧠 In-Between RAG intelligence subsystem
 ├── scanner.py                 # Network scanning engine (Nmap wrapper)
 ├── cve_lookup.py              # CVE database and NVD API integration
 ├── exploit_cli.py             # CLI for exploit RC script generation

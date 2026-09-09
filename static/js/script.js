@@ -988,6 +988,7 @@ function openModal(threat) {
             <div style="margin-top: 2rem; display: flex; flex-wrap: wrap; gap: 10px;">
                 <button class="btn-console" onclick="exportReport('csv', { host: '${threat.host || ""}' })">EXPORT_CSV</button>
                 <button class="btn-console" onclick="lookupCVE('${threat.cve_id || ""}')">LOOKUP_CVE</button>
+                <button class="btn-console btn-console--rag" style="border-color: #38bdf8; color: #38bdf8;" onclick="deepAnalyzeWithRag('${threat._id || threat.cve_id || ""}')">🧠 AI RAG DEEP DIVE</button>
                 <button class="btn-console" style="border-color: var(--red); color: var(--red);" onclick="quarantineHost('${escapeHtml(threat.host || "")}')">QUARANTINE</button>
             </div>
         </div>
@@ -1872,5 +1873,195 @@ function setupTopologyCanvas(canvas) {
         });
     };
 }
+
+
+// ═════════════════════════════════════════════════════════════════════
+//  NexShield RAG AI Copilot — Client Subsystem
+// ═════════════════════════════════════════════════════════════════════
+
+function toggleRagCopilot(forceState = null) {
+    const drawer = document.getElementById("ragDrawer");
+    if (!drawer) return;
+
+    if (forceState === true) {
+        drawer.classList.remove("d-none");
+        drawer.classList.add("rag-drawer--active");
+    } else if (forceState === false) {
+        drawer.classList.remove("rag-drawer--active");
+        setTimeout(() => drawer.classList.add("d-none"), 250);
+    } else {
+        if (drawer.classList.contains("rag-drawer--active")) {
+            drawer.classList.remove("rag-drawer--active");
+            setTimeout(() => drawer.classList.add("d-none"), 250);
+        } else {
+            drawer.classList.remove("d-none");
+            drawer.classList.add("rag-drawer--active");
+            const input = document.getElementById("ragQueryInput");
+            if (input) setTimeout(() => input.focus(), 150);
+        }
+    }
+}
+
+function appendRagMessage(sender, content, citations = [], isUser = false) {
+    const container = document.getElementById("ragConversation");
+    if (!container) return;
+
+    const msgDiv = document.createElement("div");
+    msgDiv.className = `rag-message ${isUser ? "rag-message--user" : "rag-message--assistant"}`;
+
+    const senderDiv = document.createElement("div");
+    senderDiv.className = "rag-message__sender";
+    senderDiv.innerText = sender;
+    msgDiv.appendChild(senderDiv);
+
+    const bodyDiv = document.createElement("div");
+    bodyDiv.className = "rag-message__body";
+    bodyDiv.innerHTML = typeof content === "string" ? content.replace(/\n/g, "<br/>") : content;
+    msgDiv.appendChild(bodyDiv);
+
+    if (citations && citations.length > 0) {
+        const citContainer = document.createElement("div");
+        citContainer.className = "rag-citations";
+        const citLabel = document.createElement("span");
+        citLabel.className = "rag-citations__label";
+        citLabel.innerText = "VERIFIED SOURCES:";
+        citContainer.appendChild(citLabel);
+
+        citations.forEach(c => {
+            const badge = document.createElement("span");
+            badge.className = "rag-citation-pill";
+            badge.innerText = `📄 ${c.doc_id || c.title}`;
+            badge.title = `${c.title} (Relevance: ${Math.round((c.relevance || 0) * 100)}%)`;
+            citContainer.appendChild(badge);
+        });
+        msgDiv.appendChild(citContainer);
+    }
+
+    container.appendChild(msgDiv);
+    container.scrollTop = container.scrollHeight;
+}
+
+async function submitRagQuery(event) {
+    if (event) event.preventDefault();
+    const input = document.getElementById("ragQueryInput");
+    const sendBtn = document.getElementById("ragSendBtn");
+    if (!input) return;
+
+    const query = input.value.trim();
+    if (!query) return;
+
+    // Append user query immediately
+    appendRagMessage("OPERATOR", escapeHtml(query), [], true);
+    input.value = "";
+
+    if (sendBtn) {
+        sendBtn.disabled = true;
+        sendBtn.innerHTML = "<span>THINKING...</span> ⏳";
+    }
+
+    // Append placeholder thinking message
+    const tempId = `rag-loading-${Date.now()}`;
+    const container = document.getElementById("ragConversation");
+    if (container) {
+        const placeholder = document.createElement("div");
+        placeholder.id = tempId;
+        placeholder.className = "rag-message rag-message--assistant rag-message--loading";
+        placeholder.innerHTML = "<div class='rag-message__sender'>NEXSHIELD RAG COPILOT</div><div class='rag-message__body'>Searching local CVE archive & MITRE knowledge bases...</div>";
+        container.appendChild(placeholder);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    try {
+        const res = await fetchJson("/api/rag/query", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ query }),
+        });
+
+        const loadingElem = document.getElementById(tempId);
+        if (loadingElem) loadingElem.remove();
+
+        if (res && res.status === "complete" && res.data) {
+            appendRagMessage("NEXSHIELD RAG COPILOT", res.data.answer || "Analysis complete.", res.data.citations || []);
+        } else {
+            appendRagMessage("NEXSHIELD RAG COPILOT", `<span style="color:var(--red);">Analysis failed: ${escapeHtml(res?.message || "Internal server error")}</span>`);
+        }
+    } catch (err) {
+        const loadingElem = document.getElementById(tempId);
+        if (loadingElem) loadingElem.remove();
+        appendRagMessage("NEXSHIELD RAG COPILOT", `<span style="color:var(--red);">Communication error: ${escapeHtml(err.message)}</span>`);
+    } finally {
+        if (sendBtn) {
+            sendBtn.disabled = false;
+            sendBtn.innerHTML = "<span>TRANSMIT</span> ⚡";
+        }
+    }
+}
+
+function executeQuickPrompt(promptText) {
+    const input = document.getElementById("ragQueryInput");
+    if (input) {
+        input.value = promptText;
+        submitRagQuery(null);
+    }
+}
+
+async function deepAnalyzeWithRag(threatId) {
+    if (!threatId) {
+        showToast("Invalid Threat ID for RAG analysis.", "warning");
+        return;
+    }
+
+    closeModal();
+    toggleRagCopilot(true);
+
+    appendRagMessage("OPERATOR", `[AI RAG DEEP DIVE]: Requested in-depth threat analysis for item ${escapeHtml(threatId)}`, [], true);
+
+    const tempId = `rag-loading-${Date.now()}`;
+    const container = document.getElementById("ragConversation");
+    if (container) {
+        const placeholder = document.createElement("div");
+        placeholder.id = tempId;
+        placeholder.className = "rag-message rag-message--assistant rag-message--loading";
+        placeholder.innerHTML = "<div class='rag-message__sender'>NEXSHIELD RAG COPILOT</div><div class='rag-message__body'>Retrieving attack chain, CVE advisories & compliance controls...</div>";
+        container.appendChild(placeholder);
+        container.scrollTop = container.scrollHeight;
+    }
+
+    try {
+        const res = await fetchJson(`/api/rag/threat/${encodeURIComponent(threatId)}`);
+        const loadingElem = document.getElementById(tempId);
+        if (loadingElem) loadingElem.remove();
+
+        if (res && res.status === "complete" && res.analysis) {
+            const ana = res.analysis;
+            let formattedHtml = `<strong>${escapeHtml(ana.threat_name || "Threat Deep Dive")}</strong> (Confidence: ${Math.round((ana.confidence_score || 0.8) * 100)}%)<br/><br/>`;
+            formattedHtml += `${escapeHtml(ana.explanation || "").replace(/\n/g, "<br/>")}`;
+
+            appendRagMessage("NEXSHIELD RAG COPILOT", formattedHtml, ana.citations || []);
+        } else {
+            appendRagMessage("NEXSHIELD RAG COPILOT", `<span style="color:var(--red);">Analysis failed: ${escapeHtml(res?.message || "Unknown error")}</span>`);
+        }
+    } catch (err) {
+        const loadingElem = document.getElementById(tempId);
+        if (loadingElem) loadingElem.remove();
+        appendRagMessage("NEXSHIELD RAG COPILOT", `<span style="color:var(--red);">Deep analysis error: ${escapeHtml(err.message)}</span>`);
+    }
+}
+
+async function triggerRagReindex() {
+    showToast("Triggering RAG Knowledge Store reindexing...", "info");
+    try {
+        const res = await fetchJson("/api/rag/reindex", { method: "POST" });
+        if (res && res.status === "accepted") {
+            showToast("RAG indexing running in background.", "success");
+        } else {
+            showToast(res?.message || "Failed to trigger reindex.", "error");
+        }
+    } catch (err) {
+        showToast("Error triggering reindex: " + err.message, "error");
+    }
+}
+
 
 
