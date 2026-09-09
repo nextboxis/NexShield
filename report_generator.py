@@ -159,9 +159,21 @@ def _generate_markdown(threats: list[dict], scans: list[dict], summary: dict, me
 
     for idx, threat in enumerate(threats, 1):
         compliance = map_compliance(threat)
+        host_str = threat.get('host', 'N/A')
+        geo_str = ""
+        try:
+            from ip_lookup import lookup_ip
+            g = lookup_ip(host_str)
+            if g.get("country_code") and not g.get("is_private"):
+                geo_str = f" ({g.get('country_name', '')} [{g.get('country_code')}], ASN {g.get('asn', '')} {g.get('as_name', '')})"
+            elif g.get("is_private"):
+                geo_str = " (Local LAN / Private)"
+        except Exception:
+            pass
+
         lines.extend([
             f"### {idx}. [{threat.get('severity', 'LOW').upper()}] {threat.get('name', 'Threat')}",
-            f"- **Host Node:** `{threat.get('host', 'N/A')}`",
+            f"- **Host Node:** `{host_str}`{geo_str}",
             f"- **CVE / Identifier:** `{threat.get('cve_id', 'N/A')}`",
             f"- **Detection Source:** `{threat.get('source', 'AI Engine')}`",
             f"- **Details:** {threat.get('detail', 'N/A')}",
@@ -183,6 +195,15 @@ def _generate_sarif(threats: list[dict], summary: dict, metadata: dict) -> str:
         rule_id = str(t.get("cve_id") or f"NEX-{idx+1}")
         sev = str(t.get("severity")).lower()
         level = "error" if sev in ("critical", "high") else "warning" if sev == "medium" else "note"
+        host_val = str(t.get('host', 'localhost'))
+        geo_uri = f"host://{host_val}"
+        try:
+            from ip_lookup import lookup_ip
+            g = lookup_ip(host_val)
+            if g.get("country_code"):
+                geo_uri = f"host://{host_val}?country={g.get('country_code')}&asn={g.get('asn')}"
+        except Exception:
+            pass
 
         rules.append({
             "id": rule_id,
@@ -197,7 +218,7 @@ def _generate_sarif(threats: list[dict], summary: dict, metadata: dict) -> str:
             "message": {"text": str(t.get("detail") or "Security threat detected.")},
             "locations": [{
                 "physicalLocation": {
-                    "artifactLocation": {"uri": f"host://{t.get('host', 'localhost')}"}
+                    "artifactLocation": {"uri": geo_uri}
                 }
             }]
         })
@@ -232,11 +253,23 @@ def _generate_html(threats: list[dict], scans: list[dict], summary: dict, metada
         color = "#f87171" if sev == "critical" else "#fb923c" if sev == "high" else "#fbbf24" if sev == "medium" else "#34d399"
         comp_tags = "".join([f"<span class='badge'>{c['framework']} {c['control']}</span>" for c in map_compliance(t)])
 
+        host_val = t.get('host', '')
+        geo_badge = ""
+        try:
+            from ip_lookup import lookup_ip
+            g = lookup_ip(host_val)
+            if g.get("country_code") and not g.get("is_private"):
+                geo_badge = f"<br/><small style='color:#94a3b8;'>🌐 {g.get('country_name', '')} ({g.get('country_code')})</small>"
+            elif g.get("is_private"):
+                geo_badge = "<br/><small style='color:#64748b;'>🔒 LAN / Private</small>"
+        except Exception:
+            pass
+
         threat_rows += f"""
         <tr>
             <td><span style="color: {color}; font-weight: bold;">{sev.upper()}</span></td>
             <td><strong>{t.get('name', '')}</strong><br/><small>{t.get('detail', '')}</small></td>
-            <td><code>{t.get('host', '')}</code></td>
+            <td><code>{host_val}</code>{geo_badge}</td>
             <td><code>{t.get('cve_id', '')}</code></td>
             <td>{comp_tags or '<span style="opacity:0.4;">Standard</span>'}</td>
         </tr>

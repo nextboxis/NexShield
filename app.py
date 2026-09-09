@@ -605,7 +605,7 @@ def quarantine_host():
 @app.route("/api/host/<path:ip>", methods=["GET"])
 @login_required
 def get_host_profile(ip):
-    """Retrieve deep scan results (footprint) for a particular IP."""
+    """Retrieve deep scan results (footprint) and IP geolocation for a particular IP."""
     if not check_connection():
         return jsonify({"status": "error", "message": "Database unavailable"}), 503
 
@@ -616,12 +616,41 @@ def get_host_profile(ip):
         {"host": ip},
         sort=[("scanned_at", -1)]
     )
+
+    geo_info = {}
+    try:
+        from ip_lookup import lookup_ip
+        geo_info = lookup_ip(ip)
+    except Exception as e:
+        logger.debug("Failed geo lookup in get_host_profile for %s: %s", ip, e)
     
     return jsonify({
         "status": "complete",
         "host": ip,
+        "geo": geo_info,
         "footprint": _serialize(scan_doc) if scan_doc else None
     })
+
+
+@app.route("/api/geo/<path:ip>", methods=["GET"])
+@login_required
+def get_ip_geo(ip):
+    """Retrieve real-time IP Geolocation and ASN intelligence for any given IP address."""
+    clean_ip = (ip or "").strip()
+    if not clean_ip:
+        return jsonify({"status": "error", "message": "IP address is required."}), 400
+
+    try:
+        from ip_lookup import lookup_ip
+        geo_data = lookup_ip(clean_ip)
+        return jsonify({
+            "status": "complete",
+            "ip": clean_ip,
+            "geo": geo_data,
+        })
+    except Exception as e:
+        logger.error("Error resolving IP geo for %s: %s", clean_ip, e)
+        return jsonify({"status": "error", "message": "Failed resolving IP intelligence."}), 500
 
 @app.route("/api/export-scan", methods=["GET"])
 @login_required
@@ -926,6 +955,14 @@ def list_hosts():
             continue
         # Get threat count for this host
         threat_count = threats.count_documents({"host": ip})
+
+        geo_info = {}
+        try:
+            from ip_lookup import lookup_ip
+            geo_info = lookup_ip(ip)
+        except Exception as e:
+            logger.debug("Failed geo lookup in list_hosts for %s: %s", ip, e)
+
         result.append({
             "host": ip,
             "hostname": h.get("hostname", ""),
@@ -936,6 +973,13 @@ def list_hosts():
             "open_ports": h.get("open_ports", 0),
             "services": h.get("services", []),
             "threat_count": threat_count,
+            "geo": {
+                "country_code": geo_info.get("country_code", ""),
+                "country_name": geo_info.get("country_name", ""),
+                "asn": geo_info.get("asn", 0),
+                "as_name": geo_info.get("as_name", ""),
+                "is_private": geo_info.get("is_private", False),
+            },
         })
 
     return jsonify({"status": "complete", "hosts": result, "total": len(result)})

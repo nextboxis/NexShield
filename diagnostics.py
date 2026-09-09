@@ -91,6 +91,21 @@ def run_self_test() -> bool:
     except Exception:
         results.append(("RAG Intelligence Engine", False))
 
+    # 8. IP Geolocation & ASN Intelligence Check
+    try:
+        from ip_lookup import lookup_ip, is_private_ip
+        lan_check = is_private_ip("192.168.1.1")
+        loop_check = is_private_ip("127.0.0.1")
+        pub_check = lookup_ip("8.8.8.8")
+        geo_ok = (
+            lan_check and loop_check
+            and pub_check.get("country_code") == "US"
+            and pub_check.get("asn") == 15169
+        )
+        results.append(("IP Geolocation & ASN Engine", geo_ok))
+    except Exception:
+        results.append(("IP Geolocation & ASN Engine", False))
+
     _print_header("Self-Test Results")
     all_ok = True
     for name, ok in results:

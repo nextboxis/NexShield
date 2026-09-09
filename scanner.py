@@ -313,6 +313,22 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
             except Exception as e:
                 logger.debug("Failed parsing MAC/vendor info for host %s: %s", host, e)
 
+            # ── IP Geolocation & ASN ─────────────────────────────
+            try:
+                from ip_lookup import lookup_ip
+                geo_info = lookup_ip(host)
+                host_data["geo"] = {
+                    "country_code": geo_info.get("country_code", ""),
+                    "country_name": geo_info.get("country_name", ""),
+                    "asn": geo_info.get("asn", 0),
+                    "as_name": geo_info.get("as_name", ""),
+                    "is_private": geo_info.get("is_private", False),
+                    "network_type": geo_info.get("network_type", "unknown"),
+                }
+            except Exception as e:
+                logger.debug("Failed resolving IP geolocation for %s: %s", host, e)
+                host_data["geo"] = {}
+
             # ── Port / Protocol Data ─────────────────────────────
             open_count = 0
             services = []
