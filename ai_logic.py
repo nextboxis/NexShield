@@ -996,8 +996,8 @@ def train_ml_model():
                             cve_count += 1
                             if cve_count >= 1000:
                                 break
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.debug("Skipping malformed CVE item during model training: %s", e)
                 if cve_count >= 1000:
                     break
             if cve_count >= 1000:
@@ -1253,8 +1253,8 @@ def _engine_cve_correlation(ctx):
                 local_candidates = list(cve_cache.find({
                     "cpes": {"$regex": f":{product_name}:", "$options": "i"}
                 }))
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed querying cve_cache by product '%s': %s", product_name, e)
             
             # Fetch directly from local cvelistV5 directory using index
             try:
@@ -1263,8 +1263,8 @@ def _engine_cve_correlation(ctx):
                 for lc in local_cves:
                     if lc.get("cve_id") not in existing_ids:
                         local_candidates.append(lc)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed getting local CVEs by product '%s': %s", product_name, e)
                 
         for cve_doc in local_candidates:
             cve_id = cve_doc.get("cve_id")
@@ -1294,8 +1294,8 @@ def _engine_cve_correlation(ctx):
                 api_res = lookup_by_cpe(cpe_23, results_per_page=5)
                 if "vulnerabilities" in api_res:
                     matched_cves.extend(api_res["vulnerabilities"])
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed querying NVD API by CPE '%s': %s", cpe_23, e)
 
     # 2. Product + Version Keyword Search (fallback if CPE matching yielded nothing)
     if not matched_cves and product and version:
@@ -1313,8 +1313,8 @@ def _engine_cve_correlation(ctx):
                 for lc in local_cves:
                     if lc.get("cve_id") not in existing_ids:
                         local_candidates.append(lc)
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed getting local CVEs for fallback '%s': %s", product, e)
 
             for cve_doc in local_candidates:
                 cve_id = cve_doc.get("cve_id")
@@ -1337,8 +1337,8 @@ def _engine_cve_correlation(ctx):
                     seen_ids.add(cve_id)
                 if len(matched_cves) >= 3:
                     break
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Failed searching local candidates for fallback '%s': %s", product, e)
 
         # 2b. If no local match, query NVD API using keywordSearch
         if not matched_cves:
@@ -1355,8 +1355,8 @@ def _engine_cve_correlation(ctx):
                             {"$set": {**parsed, "fetched_at": datetime.now(timezone.utc)}},
                             upsert=True,
                         )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed NVD keyword search for '%s %s': %s", product, version, e)
 
     # Build threats from matched CVEs
     results = []
@@ -1838,15 +1838,26 @@ def compute_risk_scores(persist=True):
         latest = group.get("latest")
         if latest:
             try:
-                age_hours = (datetime.now(timezone.utc) - latest).total_seconds() / 3600
-                if age_hours < 1:
-                    recency_boost = 8   # Last hour
-                elif age_hours < 24:
-                    recency_boost = 5   # Last day
-                elif age_hours < 168:
-                    recency_boost = 2   # Last week
-            except Exception:
-                pass
+                if isinstance(latest, str):
+                    dt_latest = datetime.fromisoformat(latest)
+                elif isinstance(latest, datetime):
+                    dt_latest = latest
+                else:
+                    dt_latest = None
+
+                if dt_latest:
+                    if dt_latest.tzinfo is None:
+                        dt_latest = dt_latest.replace(tzinfo=timezone.utc)
+                    now = datetime.now(timezone.utc)
+                    age_hours = (now - dt_latest).total_seconds() / 3600
+                    if age_hours < 1:
+                        recency_boost = 8   # Last hour
+                    elif age_hours < 24:
+                        recency_boost = 5   # Last day
+                    elif age_hours < 168:
+                        recency_boost = 2   # Last week
+            except Exception as e:
+                logger.debug("Failed calculating recency boost for host %s: %s", host, e)
 
         raw_total = sev_score + engine_bonus + volume_factor + recency_boost
         total = round(raw_total * critical_multiplier, 1)
@@ -1924,8 +1935,8 @@ def merge_duplicates():
             removed += info_res.deleted_count
         elif isinstance(info_res, int):
             removed += info_res
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed purging informational items during deduplication: %s", e)
 
     groups = identify_duplicates()
     for group in groups:
@@ -1973,8 +1984,8 @@ def merge_duplicates():
             discard_ids = [i for i in ids if i != keep["_id"]]
             threats.delete_many({"_id": {"$in": discard_ids}})
             removed += len(discard_ids)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug("Failed secondary deduplication pass: %s", e)
 
     return removed
 
@@ -2001,7 +2012,8 @@ def _make_threat(name, severity, host, cve_id, source, detail, tags=None):
         doc = item.model_dump()
         doc["detected_at"] = datetime.now(timezone.utc)
         return doc
-    except Exception:
+    except Exception as e:
+        logger.debug("ThreatItem validation fallback triggered for %s: %s", name, e)
         # Fallback if validation fails
         return {
             "name": name,

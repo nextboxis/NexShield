@@ -1585,8 +1585,8 @@ def api_rag_threat_deep_dive(tid):
         try:
             oid = ObjectId(tid)
             doc = threats.find_one({"_id": oid})
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug("Could not parse '%s' as ObjectId, falling back to literal ID: %s", tid, e)
     if not doc:
         doc = threats.find_one({"_id": tid})
 
@@ -1891,7 +1891,8 @@ def get_threat_trends():
     try:
         tag_results = list(threats.aggregate(tag_pipeline))
         tags = {r["_id"]: r["count"] for r in tag_results if r["_id"]}
-    except Exception:
+    except Exception as e:
+        logger.debug("Failed aggregating threat tags: %s", e)
         tags = {}
 
     return jsonify({
@@ -1979,7 +1980,8 @@ def bulk_threat_action():
                 q = {"_id": tid}
             result = threats.update_one(q, update_map[action])
             modified += result.modified_count
-        except Exception:
+        except Exception as e:
+            logger.debug("Failed updating threat %s during bulk action: %s", tid, e)
             continue
 
     _log_activity("analyst", f"Bulk {action} on {modified} threats by {session.get('user')}", "info")
@@ -2197,7 +2199,8 @@ def generate_report():
         ]
         try:
             mitre_raw = list(threats.aggregate(tag_pipeline))
-        except Exception:
+        except Exception as e:
+            logger.debug("Failed aggregating MITRE coverage: %s", e)
             mitre_raw = []
 
         mitre_coverage = []

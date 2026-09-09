@@ -299,8 +299,8 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
                             for m in os_matches[:5]
                         ],
                     }
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed parsing OS fingerprint for host %s: %s", host, e)
 
             # ── MAC Address ──────────────────────────────────────
             try:
@@ -310,8 +310,8 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
                 vendor = scanner[host].get("vendor", {})  # type: ignore
                 if vendor:
                     host_data["mac_vendor"] = list(vendor.values())[0] if vendor.values() else ""
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed parsing MAC/vendor info for host %s: %s", host, e)
 
             # ── Port / Protocol Data ─────────────────────────────
             open_count = 0

@@ -55,6 +55,93 @@ _using_mongodb = False
 #  TinyDB Collection Wrapper — MongoDB-compatible API
 # ═════════════════════════════════════════════════════════════════════
 
+class _DBResult:
+    """Standard operation result matching pymongo return conventions."""
+
+    def __init__(
+        self,
+        inserted_id: Any = None,
+        inserted_ids: Optional[list] = None,
+        modified_count: int = 0,
+        deleted_count: int = 0,
+    ):
+        self.inserted_id = inserted_id
+        self.inserted_ids = inserted_ids
+        self.modified_count = modified_count
+        self.deleted_count = deleted_count
+
+
+def _get_nested_val(doc: dict, key: str) -> Any:
+    """Get a nested field value using dot notation."""
+    parts = key.split(".")
+    val: Any = doc
+    for p in parts:
+        if isinstance(val, dict):
+            val = val.get(p)
+        else:
+            return None
+    return val
+
+
+def _resolve_doc_field(doc: dict, ref: Any) -> Any:
+    """Resolve a field reference like '$fieldname' or a literal."""
+    if isinstance(ref, str) and ref.startswith("$"):
+        return _get_nested_val(doc, ref[1:])
+    return ref
+
+
+def _coerce_comparable(val: Any, operand: Any) -> Tuple[Any, Any]:
+    """Coerce values for comparison if one is datetime and the other is an ISO string."""
+    if isinstance(operand, datetime) and isinstance(val, str):
+        try:
+            return datetime.fromisoformat(val), operand
+        except (ValueError, TypeError):
+            return val, operand
+    if isinstance(val, datetime) and isinstance(operand, str):
+        try:
+            return val, datetime.fromisoformat(operand)
+        except (ValueError, TypeError):
+            return val, operand
+    return val, operand
+
+
+def _compare_relational(val: Any, operand: Any, op: str) -> bool:
+    """Safely compare val and operand for $gt, $gte, $lt, $lte without unhandled TypeErrors."""
+    if val is None or operand is None:
+        return False
+    v, o = _coerce_comparable(val, operand)
+    try:
+        if op == "$gt":
+            return v > o
+        elif op == "$gte":
+            return v >= o
+        elif op == "$lt":
+            return v < o
+        elif op == "$lte":
+            return v <= o
+    except TypeError:
+        return False
+    return False
+
+
+def _match_operator(val: Any, op: str, operand: Any, condition: dict, doc: dict, key: str) -> bool:
+    """Evaluate a single MongoDB-style operator condition against a field value."""
+    if op == "$in":
+        return val in operand
+    if op == "$nin":
+        return val not in operand
+    if op == "$ne":
+        return val != operand
+    if op in ("$gt", "$gte", "$lt", "$lte"):
+        return _compare_relational(val, operand, op)
+    if op == "$regex":
+        flags = re.IGNORECASE if condition.get("$options", "") == "i" else 0
+        return val is not None and bool(re.search(operand, str(val), flags))
+    if op == "$exists":
+        return (key in doc) if operand else (key not in doc)
+    return True
+
+
 class TinyCollection:
     """
     Wraps a TinyDB table to provide a MongoDB-like collection API.
@@ -74,22 +161,14 @@ class TinyCollection:
         with _db_lock:
             doc = self._prepare_doc(doc)
             doc_id = self._table.insert(doc)
-
-        class _Result:
-            def __init__(self, inserted_id):
-                self.inserted_id = inserted_id
-        return _Result(doc_id)
+        return _DBResult(inserted_id=doc_id)
 
     def insert_many(self, docs: list) -> Any:
         """Insert multiple documents."""
         with _db_lock:
             prepared = [self._prepare_doc(d) for d in docs]
             ids = self._table.insert_multiple(prepared)
-
-        class _Result:
-            def __init__(self, inserted_ids):
-                self.inserted_ids = inserted_ids
-        return _Result(ids)
+        return _DBResult(inserted_ids=ids)
 
     # ── Find ─────────────────────────────────────────────────────
     def find(self, query: Optional[dict] = None, sort=None, **kwargs) -> '_TinyCursor':
@@ -130,10 +209,7 @@ class TinyCollection:
                     self._table.update(set_fields, doc_ids=[doc_id])
                     count += 1
 
-        class _Result:
-            def __init__(self, modified_count):
-                self.modified_count = modified_count
-        return _Result(count)
+        return _DBResult(modified_count=count)
 
     def update_one(self, query: dict, update: dict, upsert: bool = False, **kwargs) -> Any:
         """Update the first document matching query. Supports upsert."""
@@ -168,10 +244,7 @@ class TinyCollection:
                 self._table.insert(new_doc)
                 count = 1
 
-        class _Result:
-            def __init__(self, modified_count):
-                self.modified_count = modified_count
-        return _Result(count)
+        return _DBResult(modified_count=count)
 
     # ── Delete ───────────────────────────────────────────────────
     def delete_many(self, query: Optional[dict] = None) -> Any:
@@ -186,10 +259,7 @@ class TinyCollection:
                 self._table.remove(doc_ids=ids)
                 count = len(ids)
 
-        class _Result:
-            def __init__(self, deleted_count):
-                self.deleted_count = deleted_count
-        return _Result(count)
+        return _DBResult(deleted_count=count)
 
     # ── Count & Distinct ─────────────────────────────────────────
     def count_documents(self, query: Optional[dict] = None) -> int:
@@ -254,9 +324,10 @@ class TinyCollection:
             elif "$sort" in stage:
                 sort_spec = stage["$sort"]
                 for field, direction in reversed(list(sort_spec.items())):
-                    def _sort_key(d: dict) -> Any:
-                        return self._get_nested(d, field) or ""
-                    docs.sort(key=_sort_key, reverse=(direction == -1))
+                    docs.sort(
+                        key=lambda d, f=field: _get_nested_val(d, f) or "",
+                        reverse=(direction == -1),
+                    )
 
             elif "$limit" in stage:
                 docs = docs[:stage["$limit"]]
@@ -298,57 +369,6 @@ class TinyCollection:
             result.append(doc)
         return result
 
-    @staticmethod
-    def _coerce_comparable(val: Any, operand: Any) -> Tuple[Any, Any]:
-        """Coerce values for comparison if one is datetime and the other is an ISO string."""
-        if isinstance(operand, datetime) and isinstance(val, str):
-            try:
-                return datetime.fromisoformat(val), operand
-            except (ValueError, TypeError):
-                return val, operand
-        if isinstance(val, datetime) and isinstance(operand, str):
-            try:
-                return val, datetime.fromisoformat(operand)
-            except (ValueError, TypeError):
-                return val, operand
-        return val, operand
-
-    @classmethod
-    def _compare_relational(cls, val: Any, operand: Any, op: str) -> bool:
-        """Safely compare val and operand for $gt, $gte, $lt, $lte without unhandled TypeErrors."""
-        if val is None or operand is None:
-            return False
-        v, o = cls._coerce_comparable(val, operand)
-        try:
-            if op == "$gt":
-                return v > o
-            elif op == "$gte":
-                return v >= o
-            elif op == "$lt":
-                return v < o
-            elif op == "$lte":
-                return v <= o
-        except TypeError:
-            return False
-        return False
-
-    def _match_operator(self, val: Any, op: str, operand: Any, condition: dict, doc: dict, key: str) -> bool:
-        """Evaluate a single MongoDB-style operator condition against a field value."""
-        if op == "$in":
-            return val in operand
-        if op == "$nin":
-            return val not in operand
-        if op == "$ne":
-            return val != operand
-        if op in ("$gt", "$gte", "$lt", "$lte"):
-            return self._compare_relational(val, operand, op)
-        if op == "$regex":
-            flags = re.IGNORECASE if condition.get("$options", "") == "i" else 0
-            return val is not None and bool(re.search(operand, str(val), flags))
-        if op == "$exists":
-            return (key in doc) if operand else (key not in doc)
-        return True
-
     def _matches_query(self, doc: dict, query: dict) -> bool:
         """Check if a document matches a MongoDB-style query."""
         for key, condition in query.items():
@@ -361,29 +381,18 @@ class TinyCollection:
                     return False
                 continue
 
-            val = self._get_nested(doc, key)
+            val = _get_nested_val(doc, key)
 
             if isinstance(condition, dict):
                 for op, operand in condition.items():
                     if op == "$options":
                         continue
-                    if not self._match_operator(val, op, operand, condition, doc, key):
+                    if not _match_operator(val, op, operand, condition, doc, key):
                         return False
             else:
                 if val != condition:
                     return False
         return True
-
-    def _get_nested(self, doc: dict, key: str) -> Any:
-        """Get a nested field value using dot notation."""
-        parts = key.split(".")
-        val: Any = doc
-        for p in parts:
-            if isinstance(val, dict):
-                val = val.get(p)
-            else:
-                return None
-        return val
 
     def _aggregate_group(self, docs: list, group_spec: dict) -> list:
         """Handle $group aggregation stage."""
@@ -395,10 +404,10 @@ class TinyCollection:
             # Resolve group key
             if isinstance(group_key, dict):
                 key_val = tuple(
-                    (k, self._resolve_field(doc, v))
+                    (k, _resolve_doc_field(doc, v))
                     for k, v in group_key.items()
                 )
-                key_display = {k: self._resolve_field(doc, v) for k, v in group_key.items()}
+                key_display = {k: _resolve_doc_field(doc, v) for k, v in group_key.items()}
             elif isinstance(group_key, str) and group_key.startswith("$"):
                 key_val = doc.get(group_key[1:])
                 key_display = key_val
@@ -431,39 +440,39 @@ class TinyCollection:
                                     test, true_val, false_val = cond
                                     if isinstance(test, dict) and "$eq" in test:
                                         eq_vals = test["$eq"]
-                                        field_val = self._resolve_field(d, eq_vals[0])
-                                        compare_val = self._resolve_field(d, eq_vals[1]) if isinstance(eq_vals[1], str) and eq_vals[1].startswith("$") else eq_vals[1]
+                                        field_val = _resolve_doc_field(d, eq_vals[0])
+                                        compare_val = _resolve_doc_field(d, eq_vals[1]) if isinstance(eq_vals[1], str) and eq_vals[1].startswith("$") else eq_vals[1]
                                         total += true_val if field_val == compare_val else false_val
                             result[acc_name] = total
                         elif operand == 1:
                             result[acc_name] = len(group_docs)
                         elif isinstance(operand, str) and operand.startswith("$"):
                             result[acc_name] = sum(
-                                self._resolve_field(d, operand) or 0
+                                _resolve_doc_field(d, operand) or 0
                                 for d in group_docs
                             )
                         else:
                             result[acc_name] = len(group_docs)
 
                     elif op == "$first":
-                        result[acc_name] = self._resolve_field(
+                        result[acc_name] = _resolve_doc_field(
                             group_docs[0], operand
                         ) if group_docs else None
 
                     elif op == "$max":
-                        vals = [self._resolve_field(d, operand) for d in group_docs]
+                        vals = [_resolve_doc_field(d, operand) for d in group_docs]
                         vals = [v for v in vals if v is not None]
                         result[acc_name] = max(vals) if vals else None
 
                     elif op == "$min":
-                        vals = [self._resolve_field(d, operand) for d in group_docs]
+                        vals = [_resolve_doc_field(d, operand) for d in group_docs]
                         vals = [v for v in vals if v is not None]
                         result[acc_name] = min(vals) if vals else None
 
                     elif op == "$addToSet":
                         _set_vals: set[Any] = set()
                         for d in group_docs:
-                            v = self._resolve_field(d, operand)
+                            v = _resolve_doc_field(d, operand)
                             if v is not None:
                                 _set_vals.add(v)
                         result[acc_name] = list(_set_vals)
@@ -474,12 +483,12 @@ class TinyCollection:
                             for d in group_docs:
                                 item = {}
                                 for field_name, field_ref in operand.items():
-                                    item[field_name] = self._resolve_field(d, field_ref)
+                                    item[field_name] = _resolve_doc_field(d, field_ref)
                                 pushed.append(item)
                             result[acc_name] = pushed
                         else:
                             result[acc_name] = [
-                                self._resolve_field(d, operand)
+                                _resolve_doc_field(d, operand)
                                 for d in group_docs
                             ]
                 else:
@@ -487,11 +496,8 @@ class TinyCollection:
             results.append(result)
         return results
 
-    def _resolve_field(self, doc: dict, ref) -> Any:
-        """Resolve a field reference like '$fieldname' or a literal."""
-        if isinstance(ref, str) and ref.startswith("$"):
-            return self._get_nested(doc, ref[1:])
-        return ref
+    _get_nested = staticmethod(_get_nested_val)
+    _resolve_field = staticmethod(_resolve_doc_field)
 
 
 class _TinyCursor:
