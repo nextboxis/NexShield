@@ -37,55 +37,65 @@ DATASETS = {
 }
 
 
-def download_file(url: str, dest_path: Path, alt_url: str = None) -> bool:
-    """Download a file with streaming progress and fallback URL."""
+def download_file(url: str, dest_path: Path, alt_url: Optional[str] = None, max_retries: int = 3) -> bool:
+    """Download a file with streaming progress, fallback URL, and automatic retries."""
     dest_path.parent.mkdir(parents=True, exist_ok=True)
     temp_path = dest_path.with_suffix(".tmp")
     
-    headers = {"User-Agent": "NexShield-Dataset-Updater/1.0"}
+    headers = {"User-Agent": "NexShield-Dataset-Updater/2.0 (Threat-Intel)"}
     target_urls = [url]
     if alt_url:
         target_urls.append(alt_url)
 
     for current_url in target_urls:
-        print(f"[*] Downloading: {current_url}")
-        try:
-            req = urllib.request.Request(current_url, headers=headers)
-            with urllib.request.urlopen(req, timeout=30) as resp, open(temp_path, "wb") as out_f:
-                total_size = int(resp.headers.get("content-length", 0))
-                downloaded = 0
-                block_size = 1024 * 64
+        for attempt in range(1, max_retries + 1):
+            retry_msg = f" (Attempt {attempt}/{max_retries})" if attempt > 1 else ""
+            print(f"[*] Downloading: {current_url}{retry_msg}")
+            try:
+                req = urllib.request.Request(current_url, headers=headers)
+                with urllib.request.urlopen(req, timeout=30) as resp, open(temp_path, "wb") as out_f:
+                    total_size = int(resp.headers.get("content-length", 0))
+                    downloaded = 0
+                    block_size = 1024 * 256  # 256 KB streaming buffer
 
-                while True:
-                    chunk = resp.read(block_size)
-                    if not chunk:
-                        break
-                    out_f.write(chunk)
-                    downloaded += len(chunk)
-                    if total_size > 0:
-                        percent = (downloaded / total_size) * 100
-                        mb = downloaded / (1024 * 1024)
-                        total_mb = total_size / (1024 * 1024)
-                        sys.stdout.write(f"\r    Progress: {mb:.1f}/{total_mb:.1f} MB ({percent:.1f}%)")
-                        sys.stdout.flush()
-                    else:
-                        mb = downloaded / (1024 * 1024)
-                        sys.stdout.write(f"\r    Downloaded: {mb:.1f} MB")
-                        sys.stdout.flush()
+                    while True:
+                        chunk = resp.read(block_size)
+                        if not chunk:
+                            break
+                        out_f.write(chunk)
+                        downloaded += len(chunk)
+                        if total_size > 0:
+                            percent = (downloaded / total_size) * 100
+                            mb = downloaded / (1024 * 1024)
+                            total_mb = total_size / (1024 * 1024)
+                            sys.stdout.write(f"\r    Progress: {mb:.1f}/{total_mb:.1f} MB ({percent:.1f}%)")
+                            sys.stdout.flush()
+                        else:
+                            mb = downloaded / (1024 * 1024)
+                            sys.stdout.write(f"\r    Downloaded: {mb:.1f} MB")
+                            sys.stdout.flush()
 
-                print()
+                    print()
 
-            if temp_path.exists():
-                if dest_path.exists():
-                    dest_path.unlink()
-                temp_path.rename(dest_path)
-            print(f"[+] Successfully saved to: {dest_path}")
-            return True
+                if temp_path.exists():
+                    if dest_path.exists():
+                        dest_path.unlink()
+                    temp_path.rename(dest_path)
+                print(f"[+] Successfully saved to: {dest_path}")
+                return True
 
-        except (urllib.error.URLError, TimeoutError, OSError) as exc:
-            print(f"\n[-] Download failed for {current_url}: {exc}")
-            if temp_path.exists():
-                temp_path.unlink()
+            except (urllib.error.URLError, TimeoutError, OSError) as exc:
+                print(f"\n[-] Download failed for {current_url}: {exc}")
+                if temp_path.exists():
+                    try:
+                        temp_path.unlink()
+                    except OSError:
+                        pass
+                if attempt < max_retries:
+                    backoff = 2 ** attempt
+                    print(f"[*] Retrying in {backoff}s...")
+                    import time
+                    time.sleep(backoff)
 
     return False
 

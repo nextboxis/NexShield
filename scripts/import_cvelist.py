@@ -126,10 +126,14 @@ def main():
     total_inserted = 0
     batch_size = 1000
     batch = []
+    start_time = datetime.now()
 
     print("Pre-fetching existing CVE IDs to optimize import...")
-    existing_records = list(cve_cache.find({}))
-    existing_cves = {record.get("cve_id") for record in existing_records if record.get("cve_id")}
+    try:
+        existing_cves = set(cve_cache.distinct("cve_id"))
+    except Exception:
+        existing_records = list(cve_cache.find({}, {"cve_id": 1}))
+        existing_cves = {record.get("cve_id") for record in existing_records if record.get("cve_id")}
     print(f"Found {len(existing_cves)} existing records.")
 
     print(f"Starting import from {base_dir}")
@@ -141,7 +145,7 @@ def main():
                 continue
             for json_file in chunk_dir.glob("*.json"):
                 try:
-                    with open(json_file, "r", encoding="utf-8") as f:
+                    with open(json_file, "r", encoding="utf-8", errors="replace") as f:
                         data = json.load(f)
                     
                     parsed = parse_v5_cve(data)
@@ -155,7 +159,9 @@ def main():
                             cve_cache.insert_many(batch)
                             total_inserted += len(batch)
                             batch.clear()
-                            print(f"  Inserted {total_inserted} records...")
+                            elapsed = (datetime.now() - start_time).total_seconds()
+                            rate = int(total_inserted / elapsed) if elapsed > 0 else 0
+                            print(f"  Inserted {total_inserted:,} records ({rate:,} records/sec)...")
                 except Exception as e:
                     print(f"Error processing {json_file}: {e}")
 
@@ -163,7 +169,8 @@ def main():
         cve_cache.insert_many(batch)
         total_inserted += len(batch)
 
-    print(f"Import complete! Total inserted: {total_inserted}")
+    total_time = (datetime.now() - start_time).total_seconds()
+    print(f"Import complete! Total inserted: {total_inserted:,} in {total_time:.1f}s")
 
 if __name__ == "__main__":
     main()

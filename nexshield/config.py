@@ -177,28 +177,106 @@ class TinyCollection:
             docs = _TinyCursor._sort_docs(docs, sort)
         return docs[0] if docs else None
 
+    def _apply_update(self, doc: dict, update: dict) -> bool:
+        """Apply MongoDB update operators ($set, $unset, $inc, $push, $addToSet) to a document in-place."""
+        modified = False
+
+        if "$set" in update and isinstance(update["$set"], dict):
+            for k, v in update["$set"].items():
+                if isinstance(v, datetime):
+                    v = v.isoformat()
+                elif isinstance(v, list):
+                    v = [item.isoformat() if isinstance(item, datetime) else item for item in v]
+                
+                if "." in k:
+                    parts = k.split(".")
+                    curr = doc
+                    for p in parts[:-1]:
+                        if p not in curr or not isinstance(curr[p], dict):
+                            curr[p] = {}
+                        curr = curr[p]
+                    if curr.get(parts[-1]) != v:
+                        curr[parts[-1]] = v
+                        modified = True
+                else:
+                    if doc.get(k) != v:
+                        doc[k] = v
+                        modified = True
+
+        if "$unset" in update and isinstance(update["$unset"], (dict, list)):
+            keys = update["$unset"].keys() if isinstance(update["$unset"], dict) else update["$unset"]
+            for k in keys:
+                if "." in k:
+                    parts = k.split(".")
+                    curr = doc
+                    for p in parts[:-1]:
+                        if isinstance(curr, dict):
+                            curr = curr.get(p)
+                    if isinstance(curr, dict) and parts[-1] in curr:
+                        del curr[parts[-1]]
+                        modified = True
+                elif k in doc:
+                    del doc[k]
+                    modified = True
+
+        if "$inc" in update and isinstance(update["$inc"], dict):
+            for k, inc_val in update["$inc"].items():
+                curr_val = _get_nested_val(doc, k) or 0
+                new_val = curr_val + inc_val
+                if "." in k:
+                    parts = k.split(".")
+                    curr = doc
+                    for p in parts[:-1]:
+                        curr = curr.setdefault(p, {})
+                    curr[parts[-1]] = new_val
+                else:
+                    doc[k] = new_val
+                modified = True
+
+        if "$push" in update and isinstance(update["$push"], dict):
+            for k, push_val in update["$push"].items():
+                if isinstance(push_val, datetime):
+                    push_val = push_val.isoformat()
+                if "." in k:
+                    parts = k.split(".")
+                    curr = doc
+                    for p in parts[:-1]:
+                        curr = curr.setdefault(p, {})
+                    arr = curr.setdefault(parts[-1], [])
+                    if isinstance(arr, list):
+                        arr.append(push_val)
+                        modified = True
+                else:
+                    arr = doc.setdefault(k, [])
+                    if isinstance(arr, list):
+                        arr.append(push_val)
+                        modified = True
+
+        if "$addToSet" in update and isinstance(update["$addToSet"], dict):
+            for k, add_val in update["$addToSet"].items():
+                if isinstance(add_val, datetime):
+                    add_val = add_val.isoformat()
+                arr = doc.setdefault(k, [])
+                if isinstance(arr, list) and add_val not in arr:
+                    arr.append(add_val)
+                    modified = True
+
+        return modified
+
     def update_many(self, query: dict, update: dict) -> Any:
         """Update all documents matching query."""
         with _db_lock:
             docs = self._search(query)
             count = 0
-            set_fields = update.get("$set", {})
-            
-            for k, v in set_fields.items():
-                if isinstance(v, datetime):
-                    set_fields[k] = v.isoformat()
-                elif isinstance(v, list):
-                    set_fields[k] = [
-                        item.isoformat() if isinstance(item, datetime) else item
-                        for item in v
-                    ]
-
             for doc in docs:
                 doc_id = doc.get("_tinydb_id")
-                if doc_id is not None and set_fields:
-                    self._table.update(set_fields, doc_ids=[doc_id])
-                    count += 1
-
+                if doc_id is not None:
+                    raw_doc = self._table.get(doc_id=doc_id)
+                    if raw_doc is not None:
+                        doc_dict = dict(raw_doc)
+                        if self._apply_update(doc_dict, update):
+                            self._table.update(doc_dict, doc_ids=[doc_id])
+                            count += 1
         return _DBResult(modified_count=count)
 
     def update_one(self, query: dict, update: dict, upsert: bool = False, **kwargs) -> Any:
@@ -206,28 +284,21 @@ class TinyCollection:
         with _db_lock:
             docs = self._search(query)
             count = 0
-            set_fields = update.get("$set", {})
-            
-            for k, v in set_fields.items():
-                if isinstance(v, datetime):
-                    set_fields[k] = v.isoformat()
-                elif isinstance(v, list):
-                    set_fields[k] = [
-                        item.isoformat() if isinstance(item, datetime) else item
-                        for item in v
-                    ]
-
-            if docs and set_fields:
+            if docs:
                 doc_id = docs[0].get("_tinydb_id")
                 if doc_id is not None:
-                    self._table.update(set_fields, doc_ids=[doc_id])
-                    count = 1
-            elif upsert and set_fields:
+                    raw_doc = self._table.get(doc_id=doc_id)
+                    if raw_doc is not None:
+                        doc_dict = dict(raw_doc)
+                        if self._apply_update(doc_dict, update):
+                            self._table.update(doc_dict, doc_ids=[doc_id])
+                            count = 1
+            elif upsert:
                 new_doc = {}
                 for k, v in query.items():
                     if not isinstance(v, dict):
                         new_doc[k] = v
-                new_doc.update(set_fields)
+                self._apply_update(new_doc, update)
                 new_doc = self._prepare_doc(new_doc)
                 self._table.insert(new_doc)
                 count = 1

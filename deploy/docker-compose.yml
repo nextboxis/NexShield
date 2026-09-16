@@ -1,36 +1,45 @@
-version: '3.8'
-
 services:
   nexshield:
     build:
       context: ..
       dockerfile: deploy/Dockerfile
     container_name: nexshield_app
+    restart: unless-stopped
     ports:
       - "5000:5000"
     environment:
       - FLASK_ENV=production
-      - MONGO_URI=mongodb://mongo:27017/
+      - MONGO_URI=mongodb://mongo:27017/threat_intel
       - MSF_HOST=msfrpcd
       - MSF_PORT=55553
       - MSF_PASSWORD=nexshield
     depends_on:
-      - mongo
-      - msfrpcd
+      mongo:
+        condition: service_healthy
+      msfrpcd:
+        condition: service_started
     volumes:
       - nexshield_data:/app/data
 
   mongo:
-    image: mongo:6.0
+    image: mongo:7.0
     container_name: nexshield_mongo
+    restart: unless-stopped
     ports:
       - "27017:27017"
     volumes:
       - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   msfrpcd:
     image: metasploitframework/metasploit-framework
     container_name: nexshield_msf
+    restart: unless-stopped
     ports:
       - "55553:55553"
     command: ./msfrpcd -P nexshield -U msf -n -f -a 0.0.0.0
