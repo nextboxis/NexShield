@@ -290,6 +290,8 @@ Examples:
     parser.add_argument("--check", action="store_true", help="Run setup checks only, don't start server")
     parser.add_argument("--self-test", action="store_true", help="Run embedded system self-test suite")
     parser.add_argument("--reset-db", action="store_true", help="Reset the database")
+    parser.add_argument("--train", action="store_true", help="Train AI ML models and build RAG knowledge store")
+    parser.add_argument("--cve-limit", type=int, default=5000, help="Max CVEs to ingest during training (default: 5000)")
 
     args = parser.parse_args()
 
@@ -305,6 +307,16 @@ Examples:
     if args.self_test:
         test_ok = run_self_test()
         sys.exit(0 if test_ok else 1)
+
+    if args.train:
+        ok = run_checks()
+        if not ok:
+            print_status("!", "Environment checks failed before training.")
+            sys.exit(1)
+        print_header("Training AI Models & Knowledge Subsystem")
+        train_script = PROJECT_DIR / "scripts" / "train_models.py"
+        ret = subprocess.call([sys.executable, str(train_script), "--all", "--cve-limit", str(args.cve_limit)])
+        sys.exit(ret)
 
     ok = run_checks()
 

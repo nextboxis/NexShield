@@ -175,7 +175,16 @@ threat_ml_vect.pkl
 pyrightconfig.json
 .vscode/
 .idea/
+.vs/
 *.code-workspace
+
+# Reports Output
+reports/*.html
+reports/*.md
+reports/*.sarif
+
+# Explicitly track portable model weights
+!data/threat_model_weights.json
 
 # CVE Local Database
 cvelistV5-main/
