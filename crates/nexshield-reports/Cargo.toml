@@ -1,0 +1,9 @@
+[package]
+name = "nexshield-reports"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+nexshield-types = { path = "../nexshield-types" }
+nexshield-engine = { path = "../nexshield-engine" }
