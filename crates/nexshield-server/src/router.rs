@@ -239,7 +239,7 @@ impl Router {
 
     fn handle_nmap_check(&self) -> HttpResponse {
         HttpResponse::ok_json(
-            r#"{"installed":true,"version":"NexShield Native Rust Engine 6.1 (Zero Dependencies)","path":"internal://nexshield-scanner","error":null}"#.to_string()
+            r#"{"status":"complete","nmap_ok":true,"installed":true,"nmap_info":{"installed":true,"version":"NexShield 6.1 (Pure Rust)","path":"internal://nexshield-scanner","error":null,"engine":"rust"},"scan_types":{"quick":"Quick TCP Connect (Top 100)","default":"Service Version Detection","deep":"Deep Scan (Scripts + OS)","stealth":"Stealth SYN Scan (Fragmented)"}}"#.to_string()
         )
     }
 

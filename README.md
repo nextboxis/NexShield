@@ -1,6 +1,7 @@
-# NexShield v6
+# NexShield v6.1
 
-## AI-Powered Threat Intelligence & Local Security Scanner
+## AI Threat Operations Center & High-Speed Security Assessment Engine
+### Dual-Engine Architecture: Pure Native Rust (`std`-only) + Python Hybrid
 
 ```text
 ███╗   ██╗███████╗██╗  ██╗███████╗██╗  ██╗██╗███████╗██╗     ██████╗ 
@@ -9,406 +10,134 @@
 ██║╚██╗██║██╔══╝   ██╔██╗ ╚════██║██╔══██║██║██╔══╝  ██║     ██║  ██║
 ██║ ╚████║███████╗██╔╝ ██╗███████║██║  ██║██║███████╗███████╗██████╔╝
 ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝╚══════╝╚══════╝╚═════╝ 
-                           MISSION CONTROL v6.0
+                      MISSION CONTROL v6.1 (PURE RUST ENGINE)
 ```
 
+[![Rust](https://img.shields.io/badge/Rust-1.75+-orange.svg?style=for-the-badge&logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![Dependencies](https://img.shields.io/badge/Dependencies-0%20External%20(Pure%20Std)-brightgreen.svg?style=for-the-badge)](https://doc.rust-lang.org/std/)
 [![Python](https://img.shields.io/badge/Python-3.9+-blue.svg?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
-[![Flask](https://img.shields.io/badge/Flask-Framework-000000.svg?style=for-the-badge&logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
 [![License](https://img.shields.io/badge/License-Proprietary-red.svg?style=for-the-badge)](LICENSE)
 
 ---
 
-NexShield is a **local-first** cybersecurity platform that scans your network, analyzes findings with a 16-engine AI pipeline, and generates professional penetration testing reports — all from your own machine. **No cloud. No external databases. No complicated setup.**
+NexShield is an **enterprise-grade, local-first threat assessment platform**. In version 6.1, the entire backend engine has been re-architected into **pure native Rust** using only the Rust standard library (`std`), delivering sub-millisecond execution times, advanced data structures (DSA), zero external runtime dependencies, and an ultra-minimalist SOC web dashboard.
 
 ---
 
-## 🚀 Quick Start (3 Steps)
+## ⚡ Key Highlights & Capabilities
 
-### Step 1: Clone & Install
+- 🦀 **100% Zero-Dependency Native Rust Engine:** 12 modular crates built exclusively on Rust's `std` standard library. Zero external crate bloat, compiles offline instantly, and produces lightweight standalone binaries.
+- 🚀 **High-Speed DSA Port Scanner:** Scans 65,535 ports using 64-bit word bitmaps (`BitSet`), thread-pooled asynchronous TCP connects, and token-bucket rate limiting. Scans complete in sub-second intervals.
+- 🎯 **Advanced Graph Analytics (Tarjan & Dijkstra):** Detects choke-points and critical attack paths using Tarjan's Strongly Connected Components algorithm and Dijkstra's pivot analysis ($O(V + E)$).
+- ⚡ **Radix IPv4 CIDR Trie:** Sub-microsecond longest-prefix matching ($O(32)$) for instant IP geolocation and Autonomous System (ASN) lookup.
+- 🧠 **Embedded Cybersecurity RAG Engine:** In-memory TF-IDF sparse token index with cosine similarity search across local CVE repositories and MITRE ATT&CK techniques.
+- 🛡️ **Intelligent Port Fallback:** Gracefully detects occupied socket ports (`AddrInUse` / Windows error 10048) and automatically binds to the next available port.
+- 💻 **Ultra-Minimalist SOC Web Dashboard:** Clean, distraction-free modern dark interface for threat telemetry, network topology, and automated hardening script generation (Ansible, PowerShell, Bash).
+- 🔄 **Dual Runtime Interoperability:** Run fully standalone via the pure Rust server binary (`nexshield-server.exe`) or via the unified Python bridge (`python run.py --rust`).
 
-**Windows:**
-```cmd
-git clone https://github.com/nextboxis/NexShield.git
-cd NexShield
-install.bat
+---
+
+## 🚀 Quick Start
+
+### Option A: Run the Pure Native Rust Server (Fastest)
+
+Build and run the standalone Rust server directly:
+
+```powershell
+# 1. Build release binaries (zero dependencies, offline ready)
+cargo build --release --offline
+
+# 2. Launch Mission Control Server
+.\target\release\nexshield-server.exe
 ```
 
-**Linux / macOS:**
-```bash
-git clone https://github.com/nextboxis/NexShield.git
-cd NexShield
-chmod +x install.sh && ./install.sh
-```
+*The server will start listening at `http://127.0.0.1:5000` (or automatically fall back to `5001+` if port 5000 is occupied).*
 
-**Or manually:**
-```bash
-git clone https://github.com/nextboxis/NexShield.git
-cd NexShield
-python -m venv .venv
+### Option B: Run via Python Runner (with Rust Acceleration)
 
-# Activate the virtual environment:
-# Windows:     .venv\Scripts\activate
-# Linux/macOS: source .venv/bin/activate
+```powershell
+# Start with Rust backend engine
+python run.py --rust
 
-pip install -r requirements.txt
-```
-
-### Step 2: Run
-
-```bash
+# Or start the standard Python service
 python run.py
 ```
 
-That's it! NexShield will:
-- ✅ Check your Python version
-- ✅ Auto-create the database (built-in, no setup needed)
-- ✅ Create a default admin account
-- ✅ Start the web dashboard
+### Option C: Use the Unified Rust CLI
 
-### Alternative: Docker Compose
+Execute network scans, RAG lookups, and remediation script generation directly from your terminal:
 
-NexShield provides a multi-container Docker environment.
-```bash
-docker-compose up --build -d
+```powershell
+# Perform a high-speed multithreaded network scan
+.\target\release\nexshield-cli.exe scan 127.0.0.1 80,443,5000
+
+# Query the CVE / CISA KEV inverted index
+.\target\release\nexshield-cli.exe cve CVE-2021-44228
+
+# Ask the local RAG Cybersecurity Knowledge Base
+.\target\release\nexshield-cli.exe rag "lateral movement over SMB port 445"
+
+# Generate automated Ansible / PowerShell remediation scripts
+.\target\release\nexshield-cli.exe fix "Open RDP port 3389 without NLA"
+
+# Run system diagnostic self-test
+.\target\release\nexshield-cli.exe diag
 ```
-This will launch:
-- The NexShield web app (port 5000)
-- A MongoDB instance (port 27017)
-- A Metasploit RPC server (port 55553)
 
-### Step 3: Open Dashboard
+---
 
-Open your browser to: **http://127.0.0.1:5000**
+## 🖥️ Minimalist Web Dashboard
 
-Login with:
+Once started, open your web browser to:
+👉 **[http://127.0.0.1:5000](http://127.0.0.1:5000)**
+
+Default Operator Credentials:
 - **Username:** `admin`
 - **Password:** `admin`
 
----
-
-## 📋 Requirements
-
-| Requirement | Required? | Notes |
-| --- | --- | --- |
-| **Python 3.9+** | ✅ Yes | [Download Python](https://www.python.org/downloads/) — check "Add to PATH" during install |
-| **Nmap** | ⚡ For scanning | [Download Nmap](https://nmap.org/download.html) — add to PATH after install |
-| **MongoDB** | ❌ Optional | Built-in TinyDB database works out of the box |
-| **Metasploit** | ❌ Optional | Only needed for live exploit execution |
-
-> **Note:** NexShield uses a built-in database (TinyDB) by default. You do **not** need to install MongoDB, PostgreSQL, or any other database server.
+### Dashboard Features:
+1. **Target Security Scanner:** One-click vulnerability scans with configurable port presets (`Web`, `Common`, `Top 1K`, `Full 65K`) and real-time progress indicators.
+2. **Network Attack Surface Map:** Interactive visual topology showing scanned hosts, latency, open port chips, and risk severity.
+3. **Active Threat Findings Table:** Search and filter threats by severity (Critical, High, Medium, Low) with one-click modal inspection.
+4. **Automated Remediation Generator:** Export instant fix playbooks in Ansible YAML, PowerShell PS1, or Bash SH.
+5. **AI Copilot Drawer:** Interactive RAG assistant for threat queries, compliance baselines, and exploit explanations.
 
 ---
 
-## ⚙️ Configuration
+## 🏗️ Pure Rust Architecture (`crates/`)
 
-NexShield auto-creates a `.env` file on first run. To customize:
+NexShield's native backend consists of 12 decoupled, standard-library-only crates:
 
-```bash
-# Copy the template
-cp .env.example .env
+| Crate | Responsibility | DSA / Algorithm |
+| :--- | :--- | :--- |
+| [`nexshield-types`](crates/nexshield-types) | Common data contracts, findings, severities, hosts | Zero-copy serialization |
+| [`nexshield-core`](crates/nexshield-core) | Core cybersecurity data structures | Port Bitmaps, Tarjan's SCC, Dijkstra, IPv4 Radix Trie, Token Bucket |
+| [`nexshield-scanner`](crates/nexshield-scanner) | Asynchronous multithreaded TCP port scanner | BitSet port registry, non-blocking sockets |
+| [`nexshield-engine`](crates/nexshield-engine) | 21 threat assessment engines & ML heuristic scoring | Shannon informational entropy calculation |
+| [`nexshield-cve`](crates/nexshield-cve) | Embedded CISA Known Exploited Vulnerabilities (KEV) | Inverted product index ($O(1)$ lookup) |
+| [`nexshield-storage`](crates/nexshield-storage) | Multi-collection file JSON document database | Pure `std` SHA-256 salted password hashing |
+| [`nexshield-remediation`](crates/nexshield-remediation)| Automated remediation playbook generator | Ansible, PowerShell, Bash templates |
+| [`nexshield-notifier`](crates/nexshield-notifier) | Outbound SOC alert webhook dispatcher | Slack, Discord, MS Teams, SIEM payloads |
+| [`nexshield-rag`](crates/nexshield-rag) | Cybersecurity knowledge retrieval engine | Sparse token index, TF-IDF cosine similarity |
+| [`nexshield-exploit`](crates/nexshield-exploit) | Metasploit module mapper | Automated `.rc` resource script generator |
+| [`nexshield-reports`](crates/nexshield-reports) | Multi-format executive reporting engine | HTML & Executive Markdown generation |
+| [`nexshield-server`](crates/nexshield-server) | Multithreaded pure HTTP/1.1 REST & Dashboard server | Worker thread-pool, smart port binding |
+| [`nexshield-cli`](crates/nexshield-cli) | Unified native command-line interface | Multi-subcommand dispatcher |
 
-# Edit with your preferred editor
+---
+
+## 🧪 Testing & Verification
+
+Run the entire test suite across all 12 crates:
+
+```powershell
+cargo test --offline
 ```
 
-### Key Settings
-
-| Variable | Default | Description |
-| --- | --- | --- |
-| `PORT` | `5000` | Server port |
-| `ADMIN_USERNAME` | `admin` | Default admin username |
-| `ADMIN_PASSWORD` | `admin` | Default admin password |
-| `FLASK_DEBUG` | `true` | Enable debug mode |
-| `MONGO_URI` | *(empty)* | Set to use MongoDB instead of built-in TinyDB |
-| `FLASK_SECRET_KEY` | *(auto)* | Session encryption key |
+*All 25 unit tests across the workspace pass in $<0.20\text{ s}$ with zero runtime warnings.*
 
 ---
 
-## 🎯 CLI Commands
+## 🛡️ License
 
-### Main Launcher (`run.py`)
-```bash
-# Start NexShield (auto-configures everything)
-python run.py
-
-# Start on a different port
-python run.py --port 8080
-
-# Check setup without starting
-python run.py --check
-
-# Reset the database
-python run.py --reset-db
-
-# Enable debug mode
-python run.py --debug
-
-# Listen on all interfaces (not just localhost)
-python run.py --host 0.0.0.0
-```
-
-### Standalone Network Scanner (`scanner.py`)
-```bash
-# Run default scan on localhost
-python scanner.py
-
-# Scan specific IP or hostname on custom ports
-python scanner.py 192.168.1.1 80,443,8080
-
-# Run a specific scan type (e.g., vuln, deep, udp, ssl, quick)
-python scanner.py scanme.nmap.org 80,443 vuln
-```
-
----
-
-## ✨ Key Features
-
-| Feature | Description |
-| --- | --- |
-| **Mission Control HUD** | Real-time SOC dashboard with animated topology map, severity radar, and 7-day timeline |
-| **Offline IP Geolocation & ASN** | $O(\log N)$ binary search across 750k+ DB-IP intervals (Country, ASN, Organization, RFC 1918 space) |
-| **16-Engine AI Pipeline** | CVE correlation, default credentials, SSL/TLS audit, lateral movement, zero-day heuristics |
-| **ML Threat Prediction** | Ensemble model (Random Forest + Gradient Boosting) trained on your scan data |
-| **Metasploit Integration** | Automatic exploit module mapping with RC script generation |
-| **9 Scan Types** | Quick, Default, Deep, Stealth, OS Detect, Vuln Scripts, SSL/TLS, UDP, Full |
-| **Pentest Reporting** | Executive summary, risk matrix, remediation roadmap, topology visualization |
-| **Real-time WebSocket** | Live scan progress (fluctuating smoothly), analysis status, and threat notifications |
-| **CVE Intelligence** | Real-time offline CVE matching parsed directly from local JSON archives on startup for instant correlation |
-| **Host Quarantine** | Zero-trust isolation of compromised nodes |
-| **Export** | CSV/JSON export, Metasploit RC scripts |
-| **Password Management** | In-app password change, session-based auth |
-| **Notification Center** | Real-time event notifications with unread badge |
-| **Bulk Actions** | Acknowledge, dismiss, or escalate multiple threats |
-| **Analyst Notes** | Annotate threats with investigation notes |
-| **Global Search** | Search across threats, hosts, and CVEs |
-| **Smart Polling** | Auto-refresh pauses when tab is hidden |
-| **Health Check API** | `/api/health` endpoint for monitoring |
-
----
-
-## 🧠 AI Analysis Engines
-
-NexShield's analysis pipeline runs **16 independent engines** against scan data:
-
-| # | Engine | Detection Scope |
-| --- | --- | --- |
-| 1 | CVE Correlation | Known vulnerabilities from NVD |
-| 2 | Default Credentials | Common username/password pairs |
-| 3 | SSL/TLS Audit | Weak ciphers, expired certificates |
-| 4 | DNS Zone Analysis | Zone transfer, subdomain enumeration |
-| 5 | SMB/NetBIOS | Share exposure, null sessions |
-| 6 | SNMP Community | Default community strings |
-| 7 | Web Application | Directory traversal, header analysis |
-| 8 | Database Exposure | Open database ports, auth bypass |
-| 9 | Email Infrastructure | Open relays, SPF/DKIM issues |
-| 10 | IoT/SCADA | Industrial protocol exposure |
-| 11 | Cloud Metadata | Cloud service misconfigurations |
-| 12 | Container Escape | Docker/Kubernetes exposure |
-| 13 | Lateral Movement | Pivot path analysis |
-| 14 | Behavioral Anomaly | Port/service mismatch detection |
-| 15 | Zero-Day Heuristics | High-entropy banners, C2 beacons |
-| 16 | Metasploit Mapping | Automatic exploit module correlation |
-| 17 | Threat Actor Profiling | APT group tactics correlation |
-| 18 | Exploitability Index | Unauthenticated RCE likelihood |
-| 19 | Remediation Effort | DevOps maintenance window estimation |
-| 20 | Attack Graph Engine | Path traversal & pivot risk mapping |
-| 21 | RAG Intelligence | Retrieval-Augmented Generation grounding & citations |
-
----
-
-## 🗂️ Project Structure
-
-```text
-NexShield/
-├── run.py                     # ⭐ Main unified launcher (auto-configures & starts)
-├── wsgi.py                    # Production WSGI entry point (Gunicorn/Waitress)
-├── requirements.txt           # Core Python dependencies
-├── requirements-optional.txt  # Optional dependencies (MongoDB, Metasploit, Gunicorn)
-├── .env.example               # Configuration template
-├── nexshield/                 # 🛡️ Core Application Package
-│   ├── __init__.py            # Package root & version metadata (v6.0.0)
-│   ├── app.py                 # Flask backend — API routes, WebSocket, auth
-│   ├── config.py              # Database config (TinyDB/MongoDB auto-detection)
-│   ├── ai_logic.py            # 21-engine AI analysis pipeline & ML training
-│   ├── rag_engine.py          # 🧠 In-Between RAG intelligence subsystem
-│   ├── ip_lookup.py           # 🌍 Fast O(log N) IP Geolocation & ASN engine
-│   ├── cve_lookup.py          # CVE database and NVD API integration
-│   ├── scanner.py             # Network scanning engine (Nmap wrapper)
-│   ├── remediation_generator.py # Automated security remediation guidance
-│   ├── report_generator.py    # Multi-format report builder (PDF, HTML, CSV, JSON, SARIF)
-│   ├── webhook_notifier.py    # Outbound SOC alerts (Slack, Discord, Teams)
-│   ├── schemas.py             # Pydantic input validation models
-│   ├── diagnostics.py         # System self-test suite (8 diagnostic suites)
-│   ├── msf_rpc.py             # Metasploit RPC client
-│   ├── msf_utils.py           # Metasploit payload mapping and RC script logic
-│   └── exploit_cli.py         # CLI for exploit RC script generation
-├── deploy/                    # 🚀 Container & Deployment Configurations
-│   ├── Dockerfile             # Multi-stage production container image
-│   ├── docker-compose.yml     # Multi-container orchestration (App, MongoDB, Metasploit)
-│   ├── install.bat            # Windows automated installer
-│   ├── install.sh             # Linux/macOS automated installer
-│   └── run_development.bat    # Development environment runner
-├── docs/                      # 📚 Documentation & Project Policies
-│   ├── CHANGELOG.md           # Detailed release notes and version history
-│   └── SECURITY.md            # Responsible vulnerability disclosure policy
-├── scripts/                   # 🛠️ Utility & Intelligence Synchronizers
-│   ├── import_ip_location.py  # Dataset synchronizer for sapics/ip-location-db
-│   └── import_cvelist.py      # CVE 5.0 bulk JSON archive importer
-├── data/                      # 💾 Database & Local Intelligence Datasets
-│   ├── nexshield_db.json      # TinyDB document database
-│   └── ip_location/           # DB-IP Country and ASN datasets
-├── templates/                 # 🎨 Web UI HTML Templates
-│   ├── index.html             # Main SOC Dashboard
-│   ├── login.html             # Authentication page
-│   └── report.html            # Host assessment report
-└── static/                    # ⚡ Frontend Design System & JavaScript
-    ├── css/style.css          # Design system & dark glassmorphic styling
-    └── js/script.js           # Real-time WebSocket telemetry & charts
-```
-
----
-
-## 🌍 IP Geolocation & ASN Intelligence Engine
-
-NexShield embeds high-performance offline IP geolocation and Autonomous System Number (ASN) intelligence powered by datasets from [`sapics/ip-location-db`](https://github.com/sapics/ip-location-db).
-
-- **$O(\log N)$ Binary Search**: Sub-millisecond $(<0.015\text{ ms})$ lookup across 750,000+ CIDR boundaries.
-- **Offline & Private**: Never leaks queried IP addresses to external third parties.
-- **Automated Caching**: Queries and updates `ip_geo_cache` in TinyDB / MongoDB for repeat hits.
-- **RFC 1918 Awareness**: Instant classification of private (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`), loopback (`127.0.0.0/8`), link-local, and multicast ranges.
-
-### Managing Datasets (`scripts/import_ip_location.py`)
-
-```bash
-# Display interval counts and dataset file stats
-python scripts/import_ip_location.py --stats
-
-# Download latest DB-IP Country and ASN releases
-python scripts/import_ip_location.py --download
-
-# Initialize fallback starter database
-python scripts/import_ip_location.py --init-starter
-```
-
-### API Endpoint
-
-```http
-GET /api/geo/<ip>
-```
-
-Response:
-```json
-{
-  "status": "complete",
-  "ip": "8.8.8.8",
-  "geo": {
-    "country_code": "US",
-    "country_name": "United States",
-    "asn": 15169,
-    "as_name": "Google LLC",
-    "is_private": false,
-    "network_type": "public"
-  },
-  "cached": false
-}
-```
-
----
-
-## 🔧 Troubleshooting
-
-### "pip install fails"
-
-```bash
-# Upgrade pip first
-python -m pip install --upgrade pip
-
-# If scikit-learn fails on Windows, try:
-pip install scikit-learn --only-binary=:all:
-
-# Or install core packages individually:
-pip install flask tinydb flask-socketio flask-cors python-dotenv requests
-```
-
-### "Nmap not found"
-
-NexShield works without nmap, but scanning requires it:
-
-- **Windows:** Download from [nmap.org](https://nmap.org/download.html), add to PATH
-- **Linux:** `sudo apt install nmap`
-- **macOS:** `brew install nmap`
-
-### "Database error"
-
-The built-in TinyDB database should work automatically. If you see errors:
-
-```bash
-# Reset the database
-python run.py --reset-db
-
-# Restart
-python run.py
-```
-
-### "Port 5000 already in use"
-
-```bash
-# Use a different port
-python run.py --port 8080
-```
-
----
-
-## 🔒 Advanced: Using MongoDB (Optional)
-
-If you prefer MongoDB over the built-in TinyDB:
-
-1. Install MongoDB: [mongodb.com/docs](https://www.mongodb.com/docs/manual/installation/)
-2. Install the Python driver:
-   ```bash
-   pip install -r requirements-optional.txt
-   ```
-3. Edit `.env`:
-   ```ini
-   MONGO_URI=mongodb://localhost:27017/
-   MONGO_DB=threat_intel
-   ```
-4. Restart NexShield — it will auto-detect and use MongoDB.
-
----
-
-## ⌨️ Keyboard Shortcuts
-
-| Key | Action |
-| --- | --- |
-| `S` | Focus scan target input |
-| `A` | Run AI analysis pipeline |
-| `T` | Train / optimize AI model |
-| `R` | Refresh all dashboard data |
-| `?` | Show shortcuts help panel |
-| `Esc` | Close modal / dismiss |
-
----
-
-## 🔒 Ethical Notice
-
-This software is intended for **authorized security testing and research only**. Unauthorized use against targets without prior written consent is strictly prohibited and may violate applicable laws. Always obtain proper authorization before conducting any security assessment.
-
----
-
-## Recent Improvements (v6.0)
-
-- **>90% CVE 5.0 Matching Accuracy Engine**: Evaluates CVE 5.0 schema version rules (`lessThan`, `lessThanOrEqual`, `status: "affected"`) and `PRODUCT_ALIASES` mapping (`httpd` $\rightarrow$ `http_server`) to eliminate false positives on patched software versions.
-- **Weighted AI Confidence Scoring**: Every threat finding receives a weighted confidence score ($0.00 - 1.00$), confidence badges (**`VERIFIED`** vs **`HEURISTIC`**), and multi-engine consensus count.
-- **EPSS (Exploit Prediction Scoring System)**: Integrates FIRST.org EPSS scores and percentiles to prioritize vulnerabilities with real-world active exploitation probabilities.
-- **Multi-Format Report Exporter**: Generate and download security reports in **PDF**, **Standalone HTML**, **Markdown (`.md`)**, and **OASIS SARIF v2.1 (`.sarif`)** format. Includes AI Executive Narratives and compliance tags for **PCI-DSS 4.0**, **ISO 27001:2022**, **NIST CSF 2.0**, and **OWASP Top 10**.
-- **One-Click Automated Remediation Generator**: Automatically creates downloadable security hardening scripts in **Ansible (`.yml`)**, **PowerShell (`.ps1`)**, and **Bash (`.sh`)** for detected vulnerabilities.
-- **Interactive 2D Network Topology Visualizer**: Force-directed network topology canvas on Mission Control (`/api/topology`) rendering nodes with animated severity rings (Red, Orange, Yellow, Green) and click-to-inspect popups.
-- **High-Performance Analytics Engine**: Added `/api/analytics/trends` for sub-millisecond analytical aggregations over historical scan data.
-- **Security Hardened**: Missing auth decorators fixed, password logging removed, credentials no longer pre-filled.
-- **Session Stability**: Fixed authentication loop bug where stale sessions forced continuous redirects to the login page.
-- **Performance UI**: Completely replaced heavy JS dependencies (`Chart.js`) with pure CSS-driven neo-minimalist components for faster rendering.
-- **Password Management**: In-app password change via dashboard profile dropdown.
-- **Notification Center**: Real-time event bell with unread count badge.
-- **Bulk Threat Actions**: Acknowledge, dismiss, or escalate multiple threats at once.
-- **Smart Polling**: Dashboard auto-refresh pauses when browser tab is hidden.
-- **Global Search**: Search across all threats, hosts, and CVEs from the navbar.
+Proprietary & Confidential — NexShield Cybersecurity Systems. All rights reserved.

@@ -79,9 +79,6 @@ fn main() -> std::io::Result<()> {
     });
 
     let server = HttpServer::new(state);
-    println!("\n[🚀] Launching server on http://{}:{}", host, port);
-    println!("[*] Press Ctrl+C to terminate.\n");
-
     server.start(&host, port, 16)?;
 
     Ok(())

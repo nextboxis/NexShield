@@ -22,15 +22,27 @@ impl HttpServer {
         }
     }
 
-    /// Starts the multithreaded server on the specified address and port.
-    pub fn start(&self, host: &str, port: u16, max_workers: usize) -> std::io::Result<()> {
-        let bind_addr = format!("{}:{}", host, port);
-        let listener = TcpListener::bind(&bind_addr)?;
+    /// Starts the multithreaded server on the specified address and port, automatically falling back if port is busy.
+    pub fn start(&self, host: &str, start_port: u16, max_workers: usize) -> std::io::Result<()> {
+        let mut port = start_port;
+        let listener = loop {
+            let bind_addr = format!("{}:{}", host, port);
+            match TcpListener::bind(&bind_addr) {
+                Ok(l) => break l,
+                Err(e) if (e.kind() == std::io::ErrorKind::AddrInUse || e.raw_os_error() == Some(10048)) && port < start_port + 20 => {
+                    println!("[!] Port {} is busy (AddrInUse). Trying next available port {}...", port, port + 1);
+                    port += 1;
+                }
+                Err(e) => return Err(e),
+            }
+        };
+        let bound_addr = format!("{}:{}", host, port);
         listener.set_nonblocking(true)?;
 
         self.running.store(true, Ordering::SeqCst);
-        println!("[+] NexShield Pure Rust Mission Control Server listening on http://{}", bind_addr);
+        println!("\n[🚀] NexShield Pure Rust Mission Control Server is LIVE at: http://{}", bound_addr);
         println!("[+] Worker threads: {}, DSA-optimized sub-microsecond engines active.", max_workers);
+        println!("[*] Press Ctrl+C to terminate.\n");
 
         let running = Arc::clone(&self.running);
         let router = Arc::clone(&self.router);

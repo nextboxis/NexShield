@@ -668,7 +668,7 @@ function triggerScan() {
 
     // Show progress bar
     const progressWrap = document.getElementById("scanProgress");
-    if (progressWrap) progressWrap.style.display = "block";
+    if (progressWrap) progressWrap.classList.remove("d-none");
 
     fetchJson("/api/scan", {
         method: "POST",
@@ -736,7 +736,7 @@ function triggerManualScan() {
 
     // Show progress bar
     const progressWrap = document.getElementById("scanProgress");
-    if (progressWrap) progressWrap.style.display = "block";
+    if (progressWrap) progressWrap.classList.remove("d-none");
 
     fetchJson("/api/scan", {
         method: "POST",
@@ -1005,6 +1005,9 @@ function closeModal() {
 function showToast(msg, type = "info", duration = 4000) {
     const container = document.getElementById("toastContainer");
     if (!container) return;
+    if (!msg || typeof msg !== "string") {
+        msg = typeof msg === "object" && msg !== null ? (msg.message || msg.status || "Operation completed") : "Operation executed successfully";
+    }
 
     const iconMap = {
         error: "🔴",
@@ -1028,7 +1031,7 @@ function showToast(msg, type = "info", duration = 4000) {
 
     // Also update legacy feedback bar
     const fb = document.getElementById("actionFeedback");
-    if (fb) {
+    if (fb && msg) {
         fb.innerText = `[${new Date().toLocaleTimeString()}] ${msg}`;
         const colorMap = {
             error: "var(--red)", warning: "var(--yellow)", success: "var(--green)",
@@ -1408,11 +1411,31 @@ function renderMissionMap(hosts) {
             });
         });
 
-        // Draw Core
-        ctx.fillStyle = "#818cf8";
-        ctx.shadowBlur = 20; ctx.shadowColor = "#818cf8";
-        ctx.beginPath(); ctx.arc(core.x, core.y, 8 + (zoom - 1) * 2, 0, Math.PI*2); ctx.fill();
-        ctx.shadowBlur = 0;
+        // Draw Core & Nodes or Clean Empty Radar
+        if (mapNodes.length === 0) {
+            ctx.strokeStyle = "rgba(99, 102, 241, 0.1)";
+            ctx.lineWidth = 1;
+            [40, 80, 110].forEach(r => {
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+                ctx.stroke();
+            });
+            ctx.fillStyle = "rgba(148, 163, 184, 0.6)";
+            ctx.font = "11px 'Outfit', sans-serif";
+            ctx.textAlign = "center";
+            ctx.fillText("Awaiting scan telemetry to map network topology", centerX, centerY + 30);
+
+            ctx.fillStyle = "#6366f1";
+            ctx.shadowBlur = 10; ctx.shadowColor = "#6366f1";
+            ctx.beginPath(); ctx.arc(centerX, centerY, 6, 0, Math.PI * 2); ctx.fill();
+            ctx.shadowBlur = 0;
+        } else {
+            // Draw Core
+            ctx.fillStyle = "#6366f1";
+            ctx.shadowBlur = 15; ctx.shadowColor = "#6366f1";
+            ctx.beginPath(); ctx.arc(core.x, core.y, 7 + (zoom - 1) * 2, 0, Math.PI*2); ctx.fill();
+            ctx.shadowBlur = 0;
+        }
         // Draw Nodes
         mapNodes.forEach(node => {
             let color = "#34d399"; // low

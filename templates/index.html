@@ -3,340 +3,469 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>NexShield — AI SOC & Mission Control</title>
-    <meta name="description" content="Professional-grade AI Threat Intelligence Operations Center. Real-time radar, mapping, and investigation." />
+    <title>NexShield — AI SOC & Threat Intelligence</title>
+    <meta name="description" content="Minimalist, high-performance cybersecurity threat assessment and SOC mission control powered by native pure Rust." />
 
     <!-- Inline SVG Favicon -->
-    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%23818cf8'/%3E%3Cstop offset='100%25' stop-color='%2334d399'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M32 4L6 18v20c0 14 12 20 26 22 14-2 26-8 26-22V18L32 4z' fill='none' stroke='url(%23g)' stroke-width='3'/%3E%3Cpath d='M32 16l-14 8v12c0 8 6 12 14 14 8-2 14-6 14-14V24l-14-8z' fill='url(%23g)' opacity='.15'/%3E%3Cpath d='M28 32l-4-4 2-2 2 2 8-8 2 2z' fill='url(%23g)'/%3E%3C/svg%3E" />
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0%25' stop-color='%236366f1'/%3E%3Cstop offset='100%25' stop-color='%2310b981'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpath d='M32 4L6 18v20c0 14 12 20 26 22 14-2 26-8 26-22V18L32 4z' fill='none' stroke='url(%23g)' stroke-width='3'/%3E%3Cpath d='M32 16l-14 8v12c0 8 6 12 14 14 8-2 14-6 14-14V24l-14-8z' fill='url(%23g)' opacity='.15'/%3E%3Cpath d='M28 32l-4-4 2-2 2 2 8-8 2 2z' fill='url(%23g)'/%3E%3C/svg%3E" />
 
-    <!-- Google Font: Share Tech Mono + Outfit -->
+    <!-- Typography: Outfit + Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
 
     <link rel="stylesheet" href="/static/css/style.css" />
-    <style>
-        .d-none { display: none; }
-        .brand-version { color: var(--cyan); opacity: 0.6; }
-        .tactical-panel { grid-column: span 2; min-height: 400px; }
-        .empty-hosts { font-size: 0.7rem; opacity: 0.5; font-family: var(--font-mono); letter-spacing: 1px; }
-        .form-label-small { font-family: var(--font-mono); font-size: 0.7rem; color: #8892a4; letter-spacing: 1.5px; }
-        .mb-form { margin-bottom: 0.8rem; }
-        .w-100 { width: 100%; }
-        .mt-10 { margin-top: 10px; }
-        .pw-feedback { font-family: var(--font-mono); font-size: 0.78rem; text-align: center; min-height: 1.4em; }
-    </style>
 </head>
-<body class="mission-view">
-    <!-- ── Ambient Layers ───────────────────────────── -->
-    <div class="grid-bg" aria-hidden="true"></div>
-    <div class="radar-sweep" aria-hidden="true"></div>
-    <div class="scanline-overlay" aria-hidden="true"></div>
-    <div class="radar-ping" id="radarPing"></div>
+<body>
+    <!-- Hidden legacy ambient handles for JS bindings -->
+    <div id="radarPing" style="display:none"></div>
 
-    <!-- ── Liquid Glass Navigation ───────────────── -->
-    <header class="liquid-nav-shell">
-        <nav class="liquid-nav" aria-label="Primary Navigation">
-            <a href="/" class="liquid-nav__brand" aria-label="NexShield Dashboard">
-                <span class="liquid-nav__glyph" aria-hidden="true">🛡</span>
-                <span>NexShield</span>
-            </a>
-            <button class="nav-hamburger" id="navHamburger" onclick="toggleMobileNav()" aria-label="Toggle navigation">☰</button>
-            <div class="liquid-nav__links" id="navLinks">
-                <a href="/" class="liquid-nav__link liquid-nav__link--active">Dashboard</a>
-                <a href="#statsGrid" class="liquid-nav__link">Summary</a>
-                <a href="#manualScan" class="liquid-nav__link">Scanner</a>
-                <a href="#hostsGrid" class="liquid-nav__link">Assets</a>
-                <a href="#activityFeed" class="liquid-nav__link">Operations</a>
-                <a href="/report" class="liquid-nav__link">Report</a>
-                <a href="#" class="liquid-nav__link liquid-nav__link--ai" onclick="toggleRagCopilot(); return false;">🧠 AI Copilot <span class="badge-rag-pulse">RAG</span></a>
-                <a href="#" class="liquid-nav__link liquid-nav__link--pill" onclick="showShortcutsHelp(); return false;">Shortcuts</a>
-            </div>
-            <div class="global-search">
-                <input type="text" id="globalSearch" placeholder="Search threats, hosts, CVEs..." onkeyup="globalSearchHandler(event)" />
-            </div>
-            <div class="notification-bell" id="notifBell" onclick="toggleNotifications()">
-                🔔<span class="notification-badge d-none" id="notifBadge">0</span>
-                <div class="notification-dropdown" id="notifDropdown"></div>
-            </div>
-            <div class="liquid-nav__profile" id="navProfile">
-                <button class="profile-btn" onclick="toggleProfileMenu()">
-                    <span class="profile-avatar">👤</span>
-                    <span class="profile-name" id="profileName">Operator</span>
-                </button>
-                <div class="profile-dropdown" id="profileDropdown">
-                    <a onclick="openChangePasswordModal()">🔑 Change Password</a>
-                    <a onclick="doLogout()">🚪 Logout</a>
+    <!-- ── Minimalist Top Navigation ──────────────────────────────── -->
+    <header class="app-nav">
+        <div class="nav-container">
+            <div class="nav-left">
+                <a href="/" class="nav-brand" aria-label="NexShield Home">
+                    <span class="nav-brand__icon">🛡️</span>
+                    <span class="nav-brand__name">NexShield</span>
+                </a>
+                <span class="badge-rust-core">Pure Rust v6.1</span>
+                <div class="nav-live-status">
+                    <span class="status-indicator-dot" id="statusDot"></span>
+                    <span id="statusText">System Active</span>
                 </div>
             </div>
-        </nav>
+
+            <button class="nav-hamburger" id="navHamburger" onclick="toggleMobileNav()" aria-label="Toggle navigation">☰</button>
+
+            <nav class="nav-center" id="navLinks">
+                <a href="/" class="nav-link nav-link--active">Dashboard</a>
+                <a href="#manualScan" class="nav-link">Scanner</a>
+                <a href="#threatsSection" class="nav-link">Threats</a>
+                <a href="#hostsGrid" class="nav-link">Assets</a>
+                <a href="/report" class="nav-link">Reports</a>
+            </nav>
+
+            <div class="nav-right">
+                <div class="search-box">
+                    <span class="search-icon">🔍</span>
+                    <input type="text" id="globalSearch" placeholder="Search threats, hosts, CVEs..." onkeyup="globalSearchHandler(event)" />
+                </div>
+
+                <button class="btn-copilot" onclick="toggleRagCopilot(); return false;" title="AI Copilot RAG Assistant">
+                    <span>🧠 AI Copilot</span>
+                    <span class="copilot-tag">RAG</span>
+                </button>
+
+                <div class="notif-wrapper" id="notifBell" onclick="toggleNotifications()" title="Notifications">
+                    <span class="notif-icon">🔔</span>
+                    <span class="notif-badge d-none" id="notifBadge">0</span>
+                    <div class="notification-dropdown" id="notifDropdown"></div>
+                </div>
+
+                <div class="profile-wrapper" id="navProfile">
+                    <button class="profile-pill" onclick="toggleProfileMenu()">
+                        <span class="profile-avatar">OP</span>
+                        <span class="profile-name" id="profileName">admin</span>
+                    </button>
+                    <div class="profile-dropdown" id="profileDropdown">
+                        <a onclick="openChangePasswordModal()">🔑 Change Password</a>
+                        <a onclick="showShortcutsHelp()">⌨️ Keyboard Shortcuts</a>
+                        <a onclick="doLogout()">🚪 Sign Out</a>
+                    </div>
+                </div>
+            </div>
+        </div>
     </header>
 
-    <!-- ── HUD Vitals ────────────────────────────────── -->
-    <div class="hud-vitals">
-        <div class="vital-box">
-            <span class="vital-label">SCAN_RATE</span>
-            <span class="vital-value" id="hudScan">0 p/s</span>
-            <div class="vital-bar"></div>
-        </div>
-        <div class="vital-box">
-            <span class="vital-label">SYS_LOAD</span>
-            <span class="vital-value" id="hudLoad">0%</span>
-            <div class="vital-bar"></div>
-        </div>
-    </div>
-
-    <!-- ── Toast Container ─────────────────────── -->
+    <!-- ── Toast Notifications ────────────────────────────────────── -->
     <div class="toast-container" id="toastContainer" aria-live="polite"></div>
 
-    <!-- ── Connection Status Banner ───────────────── -->
+    <!-- ── Connection Status Banner ───────────────────────────────── -->
     <div class="connection-banner d-none" id="connectionBanner">
-        ⚠️ Connection lost. Attempting to reconnect...
+        ⚠️ Connection to server interrupted. Reconnecting...
     </div>
 
-    <!-- ── Content Shell ─────────────────────────────────────────── -->
-    <div class="content-shell">
-        <header class="top-header">
-            <div class="brand">
-                <h1 class="brand__title">NEXSHIELD <span class="brand-version">v6.1</span> :: MISSION_CONTROL</h1>
-                <p class="brand__status">
-                    <span class="status-dot" id="statusDot"></span>
-                    <span id="statusText">System Link Pending...</span>
-                    <span class="system-clock" id="systemClock">--:--:-- UTC</span>
-                    <span class="last-updated" id="lastUpdated"></span>
-                </p>
+    <!-- ── Main Workspace ─────────────────────────────────────────── -->
+    <div class="app-layout">
+        <!-- Sub-header & Action Controls -->
+        <div class="dashboard-header">
+            <div class="header-titles">
+                <h1 class="page-title">Threat Operations Center</h1>
+                <p class="page-subtitle">Continuous multi-vector vulnerability scanning & AI threat correlation</p>
             </div>
-            <div class="quick-tactics">
-                <button class="btn btn--scan" id="btnScan" onclick="triggerScan()" aria-label="Start Live Scan">
-                    <span class="btn__icon">⚡</span> LIVE_SCAN
-                </button>
-                <button class="btn btn--analyze" id="btnAnalyze" onclick="triggerAnalysis()" aria-label="Run AI Analysis">
-                    <span class="btn__icon">🧠</span> RUN_ANALYSIS
-                </button>
-                <button class="btn btn--train" id="btnTrain" onclick="triggerTraining()" aria-label="Optimize AI Model">
-                    <span class="btn__icon">🤖</span> OPTIMIZE_AI
-                </button>
-                <button class="btn btn--reset" id="btnReset" onclick="triggerResetData()" aria-label="Reset Data">
-                    <span class="btn__icon">⚠</span> RESET_DATA
-                </button>
-                <button class="btn btn--report" id="btnReport" onclick="window.location.href='/report'" aria-label="Generate Report">
-                    <span class="btn__icon">📋</span> GEN_REPORT
-                </button>
+
+            <div class="header-actions">
+                <div class="vitals-strip">
+                    <span class="vitals-item">Rate: <strong id="hudScan">0 p/s</strong></span>
+                    <span class="vitals-separator">•</span>
+                    <span class="vitals-item">Load: <strong id="hudLoad">0%</strong></span>
+                    <span class="vitals-separator">•</span>
+                    <span class="vitals-item"><span id="systemClock">--:--:-- UTC</span></span>
+                </div>
+
+                <div class="action-buttons-group">
+                    <button class="btn btn--secondary" id="btnAnalyze" onclick="triggerAnalysis()" title="Execute AI threat correlation">
+                        <span>⚡ AI Analysis</span>
+                    </button>
+                    <button class="btn btn--secondary" id="btnTrain" onclick="triggerTraining()" title="Re-calibrate threat models">
+                        <span>🤖 Calibrate ML</span>
+                    </button>
+                    <button class="btn btn--secondary" id="btnReport" onclick="window.location.href='/report'" title="Export executive report">
+                        <span>📋 Report</span>
+                    </button>
+                    <button class="btn btn--secondary btn--danger-subtle" id="btnReset" onclick="triggerResetData()" title="Clear transient session data">
+                        <span>🔄 Reset</span>
+                    </button>
+                    <button class="btn btn--primary" id="btnScan" onclick="triggerScan()" title="Trigger immediate scan">
+                        <span>▶ Start Scan</span>
+                    </button>
+                </div>
             </div>
-        </header>
+        </div>
 
-        <main class="dashboard-grid">
-            <!-- Stats -->
-            <section class="ops-stats" id="statsGrid" aria-label="Threat Statistics">
-                <div class="stat-box" id="statTotal">
-                    <span class="stat-box__label">ALL_THREATS</span>
-                    <span class="stat-box__value" id="totalThreats">0</span>
-                    <div class="stat-box__trend" id="trendTotal"></div>
+        <!-- Metric Cards -->
+        <section class="metrics-grid" id="statsGrid" aria-label="Key Security Metrics">
+            <div class="metric-card" id="statTotal">
+                <div class="metric-card__header">
+                    <span class="metric-label">All Threats Flagged</span>
+                    <span class="metric-icon metric-icon--blue">🛡️</span>
                 </div>
-                <div class="stat-box stat-box--critical" id="statCritical">
-                    <span class="stat-box__label">CRIT_VULN</span>
-                    <span class="stat-box__value" id="criticalCount">0</span>
-                    <div class="stat-box__trend" id="trendCritical"></div>
+                <div class="metric-card__value" id="totalThreats">0</div>
+                <div class="metric-card__footer">
+                    <span class="metric-hint">Across monitored endpoints</span>
+                    <div class="trend-indicator" id="trendTotal"></div>
                 </div>
-                <div class="stat-box stat-box--high" id="statHigh">
-                    <span class="stat-box__label">HIGH_ALERT</span>
-                    <span class="stat-box__value" id="highCount">0</span>
-                    <div class="stat-box__trend" id="trendHigh"></div>
-                </div>
-                <div class="stat-box stat-box--medium" id="statMedium">
-                    <span class="stat-box__label">MED_EXPOSURE</span>
-                    <span class="stat-box__value" id="mediumCount">0</span>
-                    <div class="stat-box__trend" id="trendMedium"></div>
-                </div>
-                <div class="stat-box stat-box--scans" id="statScans">
-                    <span class="stat-box__label">TOTAL_SCANS</span>
-                    <span class="stat-box__value" id="scanCount">0</span>
-                    <div class="stat-box__trend" id="trendScans"></div>
-                </div>
-            </section>
+            </div>
 
-            <!-- Phase 1: Operational Tactical Console (Top Priority) -->
-            <div class="tactical-row">
-                <!-- Tactical Mission Map -->
-                <div class="sub-panel glass-panel tactical-panel">
-                    <div class="sub-panel__header">
-                        🗺️ TACTICAL_MISSION_MAP
-                        <span class="info-legend" title="Real-time topology and threat density map. Click nodes to inspect.">?</span>
+            <div class="metric-card metric-card--critical" id="statCritical">
+                <div class="metric-card__header">
+                    <span class="metric-label">Critical Vulnerabilities</span>
+                    <span class="metric-icon metric-icon--red">⚠️</span>
+                </div>
+                <div class="metric-card__value" id="criticalCount">0</div>
+                <div class="metric-card__footer">
+                    <span class="metric-hint metric-hint--red">Immediate action required</span>
+                    <div class="trend-indicator" id="trendCritical"></div>
+                </div>
+            </div>
+
+            <div class="metric-card metric-card--high" id="statHigh">
+                <div class="metric-card__header">
+                    <span class="metric-label">High Severity Alerts</span>
+                    <span class="metric-icon metric-icon--orange">🔥</span>
+                </div>
+                <div class="metric-card__value" id="highCount">0</div>
+                <div class="metric-card__footer">
+                    <span class="metric-hint metric-hint--orange">Priority investigation</span>
+                    <div class="trend-indicator" id="trendHigh"></div>
+                </div>
+            </div>
+
+            <div class="metric-card metric-card--medium" id="statMedium">
+                <div class="metric-card__header">
+                    <span class="metric-label">Medium Exposure</span>
+                    <span class="metric-icon metric-icon--yellow">⚡</span>
+                </div>
+                <div class="metric-card__value" id="mediumCount">0</div>
+                <div class="metric-card__footer">
+                    <span class="metric-hint">Hardening advised</span>
+                    <div class="trend-indicator" id="trendMedium"></div>
+                </div>
+            </div>
+
+            <div class="metric-card metric-card--success" id="statScans">
+                <div class="metric-card__header">
+                    <span class="metric-label">Total Scans Executed</span>
+                    <span class="metric-icon metric-icon--green">✓</span>
+                </div>
+                <div class="metric-card__value" id="scanCount">0</div>
+                <div class="metric-card__footer">
+                    <span class="metric-hint">Zero packet loss verified</span>
+                    <div class="trend-indicator" id="trendScans"></div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2-Column Main Workspace -->
+        <div class="workspace-grid">
+            <!-- Left Column: Scanner & Threat Query -->
+            <div class="workspace-col">
+                <!-- Security Scanner Panel -->
+                <div class="panel-card" id="manualScan">
+                    <div class="panel-card__header">
+                        <div class="panel-title-group">
+                            <h2 class="panel-title">Target Security Scanner</h2>
+                            <p class="panel-desc">Multithreaded port discovery powered by pure Rust bitmaps</p>
+                        </div>
+                        <span class="engine-badge" id="nmapBadge" title="Scanner Engine Status">Checking Engine...</span>
                     </div>
-                    <div class="mission-map-wrap">
-                        <canvas id="missionMap"></canvas>
-                        <div class="map-overlay-hud" id="mapHud">
-                            <div class="hud-line">NODES_ACTIVE: <span id="mapNodes">0</span></div>
-                            <div class="hud-line">AI_CONFIDENCE: <span id="aiConfidenceGauge" style="color: #00ff88;">95.4% [HIGH]</span></div>
-                            <div class="hud-line">THREAT_PULSE: <span id="mapPulse">STABLE</span></div>
+
+                    <div class="panel-card__body">
+                        <div class="form-row">
+                            <label class="form-label" for="scanTarget">Target IP / CIDR / Hostname</label>
+                            <input type="text" id="scanTarget" placeholder="127.0.0.1 or 192.168.1.0/24" class="input-text" autocomplete="off" />
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-label-split">
+                                <label class="form-label" for="scanPorts">Target Ports</label>
+                                <div class="port-chips">
+                                    <button type="button" class="port-chip" onclick="document.getElementById('scanPorts').value='80,443'">Web</button>
+                                    <button type="button" class="port-chip" onclick="document.getElementById('scanPorts').value='22,80,443,3306,5000,8080'">Common</button>
+                                    <button type="button" class="port-chip" onclick="document.getElementById('scanPorts').value='1-1024'">Top 1K</button>
+                                </div>
+                            </div>
+                            <input type="text" id="scanPorts" placeholder="e.g. 22, 80, 443, 3306, 5000, 8080" class="input-text" autocomplete="off" />
+                        </div>
+
+                        <div class="form-row">
+                            <label class="form-label" for="scanType">Scan Profile</label>
+                            <select id="scanType" class="input-select">
+                                <option value="quick">⚡ Quick Scan (Top 100 Ports)</option>
+                                <option value="default" selected>🔍 Service Version Detection</option>
+                                <option value="deep">🧬 Deep Scan (Scripts + OS Fingerprint)</option>
+                                <option value="stealth">🥷 Stealth SYN Scan (Fragmented)</option>
+                                <option value="vuln">🛡️ Vulnerability Scripts</option>
+                                <option value="ssl">🔒 SSL/TLS Cipher Scan</option>
+                                <option value="full">🔥 Full Range (All 65,535 Ports)</option>
+                            </select>
+                        </div>
+
+                        <div class="scanner-action-bar">
+                            <button id="execScanBtn" class="btn btn--primary btn--lg w-100" onclick="triggerManualScan()">
+                                <span>Execute Security Scan</span>
+                            </button>
+                        </div>
+
+                        <div class="scan-progress-box d-none" id="scanProgress">
+                            <div class="progress-info">
+                                <span class="progress-title">Scan in progress...</span>
+                                <span class="progress-pct" id="scanProgressText">0%</span>
+                            </div>
+                            <div class="progress-track">
+                                <div class="progress-fill" id="scanProgressBar"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
-                
-                <!-- Tactical Inputs -->
-                <div class="sub-panel glass-panel" id="manualScan">
-                    <div class="sub-panel__header">
-                        📡 TARGET_SCANNER
-                        <span class="nmap-badge" id="nmapBadge" title="Checking nmap...">⏳</span>
-                    </div>
-                    <div class="tactical-form">
-                        <input type="text" id="scanTarget" placeholder="TARGET_IP / CIDR / HOSTNAME" class="console-input" autocomplete="off" aria-label="Scan Target">
-                        <input type="text" id="scanPorts" placeholder="PORTS (22,80,443...)" class="console-input" autocomplete="off" aria-label="Scan Ports">
-                        <select id="scanType" class="console-select" aria-label="Scan Type">
-                            <option value="quick">⚡ QUICK (Top 100)</option>
-                            <option value="default" selected>🔍 DEFAULT (Version)</option>
-                            <option value="deep">🧬 DEEP (Scripts+OS)</option>
-                            <option value="stealth">🥷 STEALTH (SYN)</option>
-                            <option value="os">💻 OS DETECT</option>
-                            <option value="vuln">🛡️ VULN SCRIPTS</option>
-                            <option value="ssl">🔒 SSL/TLS SCAN</option>
-                            <option value="udp">📡 UDP (Top 50)</option>
-                            <option value="full">🔥 FULL (All 65535 Ports)</option>
-                        </select>
-                        <button id="execScanBtn" class="btn-manual" onclick="triggerManualScan()">EXEC_SCAN</button>
-                    </div>
-                    <div class="scan-progress d-none" id="scanProgress">
-                        <div class="scan-progress__bar" id="scanProgressBar"></div>
-                        <span class="scan-progress__text" id="scanProgressText">0%</span>
-                    </div>
-                </div>
 
-                <div class="sub-panel glass-panel" id="cveLookup">
-                    <div class="sub-panel__header">🌐 INTEL_QUERY (CVE)</div>
-                    <div class="tactical-form">
-                        <input type="text" id="cveInput" placeholder="CVE-YYYY-XXXX" class="console-input" aria-label="CVE Identifier">
-                        <button class="btn-manual" onclick="lookupCVE()">RUN_QUERY</button>
+                <!-- CVE & Threat Query Panel -->
+                <div class="panel-card mt-4" id="cveLookup">
+                    <div class="panel-card__header">
+                        <div class="panel-title-group">
+                            <h2 class="panel-title">CVE & Advisory Intelligence</h2>
+                            <p class="panel-desc">Instant lookup against local CISA KEV and NVD vulnerability indices</p>
+                        </div>
                     </div>
-                    <div id="cveResult"></div>
+                    <div class="panel-card__body">
+                        <div class="cve-search-group">
+                            <input type="text" id="cveInput" placeholder="Enter CVE (e.g. CVE-2021-44228 or CVE-2017-0144)" class="input-text" />
+                            <button class="btn btn--secondary" onclick="lookupCVE()">Lookup</button>
+                        </div>
+                        <div id="cveResult" class="cve-results-container"></div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Discovered Hosts Panel -->
-            <div class="hosts-row">
-                <section class="hosts-panel glass-panel" aria-label="Discovered Hosts">
-                    <div class="panel-header">
-                        <h2>🖥️ DISCOVERED_HOSTS</h2>
+            <!-- Right Column: Network Assets & Topology -->
+            <div class="workspace-col">
+                <!-- Topology & Visual Radar -->
+                <div class="panel-card">
+                    <div class="panel-card__header">
+                        <div class="panel-title-group">
+                            <h2 class="panel-title">Network Attack Surface & Topology</h2>
+                            <p class="panel-desc">Real-time asset mapping and connectivity graph</p>
+                        </div>
+                        <div class="topology-hud-chips">
+                            <span class="hud-chip">Nodes: <strong id="mapNodes">0</strong></span>
+                            <span class="hud-chip">Confidence: <strong id="aiConfidenceGauge">96%</strong></span>
+                            <span class="hud-chip">Status: <strong id="mapPulse">STABLE</strong></span>
+                        </div>
+                    </div>
+                    <div class="panel-card__body">
+                        <div class="map-container">
+                            <canvas id="missionMap" width="600" height="260"></canvas>
+                            <div class="map-overlay-hud" id="mapHud" style="display:none"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Discovered Hosts List -->
+                <div class="panel-card mt-4">
+                    <div class="panel-card__header">
+                        <div class="panel-title-group">
+                            <h2 class="panel-title">Discovered Hosts</h2>
+                            <p class="panel-desc">Monitored endpoints detected on current network segments</p>
+                        </div>
                         <span class="host-count-badge" id="hostCountBadge">0</span>
                     </div>
-                    <div class="hosts-grid" id="hostsGrid">
-                        <p class="empty-hosts">RUN_SCAN_TO_DISCOVER</p>
-                    </div>
-                </section>
-            </div>
-
-            <!-- Phase 2: Visual Intelligence (Secondary Detail) -->
-            <div class="visualizer-row">
-                <div class="quad-section glass-panel">
-                    <div class="quad-header">🎯 SEVERITY_RADAR</div>
-                    <div class="donut-wrap" id="severityRadarContainer" style="padding: 1.5rem; display: flex; flex-direction: column; justify-content: center; height: 100%;">
-                        <!-- CSS donut/bars injected via JS -->
-                    </div>
-                </div>
-                <div class="quad-section quad-section--cvelist glass-panel">
-                    <div class="quad-header">🐛 TOP_VULNERABILITIES</div>
-                    <div class="cve-list-container" id="topVulnerabilitiesList" style="padding: 1rem 1.5rem; height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 8px;">
-                        <!-- JS injected list -->
-                        <div style="opacity: 0.5; font-family: var(--font-mono); font-size: 0.8rem;">AWAITING_THREAT_DATA...</div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Phase 3: Active Detail Log (Third Tier) -->
-            <div class="threat-detail-row">
-                <section class="threats-viewer glass-panel" aria-label="Threat Intelligence Table">
-                    <div class="panel-header">
-                        <h2>🔍 ACTIVE_INTELLIGENCE</h2>
-                        <div class="panel-actions">
-                            <input type="text" id="filterSearch" placeholder="Filter IDs..." oninput="applyFilters()" class="console-input" aria-label="Search Filter">
-                            <select id="filterSeverity" onchange="applyFilters()" class="console-select" aria-label="Severity Filter">
-                                <option value="">ALL_SEV</option>
-                                <option value="critical">CRIT</option>
-                                <option value="high">HIGH</option>
-                                <option value="medium">MED</option>
-                                <option value="low">LOW</option>
-                            </select>
-                            <button onclick="exportReport('csv')" class="btn-console" aria-label="Export CSV">EXPORT[CSV]</button>
-                            <button onclick="exportReport('json')" class="btn-console" aria-label="Export JSON">EXPORT[JSON]</button>
+                    <div class="panel-card__body">
+                        <div class="hosts-grid-container" id="hostsGrid">
+                            <p class="empty-state">No hosts scanned yet. Run a scan on 127.0.0.1 or local subnet to populate assets.</p>
                         </div>
                     </div>
-                    <div class="table-scroll">
-                        <table class="ops-table">
-                            <thead>
-                                <tr>
-                                    <th>SEV</th>
-                                    <th>DESCRIPTION</th>
-                                    <th>IP_NODE</th>
-                                    <th>CVE_ID</th>
-                                    <th>DETECTION</th>
-                                    <th width="120">ACTION</th>
-                                </tr>
-                            </thead>
-                            <tbody id="threatsBody">
-                                <!-- Data injected via script.js -->
-                            </tbody>
-                        </table>
+                </div>
+
+                <!-- Severity Distribution & Top CVEs -->
+                <div class="panel-card mt-4">
+                    <div class="panel-card__header">
+                        <div class="panel-title-group">
+                            <h2 class="panel-title">Vulnerability Profile</h2>
+                            <p class="panel-desc">Distribution across risk categories and critical CVEs</p>
+                        </div>
                     </div>
-                </section>
+                    <div class="panel-card__body">
+                        <div class="profile-split-view">
+                            <div id="severityRadarContainer" class="severity-bars-wrap"></div>
+                            <div id="topVulnerabilitiesList" class="top-cve-list">
+                                <p class="empty-state">No active vulnerabilities flagged.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
+        </div>
 
-            <!-- Operational Logs Overlay (Compact) -->
-            <div class="console-overlay" id="activityFeed">
-                <div class="console-header">LOGS::STREAMS</div>
-                <div class="console-feed" id="activityList"></div>
+        <!-- Bottom Section: Active Threat Intelligence Table -->
+        <section class="threats-table-section mt-6" id="threatsSection" aria-label="Threat Intelligence Findings">
+            <div class="panel-card">
+                <div class="panel-card__header table-controls-header">
+                    <div class="panel-title-group">
+                        <h2 class="panel-title">Active Security Findings</h2>
+                        <p class="panel-desc">Detailed vulnerability findings correlated by AI and heuristic rules</p>
+                    </div>
+
+                    <div class="table-actions">
+                        <div class="filter-input-group">
+                            <input type="text" id="filterSearch" placeholder="Filter by host or CVE..." oninput="applyFilters()" class="input-text input-text--sm" />
+                            <select id="filterSeverity" onchange="applyFilters()" class="input-select input-select--sm">
+                                <option value="">All Severities</option>
+                                <option value="critical">Critical</option>
+                                <option value="high">High</option>
+                                <option value="medium">Medium</option>
+                                <option value="low">Low</option>
+                            </select>
+                        </div>
+                        <div class="export-btn-group">
+                            <button onclick="exportReport('csv')" class="btn btn--secondary btn--sm">Export CSV</button>
+                            <button onclick="exportReport('json')" class="btn btn--secondary btn--sm">Export JSON</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="minimal-table">
+                        <thead>
+                            <tr>
+                                <th width="110">Severity</th>
+                                <th>Finding Description</th>
+                                <th width="150">Target Host</th>
+                                <th width="160">Advisory / CVE</th>
+                                <th width="180">Detection Engine</th>
+                                <th width="120" style="text-align:right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="threatsBody">
+                            <tr>
+                                <td colspan="6" class="text-center empty-state py-8">
+                                    No active threat findings. Run a scan to evaluate target security posture.
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
             </div>
-        </main>
+        </section>
 
-        <div class="action-panel__feedback" id="actionFeedback"></div>
-    </div>
+        <!-- Security Activity & Audit Stream -->
+        <section class="activity-section mt-6" id="activityFeed">
+            <div class="panel-card">
+                <div class="panel-card__header">
+                    <div class="panel-title-group">
+                        <h2 class="panel-title">Security Event Audit Log</h2>
+                        <p class="panel-desc">Real-time tamper-evident system and assessment log</p>
+                    </div>
+                    <span class="last-synced" id="lastUpdated">Synced</span>
+                </div>
+                <div class="panel-card__body">
+                    <div class="activity-stream-box" id="activityList">
+                        <div class="empty-state">No recent events recorded.</div>
+                    </div>
+                </div>
+            </div>
+        </section>
 
-    <!-- ── AI Insight Ticker ────────────────────────── -->
-    <div class="ai-ticker">
-        <div class="ai-ticker__label">AI_INTEL</div>
-        <div class="ai-ticker__scroll" id="aiTickerScroll">
-            <div class="ticker-item">Awaiting threat data — run a scan to populate AI insights.</div>
+        <!-- Subtle Feedback Indicator -->
+        <div class="action-feedback-bar" id="actionFeedback"></div>
+
+        <!-- AI Insights Strip -->
+        <div class="ai-strip">
+            <div class="ai-strip__badge">AI INTEL</div>
+            <div class="ai-strip__content" id="aiTickerScroll">
+                <div class="ticker-item">Awaiting threat data — initiate a scan to generate AI intelligence insights.</div>
+            </div>
         </div>
     </div>
 
-    <!-- ── Modal Overlay ──────────────────────────────────── -->
+    <!-- ── Threat Details Modal ────────────────────────────────────── -->
     <div class="modal-overlay" id="modalOverlay" onclick="closeModal()" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
         <div class="modal-panel" onclick="event.stopPropagation()">
-            <button class="modal-close" onclick="closeModal()" aria-label="Close Modal">&times;</button>
-            <h2 class="modal-title" id="modalTitle">THREAT::DETAILS</h2>
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">Threat Details</h2>
+                <button class="modal-close-btn" onclick="closeModal()" aria-label="Close Modal">&times;</button>
+            </div>
             <div class="modal-body" id="modalBody"></div>
         </div>
     </div>
 
-    <!-- ── Change Password Modal ──────────────────── -->
+    <!-- ── Change Password Modal ──────────────────────────────────── -->
     <div class="modal-overlay d-none" id="passwordModal">
-        <div class="modal-panel" onclick="event.stopPropagation()">
-            <button class="modal-close" onclick="closePasswordModal()">×</button>
-            <h2 class="modal-title">🔑 CHANGE_PASSWORD</h2>
+        <div class="modal-panel modal-panel--sm" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2 class="modal-title">Change Password</h2>
+                <button class="modal-close-btn" onclick="closePasswordModal()">&times;</button>
+            </div>
             <div class="modal-body">
-                <div class="form-group mb-form"><label class="form-label form-label-small">Current Password</label><input type="password" id="currentPw" class="console-input w-100" /></div>
-                <div class="form-group mb-form"><label class="form-label form-label-small">New Password</label><input type="password" id="newPw" class="console-input w-100" /></div>
-                <div class="form-group mb-form"><label class="form-label form-label-small">Confirm New Password</label><input type="password" id="confirmPw" class="console-input w-100" /></div>
-                <div class="login-feedback pw-feedback" id="pwFeedback"></div>
-                <button class="btn btn--scan w-100 mt-10" onclick="submitPasswordChange()">UPDATE_ACCESS_KEY</button>
+                <div class="form-row">
+                    <label class="form-label">Current Password</label>
+                    <input type="password" id="currentPw" class="input-text w-100" />
+                </div>
+                <div class="form-row">
+                    <label class="form-label">New Password</label>
+                    <input type="password" id="newPw" class="input-text w-100" />
+                </div>
+                <div class="form-row">
+                    <label class="form-label">Confirm New Password</label>
+                    <input type="password" id="confirmPw" class="input-text w-100" />
+                </div>
+                <div class="login-feedback" id="pwFeedback"></div>
+                <button class="btn btn--primary w-100 mt-4" onclick="submitPasswordChange()">Update Password</button>
             </div>
         </div>
     </div>
 
-    <!-- ── Remediation Code Modal ────────────────── -->
+    <!-- ── Automated Remediation Modal ────────────────────────────── -->
     <div class="modal-overlay d-none" id="remediationModal" onclick="closeRemediationModal()" role="dialog" aria-modal="true" aria-labelledby="remediationTitle">
         <div class="modal-panel modal-panel--wide" onclick="event.stopPropagation()">
-            <button class="modal-close" onclick="closeRemediationModal()" aria-label="Close Remediation Modal">&times;</button>
-            <h2 class="modal-title" id="remediationTitle">🛡️ AUTOMATED_REMEDIATION_CODE</h2>
-            <div class="remediation-toolbar mb-form" style="display: flex; gap: 10px; align-items: center; margin-bottom: 12px;">
-                <button class="btn-console" onclick="switchRemediationFormat('ansible')">ANSIBLE (.YML)</button>
-                <button class="btn-console" onclick="switchRemediationFormat('powershell')">POWERSHELL (.PS1)</button>
-                <button class="btn-console" onclick="switchRemediationFormat('bash')">BASH (.SH)</button>
-                <button class="btn-console" style="margin-left: auto;" onclick="downloadRemediationScript()">DOWNLOAD_SCRIPT</button>
+            <div class="modal-header">
+                <h2 class="modal-title" id="remediationTitle">Automated Remediation Script</h2>
+                <button class="modal-close-btn" onclick="closeRemediationModal()">&times;</button>
             </div>
             <div class="modal-body">
-                <pre id="remediationCodeBlock" style="background: rgba(0,0,0,0.6); padding: 1rem; border-radius: 6px; color: #00ff88; font-family: var(--font-mono, monospace); font-size: 0.85rem; max-height: 400px; overflow-y: auto; white-space: pre-wrap; word-break: break-all; border: 1px solid rgba(255,255,255,0.1);"></pre>
+                <div class="remediation-toolbar">
+                    <div class="format-buttons">
+                        <button class="btn btn--secondary btn--sm" onclick="switchRemediationFormat('ansible')">Ansible (.yml)</button>
+                        <button class="btn btn--secondary btn--sm" onclick="switchRemediationFormat('powershell')">PowerShell (.ps1)</button>
+                        <button class="btn btn--secondary btn--sm" onclick="switchRemediationFormat('bash')">Bash (.sh)</button>
+                    </div>
+                    <button class="btn btn--primary btn--sm" onclick="downloadRemediationScript()">Download Script</button>
+                </div>
+                <pre id="remediationCodeBlock" class="code-viewer"></pre>
             </div>
         </div>
-    <!-- ── NexShield RAG AI Copilot Drawer ──────────────────────── -->
+    </div>
+
+    <!-- ── AI Copilot RAG Drawer ──────────────────────────────────── -->
     <div class="rag-drawer d-none" id="ragDrawer" role="dialog" aria-modal="true" aria-labelledby="ragDrawerTitle">
         <div class="rag-drawer__backdrop" onclick="toggleRagCopilot()"></div>
         <div class="rag-drawer__panel">
@@ -344,45 +473,42 @@
                 <div class="rag-drawer__title-group">
                     <span class="rag-icon">🧠</span>
                     <div>
-                        <h2 class="rag-drawer__title" id="ragDrawerTitle">NEXSHIELD AI COPILOT</h2>
-                        <span class="rag-drawer__subtitle">RAG-Augmented Threat Intelligence & Remediation Engine</span>
+                        <h2 class="rag-drawer__title" id="ragDrawerTitle">NexShield AI Security Copilot</h2>
+                        <span class="rag-drawer__subtitle">RAG Threat Intelligence & Automated Hardening Advisor</span>
                     </div>
                 </div>
                 <div class="rag-drawer__actions">
-                    <button class="btn-console btn-console--sm" onclick="triggerRagReindex()" title="Reindex Knowledge Base">🔄 REINDEX</button>
-                    <button class="modal-close" onclick="toggleRagCopilot()" aria-label="Close Copilot">&times;</button>
+                    <button class="btn btn--secondary btn--sm" onclick="triggerRagReindex()" title="Reindex Knowledge Base">🔄 Reindex</button>
+                    <button class="modal-close-btn" onclick="toggleRagCopilot()" aria-label="Close Copilot">&times;</button>
                 </div>
             </header>
 
             <div class="rag-drawer__content">
-                <!-- Suggested Quick Queries -->
                 <div class="rag-quick-prompts">
-                    <span class="rag-prompts-label">QUICK PROMPTS:</span>
+                    <span class="rag-prompts-label">Quick Prompts:</span>
                     <button class="rag-prompt-chip" onclick="executeQuickPrompt('Explain lateral movement risks on open SMB port 445')">SMB Port 445 Risks</button>
                     <button class="rag-prompt-chip" onclick="executeQuickPrompt('How do I harden and isolate RDP port 3389?')">Harden RDP 3389</button>
                     <button class="rag-prompt-chip" onclick="executeQuickPrompt('What is the exploit chain for EternalBlue CVE-2017-0144?')">CVE-2017-0144 EternalBlue</button>
                     <button class="rag-prompt-chip" onclick="executeQuickPrompt('PCI-DSS 4.0 requirements for vulnerability patching')">PCI-DSS Patching Rules</button>
                 </div>
 
-                <!-- Chat History / Response Viewer -->
                 <div class="rag-conversation" id="ragConversation">
                     <div class="rag-message rag-message--assistant">
-                        <div class="rag-message__sender">NEXSHIELD RAG COPILOT</div>
+                        <div class="rag-message__sender">NexShield AI Copilot</div>
                         <div class="rag-message__body">
-                            Greetings, Operator. I am NexShield's <strong>Retrieval-Augmented Generation (RAG)</strong> Security Analyst.
-                            I ground all threat assessments in your local CVE repositories, MITRE ATT&CK techniques, and CIS/PCI-DSS compliance baselines.
+                            Welcome, Operator. I am NexShield's RAG-augmented security advisor.
+                            I analyze threat findings against local CVE databases, MITRE ATT&CK techniques, and CIS compliance benchmarks.
                             <br/><br/>
-                            Ask me about any host posture, attack chain, CVE exploitability, or click <code>[AI RAG DEEP DIVE]</code> on any threat item.
+                            Ask me about host vulnerability posture, attack chains, or remediation strategies.
                         </div>
                     </div>
                 </div>
 
-                <!-- Query Input Form -->
                 <form class="rag-input-form" onsubmit="submitRagQuery(event)">
                     <div class="rag-input-wrapper">
-                        <input type="text" id="ragQueryInput" class="rag-input" placeholder="Ask AI Copilot about threats, CVEs, attack paths, or remediation..." autocomplete="off" />
-                        <button type="submit" class="btn btn--scan rag-send-btn" id="ragSendBtn">
-                            <span>TRANSMIT</span> ⚡
+                        <input type="text" id="ragQueryInput" class="input-text" placeholder="Ask AI Copilot about threats, CVEs, or remediation..." autocomplete="off" />
+                        <button type="submit" class="btn btn--primary" id="ragSendBtn">
+                            <span>Send</span>
                         </button>
                     </div>
                 </form>
@@ -390,6 +516,7 @@
         </div>
     </div>
 
+    <!-- Scripts -->
     <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     <script src="/static/js/script.js"></script>
 </body>
