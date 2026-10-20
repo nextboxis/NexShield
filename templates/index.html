@@ -25,7 +25,7 @@
         <div class="nav-container">
             <div class="nav-left">
                 <a href="/" class="nav-brand" aria-label="NexShield Home">
-                    <span class="nav-brand__icon">🛡️</span>
+                    <span class="nav-brand__icon">[NEX]</span>
                     <span class="nav-brand__name">NexShield</span>
                 </a>
                 <span class="badge-rust-core">Pure Rust v6.1</span>
@@ -47,17 +47,17 @@
 
             <div class="nav-right">
                 <div class="search-box">
-                    <span class="search-icon">🔍</span>
+                    <span class="search-icon">/</span>
                     <input type="text" id="globalSearch" placeholder="Search threats, hosts, CVEs..." onkeyup="globalSearchHandler(event)" />
                 </div>
 
                 <button class="btn-copilot" onclick="toggleRagCopilot(); return false;" title="AI Copilot RAG Assistant">
-                    <span>🧠 AI Copilot</span>
+                    <span>AI Copilot</span>
                     <span class="copilot-tag">RAG</span>
                 </button>
 
                 <div class="notif-wrapper" id="notifBell" onclick="toggleNotifications()" title="Notifications">
-                    <span class="notif-icon">🔔</span>
+                    <span class="notif-icon">[!]</span>
                     <span class="notif-badge d-none" id="notifBadge">0</span>
                     <div class="notification-dropdown" id="notifDropdown"></div>
                 </div>
@@ -68,9 +68,9 @@
                         <span class="profile-name" id="profileName">admin</span>
                     </button>
                     <div class="profile-dropdown" id="profileDropdown">
-                        <a onclick="openChangePasswordModal()">🔑 Change Password</a>
-                        <a onclick="showShortcutsHelp()">⌨️ Keyboard Shortcuts</a>
-                        <a onclick="doLogout()">🚪 Sign Out</a>
+                        <a onclick="openChangePasswordModal()">Change Password</a>
+                        <a onclick="showShortcutsHelp()">Keyboard Shortcuts</a>
+                        <a onclick="doLogout()">Sign Out</a>
                     </div>
                 </div>
             </div>
@@ -82,7 +82,7 @@
 
     <!-- ── Connection Status Banner ───────────────────────────────── -->
     <div class="connection-banner d-none" id="connectionBanner">
-        ⚠️ Connection to server interrupted. Reconnecting...
+        [!] Connection to server interrupted. Reconnecting...
     </div>
 
     <!-- ── Main Workspace ─────────────────────────────────────────── -->
@@ -105,19 +105,19 @@
 
                 <div class="action-buttons-group">
                     <button class="btn btn--secondary" id="btnAnalyze" onclick="triggerAnalysis()" title="Execute AI threat correlation">
-                        <span>⚡ AI Analysis</span>
+                        <span>AI Analysis</span>
                     </button>
                     <button class="btn btn--secondary" id="btnTrain" onclick="triggerTraining()" title="Re-calibrate threat models">
-                        <span>🤖 Calibrate ML</span>
+                        <span>Calibrate ML</span>
                     </button>
                     <button class="btn btn--secondary" id="btnReport" onclick="window.location.href='/report'" title="Export executive report">
-                        <span>📋 Report</span>
+                        <span>Report</span>
                     </button>
                     <button class="btn btn--secondary btn--danger-subtle" id="btnReset" onclick="triggerResetData()" title="Clear transient session data">
-                        <span>🔄 Reset</span>
+                        <span>Reset</span>
                     </button>
                     <button class="btn btn--primary" id="btnScan" onclick="triggerScan()" title="Trigger immediate scan">
-                        <span>▶ Start Scan</span>
+                        <span>Start Scan</span>
                     </button>
                 </div>
             </div>
@@ -128,7 +128,7 @@
             <div class="metric-card" id="statTotal">
                 <div class="metric-card__header">
                     <span class="metric-label">All Threats Flagged</span>
-                    <span class="metric-icon metric-icon--blue">🛡️</span>
+                    <span class="metric-tag">[ALL]</span>
                 </div>
                 <div class="metric-card__value" id="totalThreats">0</div>
                 <div class="metric-card__footer">
@@ -140,7 +140,7 @@
             <div class="metric-card metric-card--critical" id="statCritical">
                 <div class="metric-card__header">
                     <span class="metric-label">Critical Vulnerabilities</span>
-                    <span class="metric-icon metric-icon--red">⚠️</span>
+                    <span class="metric-tag metric-tag--crit">[CRIT]</span>
                 </div>
                 <div class="metric-card__value" id="criticalCount">0</div>
                 <div class="metric-card__footer">
@@ -152,7 +152,7 @@
             <div class="metric-card metric-card--high" id="statHigh">
                 <div class="metric-card__header">
                     <span class="metric-label">High Severity Alerts</span>
-                    <span class="metric-icon metric-icon--orange">🔥</span>
+                    <span class="metric-tag metric-tag--high">[HIGH]</span>
                 </div>
                 <div class="metric-card__value" id="highCount">0</div>
                 <div class="metric-card__footer">
@@ -164,7 +164,7 @@
             <div class="metric-card metric-card--medium" id="statMedium">
                 <div class="metric-card__header">
                     <span class="metric-label">Medium Exposure</span>
-                    <span class="metric-icon metric-icon--yellow">⚡</span>
+                    <span class="metric-tag metric-tag--med">[MED]</span>
                 </div>
                 <div class="metric-card__value" id="mediumCount">0</div>
                 <div class="metric-card__footer">
@@ -176,7 +176,7 @@
             <div class="metric-card metric-card--success" id="statScans">
                 <div class="metric-card__header">
                     <span class="metric-label">Total Scans Executed</span>
-                    <span class="metric-icon metric-icon--green">✓</span>
+                    <span class="metric-tag metric-tag--ok">[OK]</span>
                 </div>
                 <div class="metric-card__value" id="scanCount">0</div>
                 <div class="metric-card__footer">
@@ -221,13 +221,13 @@
                         <div class="form-row">
                             <label class="form-label" for="scanType">Scan Profile</label>
                             <select id="scanType" class="input-select">
-                                <option value="quick">⚡ Quick Scan (Top 100 Ports)</option>
-                                <option value="default" selected>🔍 Service Version Detection</option>
-                                <option value="deep">🧬 Deep Scan (Scripts + OS Fingerprint)</option>
-                                <option value="stealth">🥷 Stealth SYN Scan (Fragmented)</option>
-                                <option value="vuln">🛡️ Vulnerability Scripts</option>
-                                <option value="ssl">🔒 SSL/TLS Cipher Scan</option>
-                                <option value="full">🔥 Full Range (All 65,535 Ports)</option>
+                                <option value="quick">Quick Scan (Top 100 Ports)</option>
+                                <option value="default" selected>Service Version Detection</option>
+                                <option value="deep">Deep Scan (Scripts + OS Fingerprint)</option>
+                                <option value="stealth">Stealth SYN Scan (Fragmented)</option>
+                                <option value="vuln">Vulnerability Scripts</option>
+                                <option value="ssl">SSL/TLS Cipher Scan</option>
+                                <option value="full">Full Range (All 65,535 Ports)</option>
                             </select>
                         </div>
 
@@ -284,6 +284,13 @@
                     </div>
                     <div class="panel-card__body">
                         <div class="map-container">
+                            <div class="topology-controls" id="topologyControls">
+                                <button type="button" class="topoc-btn" id="mapZoomIn" title="Zoom In (+)">[ + ]</button>
+                                <button type="button" class="topoc-btn" id="mapZoomOut" title="Zoom Out (-)">[ − ]</button>
+                                <button type="button" class="topoc-btn" id="mapZoomReset" title="Reset Zoom (1:1)">[ 1:1 ]</button>
+                                <button type="button" class="topoc-btn" id="mapZoomFit" title="Fit to Screen">[ FIT ]</button>
+                                <span class="map-zoom-badge" id="mapZoomValue">100%</span>
+                            </div>
                             <canvas id="missionMap" width="600" height="260"></canvas>
                             <div class="map-overlay-hud" id="mapHud" style="display:none"></div>
                         </div>
@@ -471,14 +478,14 @@
         <div class="rag-drawer__panel">
             <header class="rag-drawer__header">
                 <div class="rag-drawer__title-group">
-                    <span class="rag-icon">🧠</span>
+                    <span class="rag-icon">[RAG]</span>
                     <div>
                         <h2 class="rag-drawer__title" id="ragDrawerTitle">NexShield AI Security Copilot</h2>
                         <span class="rag-drawer__subtitle">RAG Threat Intelligence & Automated Hardening Advisor</span>
                     </div>
                 </div>
                 <div class="rag-drawer__actions">
-                    <button class="btn btn--secondary btn--sm" onclick="triggerRagReindex()" title="Reindex Knowledge Base">🔄 Reindex</button>
+                    <button class="btn btn--secondary btn--sm" onclick="triggerRagReindex()" title="Reindex Knowledge Base">Reindex</button>
                     <button class="modal-close-btn" onclick="toggleRagCopilot()" aria-label="Close Copilot">&times;</button>
                 </div>
             </header>
@@ -517,7 +524,6 @@
     </div>
 
     <!-- Scripts -->
-    <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
     <script src="/static/js/script.js"></script>
 </body>
 </html>

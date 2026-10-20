@@ -81,8 +81,7 @@ body {
     position: sticky;
     top: 0;
     z-index: 100;
-    background: rgba(16, 22, 37, 0.85);
-    backdrop-filter: blur(12px);
+    background: #0f172a;
     border-bottom: 1px solid var(--border-subtle);
     height: 60px;
 }
@@ -522,6 +521,41 @@ body {
     opacity: 0.8;
 }
 
+.metric-tag {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--bg-surface-elevated);
+    border: 1px solid var(--border-subtle);
+    color: var(--primary);
+}
+
+.metric-tag--crit {
+    color: var(--crimson);
+    border-color: rgba(244, 63, 94, 0.3);
+    background: rgba(244, 63, 94, 0.08);
+}
+
+.metric-tag--high {
+    color: var(--amber);
+    border-color: rgba(245, 158, 11, 0.3);
+    background: rgba(245, 158, 11, 0.08);
+}
+
+.metric-tag--med {
+    color: var(--sky);
+    border-color: rgba(56, 189, 248, 0.3);
+    background: rgba(56, 189, 248, 0.08);
+}
+
+.metric-tag--ok {
+    color: var(--emerald);
+    border-color: rgba(16, 185, 129, 0.3);
+    background: rgba(16, 185, 129, 0.08);
+}
+
 .metric-card__value {
     font-size: 2rem;
     font-weight: 700;
@@ -758,10 +792,63 @@ body {
     justify-content: center;
 }
 
+.topology-controls {
+    position: absolute;
+    top: 8px;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    z-index: 25;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 6px;
+    padding: 3px 6px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+}
+
+.topoc-btn {
+    background: #1e293b;
+    border: 1px solid #334155;
+    color: #94a3b8;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.topoc-btn:hover {
+    background: #334155;
+    color: #f8fafc;
+    border-color: #64748b;
+}
+
+.topoc-btn:active {
+    transform: scale(0.96);
+}
+
+.map-zoom-badge {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--sky);
+    font-weight: 600;
+    padding: 0 5px;
+    min-width: 38px;
+    text-align: center;
+}
+
 #missionMap {
     width: 100%;
     height: 100%;
     display: block;
+    cursor: grab;
+}
+
+#missionMap.dragging {
+    cursor: grabbing;
 }
 
 /* ── Discovered Hosts Grid ────────────────────────────────────── */
@@ -1038,8 +1125,7 @@ body {
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.75);
-    backdrop-filter: blur(6px);
+    background: rgba(4, 7, 13, 0.85);
     display: none;
     align-items: center;
     justify-content: center;
@@ -1158,8 +1244,7 @@ body {
 .rag-drawer__backdrop {
     position: absolute;
     inset: 0;
-    background: rgba(0, 0, 0, 0.5);
-    backdrop-filter: blur(2px);
+    background: rgba(4, 7, 13, 0.75);
 }
 
 .rag-drawer__panel {

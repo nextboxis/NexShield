@@ -79,12 +79,10 @@
             position: relative; z-index: 10;
             width: 100%; max-width: 440px;
             padding: 3rem 2.5rem;
-            background: rgba(13, 20, 33, 0.85);
-            border: 1px solid rgba(129, 140, 248, 0.12);
-            border-radius: 20px;
-            -webkit-backdrop-filter: blur(20px) saturate(180%);
-            backdrop-filter: blur(20px) saturate(180%);
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+            background: #0d1421;
+            border: 1px solid #1e293b;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
             animation: cardEntrance 0.8s ease-out;
         }
 
@@ -373,7 +371,7 @@
 
     <div class="login-card" id="loginCard">
         <div class="login-brand">
-            <span class="login-brand__shield">🛡</span>
+            <span class="login-brand__shield">[NEX]</span>
             <div class="login-brand__title">NEXSHIELD</div>
             <div class="login-brand__sub" id="brandSub"></div>
         </div>
@@ -387,7 +385,7 @@
                 <label class="form-label" for="authPassword">ACCESS_KEY</label>
                 <div class="password-wrap">
                     <input type="password" id="authPassword" class="form-input" placeholder="Enter password" value="" autocomplete="current-password" required />
-                    <button type="button" class="pw-toggle" id="pwToggle" onclick="togglePasswordVisibility()" aria-label="Toggle password visibility">👁</button>
+                    <button type="button" class="pw-toggle" id="pwToggle" onclick="togglePasswordVisibility()" aria-label="Toggle password visibility">[SHOW]</button>
                 </div>
             </div>
             <div class="login-feedback" id="authFeedback"></div>
@@ -507,10 +505,10 @@
             if (!pw || !btn) return;
             if (pw.type === 'password') {
                 pw.type = 'text';
-                btn.textContent = '🙈';
+                btn.textContent = '[HIDE]';
             } else {
                 pw.type = 'password';
-                btn.textContent = '👁';
+                btn.textContent = '[SHOW]';
             }
         }
 

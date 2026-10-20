@@ -49,7 +49,7 @@ pub static REMEDIATION_CATALOG: &[RemediationBlueprint] = &[
 Write-Host "[+] Disabling SMBv1 Protocol..."
 Set-SmbServerConfiguration -EnableSMB1Protocol $false -Force
 Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Services\LanmanServer\Parameters' -Name 'RequireSecuritySignature' -Value 1
-Write-Host "[✓] SMBv1 disabled and SMB Signing enforced."
+Write-Host "[+] SMBv1 disabled and SMB Signing enforced."
 "#,
         bash: r#"#!/usr/bin/env bash
 # NexShield SMB Port Restriction Script
@@ -57,7 +57,7 @@ echo "[+] Blocking SMB ports 139 and 445 on external interfaces..."
 sudo ufw deny 445/tcp
 sudo ufw deny 139/tcp
 sudo systemctl reload ufw || true
-echo "[✓] SMB ports restricted."
+echo "[+] SMB ports restricted."
 "#,
     },
     RemediationBlueprint {
@@ -79,7 +79,7 @@ Write-Host "[+] Removing Telnet Client and Server features..."
 Disable-WindowsOptionalFeature -Online -FeatureName 'TelnetClient' -NoRestart
 Stop-Service -Name 'tlntsvr' -ErrorAction SilentlyContinue
 Set-Service -Name 'tlntsvr' -StartupType Disabled -ErrorAction SilentlyContinue
-Write-Host "[✓] Telnet completely deactivated."
+Write-Host "[+] Telnet completely deactivated."
 "#,
         bash: r#"#!/usr/bin/env bash
 # NexShield Telnet Elimination Script
@@ -87,7 +87,7 @@ echo "[+] Disabling telnet daemon..."
 sudo systemctl stop inetd 2>/dev/null || true
 sudo systemctl disable telnetd 2>/dev/null || true
 sudo ufw deny 23/tcp
-echo "[✓] Telnet daemon blocked."
+echo "[+] Telnet daemon blocked."
 "#,
     },
     RemediationBlueprint {
@@ -106,13 +106,13 @@ echo "[✓] Telnet daemon blocked."
         powershell: r#"# NexShield IIS HTTPS Enforcement Script
 Import-Module WebAdministration -ErrorAction SilentlyContinue
 Set-WebConfigurationProperty -Filter 'system.webServer/httpRedirect' -Name 'enabled' -Value $true -ErrorAction SilentlyContinue
-Write-Host "[✓] IIS HTTP-to-HTTPS redirect enforced."
+Write-Host "[+] IIS HTTP-to-HTTPS redirect enforced."
 "#,
         bash: r#"#!/usr/bin/env bash
 # NexShield HTTP Hardening
 echo "[+] Closing direct HTTP 80 and ensuring TLS 443..."
 sudo ufw allow 443/tcp
-echo "[✓] Ensure Web server configuration directs port 80 to 443."
+echo "[+] Ensure Web server configuration directs port 80 to 443."
 "#,
     },
     RemediationBlueprint {
@@ -131,14 +131,14 @@ echo "[✓] Ensure Web server configuration directs port 80 to 443."
 "#,
         powershell: r#"# NexShield RDP Security Script
 Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server\WinStations\RDP-Tcp' -Name 'UserAuthentication' -Value 1
-Write-Host "[✓] Remote Desktop Network Level Authentication (NLA) enforced."
+Write-Host "[+] Remote Desktop Network Level Authentication (NLA) enforced."
 "#,
         bash: r#"#!/usr/bin/env bash
 # NexShield RDP Firewall Rule
 echo "[+] Restricting RDP port 3389 to authorized VPN subnets only..."
 sudo ufw delete allow 3389/tcp 2>/dev/null || true
 sudo ufw allow from 10.0.0.0/8 to any port 3389 proto tcp
-echo "[✓] RDP port protected."
+echo "[+] RDP port protected."
 "#,
     },
     RemediationBlueprint {
@@ -157,13 +157,13 @@ echo "[✓] RDP port protected."
         powershell: r#"# NexShield Redis Hardening
 Write-Host "[+] Restricting Redis port 6379 via Windows Firewall..."
 New-NetFirewallRule -DisplayName "Block Remote Redis" -Direction Inbound -LocalPort 6379 -Protocol TCP -Action Block
-Write-Host "[✓] Redis port blocked from remote networks."
+Write-Host "[+] Redis port blocked from remote networks."
 "#,
         bash: r#"#!/usr/bin/env bash
 # NexShield Redis Hardening
 sudo sed -i 's/^bind .*/bind 127.0.0.1 ::1/' /etc/redis/redis.conf
 sudo systemctl restart redis-server || sudo systemctl restart redis
-echo "[✓] Redis bound to 127.0.0.1."
+echo "[+] Redis bound to 127.0.0.1."
 "#,
     },
 ];

@@ -3,7 +3,7 @@
 use crate::http::{HttpRequest, HttpResponse};
 use nexshield_cve::CveIndex;
 use nexshield_engine::{IpGeoEngine, ThreatPipeline};
-use nexshield_exploit::{RcGenerator, MSF_MODULE_CATALOG};
+use nexshield_exploit::{find_best_msf_module, RcGenerator, MSF_MODULE_CATALOG};
 use nexshield_notifier::WebhookDispatcher;
 use nexshield_rag::RagEngine;
 use nexshield_remediation::{RemediationEngine, ScriptFormat};
@@ -496,7 +496,7 @@ impl Router {
             "Scan complete for '{}' ({}): {} open ports, {} threats identified in {}ms",
             target_str, outcome.result.target, outcome.result.ports.len(), analysis.threats.len(), outcome.result.duration_ms
         );
-        println!("[✓] [SOC-SCAN] {}", msg);
+        println!("[+] [SOC-SCAN] {}", msg);
 
         // 4. Return scan and findings JSON
         let mut json = format!(
@@ -775,13 +775,23 @@ impl Router {
 
     fn handle_exploit_generate(&self, req: &HttpRequest) -> HttpResponse {
         let host = req.query.get("host").map(|s| s.as_str()).unwrap_or("127.0.0.1");
+        let service = req.query.get("service").map(|s| s.as_str()).unwrap_or("");
+        let query = req.query.get("cve").or_else(|| req.query.get("query")).map(|s| s.as_str()).unwrap_or("");
+        let port: Option<u16> = req.query.get("port").and_then(|p| p.parse().ok());
+        let mode = req.query.get("mode").map(|s| s.as_str()).unwrap_or("check");
         let preview = req.query.get("preview").map(|s| s == "true" || s == "1").unwrap_or(false);
 
-        let module = &MSF_MODULE_CATALOG[0]; // Default SMB EternalBlue
-        let script = RcGenerator::generate_script(module, host, 445, "127.0.0.1");
+        let module = find_best_msf_module(service, query, port).unwrap_or(&MSF_MODULE_CATALOG[0]);
+        let target_port = port.unwrap_or(module.default_port);
+
+        let script = if mode == "weaponized" {
+            RcGenerator::generate_weaponized_script(module, host, target_port, "127.0.0.1", 4444)
+        } else {
+            RcGenerator::generate_script(module, host, target_port, "127.0.0.1")
+        };
 
         if preview {
-            let json = format!(r#"{{"status":"complete","script":"{}"}}"#, escape_json(&script));
+            let json = format!(r#"{{"status":"complete","module":"{}","target_port":{},"script":"{}"}}"#, module.module_path, target_port, escape_json(&script));
             HttpResponse::ok_json(json)
         } else {
             let mut resp = HttpResponse::new(200, "OK", "text/plain; charset=utf-8", script.into_bytes());

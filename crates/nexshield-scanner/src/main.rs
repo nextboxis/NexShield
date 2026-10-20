@@ -47,7 +47,7 @@ fn main() {
         let open_count = outcome.bitmap.count_open();
 
         println!(
-            "[✓] Scan Finished in {}ms — Open Ports: {}",
+            "[+] Scan Finished in {}ms — Open Ports: {}",
             outcome.result.duration_ms, open_count
         );
 

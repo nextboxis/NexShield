@@ -7,6 +7,9 @@ echo ========================================================
 echo.
 
 REM ── Check Cargo / Rust ──────────────────────────────────────
+if exist "%USERPROFILE%\.cargo\bin\cargo.exe" (
+    set "PATH=%USERPROFILE%\.cargo\bin;%PATH%"
+)
 echo [*] Checking for Cargo & Rust toolchain...
 cargo --version >nul 2>&1
 IF %ERRORLEVEL% NEQ 0 (

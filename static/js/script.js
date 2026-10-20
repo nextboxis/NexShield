@@ -16,9 +16,11 @@ let mapZoomHandlersBound = false;
 let mapHostsSnapshot = [];
 const missionMapView = {
     zoom: 1,
-    minZoom: 0.6,
-    maxZoom: 2.4,
+    minZoom: 0.5,
+    maxZoom: 3.0,
     step: 0.15,
+    panX: 0,
+    panY: 0,
 };
 
 // v6: Notification center state
@@ -443,9 +445,9 @@ function renderThreats(threats) {
             <td>
                 ${t.exploit_module ? `
                     <button class="btn-console btn-console--launch" onclick="launchExploit('${t.host}', event)" aria-label="Launch Exploit">
-                        LAUNCH_🚀
+                        LAUNCH
                     </button>
-                ` : '<span style="opacity:0.3; font-size:0.7rem; font-family:var(--font-mono)">SECURE_🛡️</span>'}
+                ` : '<span style="opacity:0.3; font-size:0.7rem; font-family:var(--font-mono)">SECURE</span>'}
             </td>
         </tr>
     `}).join("");
@@ -473,7 +475,7 @@ async function launchExploit(host, event = null) {
         const data = await res.json();
         
         if (data.status === "complete" || data.status === "success") {
-            showToast(`🔥 Exploit launched! ${data.job_id ? 'Job ID: ' + data.job_id : data.message || "Operation initiated."}`, "success");
+            showToast(`Exploit verification dispatched! ${data.job_id ? 'Job ID: ' + data.job_id : data.message || "Operation initiated."}`, "success");
         } else {
             showToast(`FAILURE: ${data.message || "Exploit execution failed."}`, "error");
         }
@@ -606,18 +608,18 @@ async function checkNmapStatus() {
         const badge = document.getElementById("nmapBadge");
         if (badge) {
             if (data.nmap_ok) {
-                badge.textContent = `✓ v${data.nmap_info.version}`;
+                badge.textContent = `[OK] v${data.nmap_info.version}`;
                 badge.title = `nmap ${data.nmap_info.version} at ${data.nmap_info.path}`;
                 badge.classList.add("nmap-badge--ok");
             } else {
-                badge.textContent = "✗ NOT FOUND";
+                badge.textContent = "[FAIL] NOT FOUND";
                 badge.title = data.nmap_info.error || "nmap not installed";
                 badge.classList.add("nmap-badge--fail");
             }
         }
     } catch (err) {
         const badge = document.getElementById("nmapBadge");
-        if (badge) { badge.textContent = "✗ ERROR"; badge.classList.add("nmap-badge--fail"); }
+        if (badge) { badge.textContent = "[ERR] ERROR"; badge.classList.add("nmap-badge--fail"); }
     }
 }
 
@@ -650,12 +652,12 @@ function renderHostsGrid(hosts) {
                 <div class="host-card__ip">${escapeHtml(h.host)}</div>
                 <div class="host-card__meta">
                     ${h.hostname ? `<span class="host-card__hostname">${escapeHtml(h.hostname)}</span>` : ""}
-                    ${h.os_name ? `<span class="host-card__os">💻 ${escapeHtml(h.os_name)}</span>` : ""}
+                    ${h.os_name ? `<span class="host-card__os">OS: ${escapeHtml(h.os_name)}</span>` : ""}
                 </div>
                 <div class="host-card__stats">
-                    <span>🔓 ${h.open_ports || 0} ports</span>
-                    <span>⚠️ ${h.threat_count || 0} threats</span>
-                    <span>🔍 ${h.scan_count || 0} scans</span>
+                    <span>Ports: ${h.open_ports || 0}</span>
+                    <span>Threats: ${h.threat_count || 0}</span>
+                    <span>Scans: ${h.scan_count || 0}</span>
                 </div>
                 <div class="host-card__services">${escapeHtml(svcList)}</div>
             </div>
@@ -952,7 +954,7 @@ async function showHostReport(host) {
             if (totalExposed > 0) {
                 portsTable = `
                     <div style="margin-top: 1.5rem; border-top: 1px solid #1a2433; padding-top: 1rem;">
-                        <div style="margin-bottom: 0.8rem; color: var(--cyan); letter-spacing: 1px; font-size: 0.8rem; font-family: var(--font-mono)">[✓] ${totalExposed} EXPOSED_PORTS_DETECTED (${openCount} OPEN)</div>
+                        <div style="margin-bottom: 0.8rem; color: var(--cyan); letter-spacing: 1px; font-size: 0.8rem; font-family: var(--font-mono)">[OK] ${totalExposed} EXPOSED_PORTS_DETECTED (${openCount} OPEN)</div>
                         <table class="data-table" style="margin-top: 0;">
                             <thead><tr><th>STATE</th><th>PORT</th><th>SERVICE</th><th>VERSION</th></tr></thead>
                             <tbody>${rows}</tbody>
@@ -972,13 +974,13 @@ async function showHostReport(host) {
                 </div>
                 ${portsTable}
                 <div style="margin-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 10px;">
-                    <button class="btn-console" style="border-color: var(--red); color: var(--red);" onclick="quarantineHost('${escapeHtml(host)}')">⚡ QUARANTINE_NODE</button>
-                    <button class="btn-console" style="color: var(--orange); border-color: var(--orange);" onclick="targetScanHost('${escapeHtml(host)}')">⚡ TARGETED_SCAN</button>
+                    <button class="btn-console" style="border-color: var(--red); color: var(--red);" onclick="quarantineHost('${escapeHtml(host)}')">QUARANTINE_NODE</button>
+                    <button class="btn-console" style="color: var(--orange); border-color: var(--orange);" onclick="targetScanHost('${escapeHtml(host)}')">TARGETED_SCAN</button>
                     <button class="btn-console" onclick="exportReport('csv', { host: '${escapeHtml(host)}' })">EXPORT_THREATS_CSV</button>
                     ${data.footprint ? `<button class="btn-console" onclick="window.location.href='/api/export-scan?host=${encodeURIComponent(host)}'">EXPORT_FOOTPRINT_JSON</button>` : ''}
-                    <button class="btn-console" style="color: #ff3860; border-color: #ff3860;" onclick="previewExploitRc('${escapeHtml(host)}')">💀 PREVIEW_EXPLOIT</button>
-                    <button class="btn-console" style="color: #ff3860; border-color: #ff3860;" onclick="downloadExploitRc('${escapeHtml(host)}')">💾 DOWNLOAD_RC</button>
-                    <button class="btn-console" style="color: #00ff00; border-color: #00ff00; font-weight: bold; text-shadow: 0 0 5px #00ff00;" onclick="launchExploit('${escapeHtml(host)}')">🔥 LAUNCH EXPLOIT</button>
+                    <button class="btn-console" style="color: #ff3860; border-color: #ff3860;" onclick="previewExploitRc('${escapeHtml(host)}')">PREVIEW_EXPLOIT</button>
+                    <button class="btn-console" style="color: #ff3860; border-color: #ff3860;" onclick="downloadExploitRc('${escapeHtml(host)}')">DOWNLOAD_RC</button>
+                    <button class="btn-console" style="color: #00ff00; border-color: #00ff00; font-weight: bold; text-shadow: 0 0 5px #00ff00;" onclick="launchExploit('${escapeHtml(host)}')">LAUNCH_EXPLOIT</button>
                 </div>
             </div>
         `;
@@ -1019,7 +1021,7 @@ function openModal(threat) {
             <div style="margin-top: 2rem; display: flex; flex-wrap: wrap; gap: 10px;">
                 <button class="btn-console" onclick="exportReport('csv', { host: '${threat.host || ""}' })">EXPORT_CSV</button>
                 <button class="btn-console" onclick="lookupCVE('${threat.cve_id || ""}')">LOOKUP_CVE</button>
-                <button class="btn-console btn-console--rag" style="border-color: #38bdf8; color: #38bdf8;" onclick="deepAnalyzeWithRag('${threat._id || threat.cve_id || ""}')">🧠 AI RAG DEEP DIVE</button>
+                <button class="btn-console btn-console--rag" style="border-color: #38bdf8; color: #38bdf8;" onclick="deepAnalyzeWithRag('${threat._id || threat.cve_id || ""}')">AI RAG DEEP DIVE</button>
                 <button class="btn-console" style="border-color: var(--red); color: var(--red);" onclick="quarantineHost('${escapeHtml(threat.host || "")}')">QUARANTINE</button>
             </div>
         </div>
@@ -1045,19 +1047,19 @@ function showToast(msg, type = "info", duration = 4000) {
     }
 
     const iconMap = {
-        error: "🔴",
-        warning: "🟡",
-        success: "🟢",
-        accepted: "🔵",
-        info: "🔵",
-        complete: "🟢",
+        error: "[ERR]",
+        warning: "[WARN]",
+        success: "[OK]",
+        accepted: "[ACK]",
+        info: "[INFO]",
+        complete: "[DONE]",
     };
 
     const toast = document.createElement("div");
     const tone = (type || "info").toLowerCase();
     toast.className = `toast toast--${tone}`;
     toast.innerHTML = `
-        <span class="toast__icon">${iconMap[tone] || "🔵"}</span>
+        <span class="toast__icon font-mono">${iconMap[tone] || "[INFO]"}</span>
         <span class="toast__message">${escapeHtml(msg)}</span>
         <div class="toast__progress" style="animation-duration: ${duration}ms"></div>
     `;
@@ -1293,6 +1295,11 @@ function updateTicker(threats) {
 }
 
 // ── Tactical Mission Map Implementation ──────────────────────────
+let isMapDragging = false;
+let mapDragStartX = 0;
+let mapDragStartY = 0;
+let mapHoveredNode = null;
+
 function setupMissionMapZoomControls() {
     if (mapZoomHandlersBound) return;
 
@@ -1300,19 +1307,49 @@ function setupMissionMapZoomControls() {
     const zoomInBtn = document.getElementById("mapZoomIn");
     const zoomOutBtn = document.getElementById("mapZoomOut");
     const zoomResetBtn = document.getElementById("mapZoomReset");
-    if (!canvas || !zoomInBtn || !zoomOutBtn || !zoomResetBtn) return;
+    const zoomFitBtn = document.getElementById("mapZoomFit");
+    if (!canvas) return;
 
-    zoomInBtn.addEventListener("click", () => adjustMissionMapZoom(missionMapView.step));
-    zoomOutBtn.addEventListener("click", () => adjustMissionMapZoom(-missionMapView.step));
-    zoomResetBtn.addEventListener("click", () => {
-        missionMapView.zoom = 1;
-        updateMissionMapHud();
-    });
+    if (zoomInBtn) zoomInBtn.addEventListener("click", () => adjustMissionMapZoom(missionMapView.step));
+    if (zoomOutBtn) zoomOutBtn.addEventListener("click", () => adjustMissionMapZoom(-missionMapView.step));
+    if (zoomResetBtn) zoomResetBtn.addEventListener("click", resetTopologyZoom);
+    if (zoomFitBtn) zoomFitBtn.addEventListener("click", fitTopology);
 
+    // Mouse wheel zoom
     canvas.addEventListener("wheel", (event) => {
         event.preventDefault();
         adjustMissionMapZoom(event.deltaY < 0 ? missionMapView.step : -missionMapView.step);
     }, { passive: false });
+
+    // Drag to Pan
+    canvas.addEventListener("mousedown", (e) => {
+        if (e.button !== 0) return; // Primary button only
+        isMapDragging = true;
+        mapDragStartX = e.clientX - missionMapView.panX;
+        mapDragStartY = e.clientY - missionMapView.panY;
+        canvas.classList.add("dragging");
+    });
+
+    window.addEventListener("mousemove", (e) => {
+        if (isMapDragging) {
+            missionMapView.panX = e.clientX - mapDragStartX;
+            missionMapView.panY = e.clientY - mapDragStartY;
+        } else {
+            handleMapHover(e);
+        }
+    });
+
+    window.addEventListener("mouseup", () => {
+        if (isMapDragging) {
+            isMapDragging = false;
+            canvas.classList.remove("dragging");
+        }
+    });
+
+    canvas.addEventListener("mouseleave", () => {
+        const hud = document.getElementById("mapHud");
+        if (hud) hud.style.display = "none";
+    });
 
     mapZoomHandlersBound = true;
     updateMissionMapHud();
@@ -1327,6 +1364,74 @@ function adjustMissionMapZoom(delta) {
     if (Math.abs(nextZoom - missionMapView.zoom) < 0.001) return;
     missionMapView.zoom = nextZoom;
     updateMissionMapHud();
+}
+
+function resetTopologyZoom() {
+    missionMapView.zoom = 1;
+    missionMapView.panX = 0;
+    missionMapView.panY = 0;
+    updateMissionMapHud();
+}
+
+function fitTopology() {
+    if (mapNodes.length === 0) {
+        resetTopologyZoom();
+        return;
+    }
+    let maxDist = 0;
+    mapNodes.forEach(node => {
+        const d = Math.sqrt(node.vx * node.vx + node.vy * node.vy);
+        if (d > maxDist) maxDist = d;
+    });
+    const canvas = document.getElementById("missionMap");
+    if (!canvas || maxDist === 0) return;
+    const availableRadius = Math.min(canvas.width, canvas.height) / 2 - 35;
+    const optimalZoom = Math.max(missionMapView.minZoom, Math.min(2.0, availableRadius / maxDist));
+    missionMapView.zoom = optimalZoom;
+    missionMapView.panX = 0;
+    missionMapView.panY = 0;
+    updateMissionMapHud();
+}
+
+// Global window bindings for onclick attribute handlers
+window.zoomTopologyIn = () => adjustMissionMapZoom(missionMapView.step);
+window.zoomTopologyOut = () => adjustMissionMapZoom(-missionMapView.step);
+window.resetTopologyZoom = resetTopologyZoom;
+window.fitTopology = fitTopology;
+
+function handleMapHover(e) {
+    const canvas = document.getElementById("missionMap");
+    const hud = document.getElementById("mapHud");
+    if (!canvas || !hud) return;
+
+    const rect = canvas.getBoundingClientRect();
+    if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+        hud.style.display = "none";
+        return;
+    }
+
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const hitRadius = Math.max(12, 6 + missionMapView.zoom * 4);
+
+    let match = null;
+    for (let node of mapNodes) {
+        const dx = node.x - mouseX;
+        const dy = node.y - mouseY;
+        if (Math.sqrt(dx * dx + dy * dy) < hitRadius) {
+            match = node;
+            break;
+        }
+    }
+
+    if (match) {
+        mapHoveredNode = match;
+        hud.style.display = "block";
+        hud.innerHTML = `<strong>${escapeHtml(match.host)}</strong> &bull; OS: ${escapeHtml(match.os)} &bull; [${match.risk.toUpperCase()}]`;
+    } else {
+        mapHoveredNode = null;
+        hud.style.display = "none";
+    }
 }
 
 function updateMissionMapHud(nodes = mapNodes) {
@@ -1369,24 +1474,21 @@ function renderMissionMap(hosts) {
     const centerX = canvas.width / 2;
     const centerY = canvas.height / 2;
     
-    // Core Node (NexShield)
-    const core = { x: centerX, y: centerY, label: "NS_CORE", type: "core" };
-    
-    // Generate/Reuse Node vectors; display coordinates are recalculated each frame by zoom.
+    // Generate/Reuse Node vectors; display coordinates are recalculated each frame by zoom and pan.
     mapNodes = mapHostsSnapshot.map((h, i) => {
         const angle = hostCount > 0 ? (i / hostCount) * Math.PI * 2 : 0;
-        const dist = 120 + (i % 3) * 50;
+        const dist = 110 + (i % 3) * 45;
         const vx = Math.cos(angle) * dist;
         const vy = Math.sin(angle) * dist;
         return {
-            x: centerX + vx * missionMapView.zoom,
-            y: centerY + vy * missionMapView.zoom,
+            x: centerX + missionMapView.panX + vx * missionMapView.zoom,
+            y: centerY + missionMapView.panY + vy * missionMapView.zoom,
             vx,
             vy,
             host: h.host,
             risk: h.threat_count > 5 ? "critical" : h.threat_count > 2 ? "high" : h.threat_count > 0 ? "medium" : "low",
             os: h.os_name || "unknown",
-            subnet: h.host.split('.').slice(0, 3).join('.') // Simple subnet grouping
+            subnet: h.host.split('.').slice(0, 3).join('.')
         };
     });
     updateMissionMapHud(mapNodes);
@@ -1396,18 +1498,28 @@ function renderMissionMap(hosts) {
         frame++;
         ctx.clearRect(0, 0, canvas.width, canvas.height);
         const zoom = missionMapView.zoom;
+        const coreX = centerX + missionMapView.panX;
+        const coreY = centerY + missionMapView.panY;
+        const core = { x: coreX, y: coreY, label: "NS_CORE", type: "core" };
 
         mapNodes.forEach((node) => {
             node.x = core.x + node.vx * zoom;
             node.y = core.y + node.vy * zoom;
         });
         
-        // Draw Grid Lines
-        ctx.strokeStyle = "rgba(129, 140, 248, 0.03)";
+        // Draw Grid Lines with smooth translation
+        ctx.strokeStyle = "rgba(129, 140, 248, 0.04)";
         ctx.lineWidth = 1;
         const gridSpacing = Math.max(26, Math.min(74, 40 * zoom));
-        for(let x=0; x<canvas.width; x+=gridSpacing) { ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke(); }
-        for(let y=0; y<canvas.height; y+=gridSpacing) { ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke(); }
+        const offsetX = (coreX % gridSpacing + gridSpacing) % gridSpacing;
+        const offsetY = (coreY % gridSpacing + gridSpacing) % gridSpacing;
+
+        for (let x = offsetX; x < canvas.width; x += gridSpacing) {
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, canvas.height); ctx.stroke();
+        }
+        for (let y = offsetY; y < canvas.height; y += gridSpacing) {
+            ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(canvas.width, y); ctx.stroke();
+        }
 
         // Draw Links (Hub & Spoke + Lateral Pivots)
         mapNodes.forEach((node, idx) => {
@@ -1415,8 +1527,8 @@ function renderMissionMap(hosts) {
             ctx.beginPath();
             ctx.moveTo(core.x, core.y);
             ctx.lineTo(node.x, node.y);
-            ctx.strokeStyle = "rgba(129, 140, 248, 0.08)";
-            ctx.setLineDash([5, 5]);
+            ctx.strokeStyle = "rgba(129, 140, 248, 0.12)";
+            ctx.setLineDash([4, 4]);
             ctx.stroke();
             ctx.setLineDash([]);
 
@@ -1424,8 +1536,8 @@ function renderMissionMap(hosts) {
             const progress = (frame * 0.02 + idx * 0.5) % 1;
             const px = core.x + (node.x - core.x) * progress;
             const py = core.y + (node.y - core.y) * progress;
-            ctx.fillStyle = "rgba(129, 140, 248, 0.5)";
-            ctx.beginPath(); ctx.arc(px, py, 2, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = "rgba(56, 189, 248, 0.6)";
+            ctx.beginPath(); ctx.arc(px, py, 2.5, 0, Math.PI * 2); ctx.fill();
 
             // Lateral Pivoting (Link nodes in same subnet)
             mapNodes.forEach((target, tidx) => {
@@ -1433,70 +1545,66 @@ function renderMissionMap(hosts) {
                     ctx.beginPath();
                     ctx.moveTo(node.x, node.y);
                     ctx.lineTo(target.x, target.y);
-                    ctx.strokeStyle = "rgba(255, 56, 96, 0.15)";
+                    ctx.strokeStyle = "rgba(244, 63, 94, 0.2)";
                     ctx.lineWidth = 1;
                     ctx.stroke();
 
-                    // Pivoting packet (Node to Target)
+                    // Pivoting packet
                     const pProgress = (frame * 0.03 + tidx) % 1;
                     const ppx = node.x + (target.x - node.x) * pProgress;
                     const ppy = node.y + (target.y - node.y) * pProgress;
-                    ctx.fillStyle = "rgba(255, 56, 96, 0.6)";
-                    ctx.beginPath(); ctx.arc(ppx, ppy, 2, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = "rgba(244, 63, 94, 0.7)";
+                    ctx.beginPath(); ctx.arc(ppx, ppy, 2.5, 0, Math.PI * 2); ctx.fill();
                 }
             });
         });
 
-        // Draw Core & Nodes or Clean Empty Radar
+        // Draw Core & Nodes
         if (mapNodes.length === 0) {
-            ctx.strokeStyle = "rgba(99, 102, 241, 0.1)";
+            ctx.strokeStyle = "rgba(99, 102, 241, 0.12)";
             ctx.lineWidth = 1;
             [40, 80, 110].forEach(r => {
                 ctx.beginPath();
-                ctx.arc(centerX, centerY, r, 0, Math.PI * 2);
+                ctx.arc(core.x, core.y, r * zoom, 0, Math.PI * 2);
                 ctx.stroke();
             });
-            ctx.fillStyle = "rgba(148, 163, 184, 0.6)";
+            ctx.fillStyle = "rgba(148, 163, 184, 0.7)";
             ctx.font = "11px 'Outfit', sans-serif";
             ctx.textAlign = "center";
-            ctx.fillText("Awaiting scan telemetry to map network topology", centerX, centerY + 30);
+            ctx.fillText("Awaiting scan telemetry to map network topology", core.x, core.y + 30);
 
             ctx.fillStyle = "#6366f1";
-            ctx.shadowBlur = 10; ctx.shadowColor = "#6366f1";
-            ctx.beginPath(); ctx.arc(centerX, centerY, 6, 0, Math.PI * 2); ctx.fill();
-            ctx.shadowBlur = 0;
+            ctx.beginPath(); ctx.arc(core.x, core.y, 6, 0, Math.PI * 2); ctx.fill();
         } else {
             // Draw Core
             ctx.fillStyle = "#6366f1";
-            ctx.shadowBlur = 15; ctx.shadowColor = "#6366f1";
-            ctx.beginPath(); ctx.arc(core.x, core.y, 7 + (zoom - 1) * 2, 0, Math.PI*2); ctx.fill();
-            ctx.shadowBlur = 0;
+            ctx.beginPath(); ctx.arc(core.x, core.y, 7 + (zoom - 1) * 2, 0, Math.PI * 2); ctx.fill();
         }
+
         // Draw Nodes
         mapNodes.forEach(node => {
-            let color = "#34d399"; // low
-            if (node.risk === "critical") color = "#ff3860";
-            else if (node.risk === "high") color = "#ff8c00";
-            else if (node.risk === "medium") color = "#ffd600";
+            let color = "#10b981"; // safe green
+            if (node.risk === "critical") color = "#f43f5e";
+            else if (node.risk === "high") color = "#f59e0b";
+            else if (node.risk === "medium") color = "#38bdf8";
             const nodeRadius = Math.max(4, 5 + zoom * 1.2);
 
             // Pulse for critical nodes
             if (node.risk === "critical") {
                 ctx.beginPath();
                 ctx.arc(node.x, node.y, nodeRadius + 4 + Math.sin(frame * 0.1) * 4, 0, Math.PI * 2);
-                ctx.strokeStyle = "rgba(255, 56, 96, 0.2)";
+                ctx.strokeStyle = "rgba(244, 63, 94, 0.25)";
                 ctx.stroke();
             }
 
             // Node Circle
-            ctx.shadowBlur = 15; ctx.shadowColor = color;
             ctx.fillStyle = color;
             ctx.beginPath(); ctx.arc(node.x, node.y, nodeRadius, 0, Math.PI * 2); ctx.fill();
-            ctx.shadowBlur = 0;
 
             // Label
-            ctx.fillStyle = "rgba(255,255,255,0.7)";
-            ctx.font = "8px 'Outfit'";
+            ctx.fillStyle = "#e2e8f0";
+            ctx.font = "9px 'JetBrains Mono', monospace";
+            ctx.textAlign = "left";
             ctx.fillText(node.host, node.x + 10, node.y + 3);
         });
 
@@ -1508,15 +1616,18 @@ function renderMissionMap(hosts) {
 
 // Click handling for Map Nodes
 document.getElementById("missionMap")?.addEventListener("click", (e) => {
+    // If was dragging, don't trigger click action
+    if (Math.abs(missionMapView.panX - (e.clientX - mapDragStartX)) > 3 && isMapDragging) return;
+
     const rect = e.target.getBoundingClientRect();
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
-    const hitRadius = Math.max(10, 5 + missionMapView.zoom * 4);
+    const hitRadius = Math.max(12, 6 + missionMapView.zoom * 4);
 
     mapNodes.forEach((node) => {
         const dx = node.x - x;
         const dy = node.y - y;
-        if(Math.sqrt(dx*dx + dy*dy) < hitRadius) {
+        if (Math.sqrt(dx * dx + dy * dy) < hitRadius) {
             showHostReport(node.host);
         }
     });
@@ -1778,7 +1889,7 @@ async function showRemediationModal(host, fmt = "ansible") {
     const codeBlock = document.getElementById("remediationCodeBlock");
     const title = document.getElementById("remediationTitle");
 
-    if (title) title.textContent = `🛡️ REMEDIATION_SCRIPT::${currentRemediationHost.toUpperCase()} [${currentRemediationFormat.toUpperCase()}]`;
+    if (title) title.textContent = `REMEDIATION_SCRIPT::${currentRemediationHost.toUpperCase()} [${currentRemediationFormat.toUpperCase()}]`;
     if (codeBlock) codeBlock.textContent = "Loading remediation script tasks...";
 
     if (modal) modal.classList.remove("d-none");
@@ -1991,7 +2102,7 @@ function appendRagMessage(sender, content, citations = [], isUser = false) {
             badge.className = "rag-citation-pill";
             const label = typeof c === "string" ? c : (c.doc_id || c.title || "Ref");
             const title = typeof c === "string" ? c : `${c.title || c.doc_id} (Relevance: ${Math.round((c.relevance || 0) * 100)}%)`;
-            badge.innerText = `📄 ${label}`;
+            badge.innerText = `[SRC] ${label}`;
             badge.title = title;
             citContainer.appendChild(badge);
         });
@@ -2017,7 +2128,7 @@ async function submitRagQuery(event) {
 
     if (sendBtn) {
         sendBtn.disabled = true;
-        sendBtn.innerHTML = "<span>THINKING...</span> ⏳";
+        sendBtn.innerHTML = "<span>THINKING...</span>";
     }
 
     // Append placeholder thinking message
@@ -2056,7 +2167,7 @@ async function submitRagQuery(event) {
     } finally {
         if (sendBtn) {
             sendBtn.disabled = false;
-            sendBtn.innerHTML = "<span>TRANSMIT</span> ⚡";
+            sendBtn.innerHTML = "<span>TRANSMIT</span>";
         }
     }
 }

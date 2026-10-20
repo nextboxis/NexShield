@@ -25,10 +25,10 @@
             
             --font-mono: 'Outfit', sans-serif;
             --font-sans: 'Outfit', sans-serif;
-            --radius: 16px;
-            --glass: blur(16px) saturate(160%);
-            --border: 1px solid rgba(255, 255, 255, 0.05);
-            --shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+            --radius: 12px;
+            --glass: none;
+            --border: 1px solid #1e293b;
+            --shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
         }
 
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -46,7 +46,7 @@
             display: none;
         }
 
-        /* Liquid Glass Nav */
+        /* Solid Command Nav */
         .liquid-nav-shell {
             position: fixed;
             top: 12px;
@@ -60,34 +60,21 @@
         .liquid-nav {
             max-width: 1600px;
             margin: 0 auto;
-            height: 58px;
-            border-radius: 18px;
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            background:
-                linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0.02)),
-                linear-gradient(120deg, rgba(129, 140, 248, 0.08), rgba(52, 211, 153, 0.04));
-            box-shadow: 0 14px 45px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(255, 255, 255, 0.26);
-            -webkit-backdrop-filter: blur(18px) saturate(160%);
-            backdrop-filter: blur(18px) saturate(160%);
+            height: 56px;
+            border-radius: 10px;
+            border: 1px solid #1e293b;
+            background: #0f172a;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
             padding: 0 14px 0 18px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             position: relative;
-            overflow: hidden;
             pointer-events: auto;
         }
 
         .liquid-nav::before {
-            content: "";
-            position: absolute;
-            top: -160%;
-            left: -20%;
-            width: 140%;
-            height: 220%;
-            background: radial-gradient(circle at center, rgba(255, 255, 255, 0.14), transparent 55%);
-            transform: rotate(-8deg);
-            pointer-events: none;
+            display: none;
         }
 
         .liquid-nav__brand {
@@ -665,8 +652,6 @@
             letter-spacing: 0.4px;
             cursor: pointer;
             transition: all 0.25s ease;
-            -webkit-backdrop-filter: blur(8px);
-            backdrop-filter: blur(8px);
         }
 
         .topology-map-btn:hover {
@@ -968,7 +953,7 @@
     <header class="liquid-nav-shell">
         <nav class="liquid-nav" aria-label="Primary Navigation">
             <a href="/" class="liquid-nav__brand" aria-label="NexShield Dashboard">
-                <span class="liquid-nav__glyph" aria-hidden="true">🛡</span>
+                <span class="liquid-nav__glyph" aria-hidden="true">[NEX]</span>
                 <span>NexShield</span>
             </a>
             <div class="liquid-nav__links">
@@ -990,12 +975,12 @@
     </main>
 
     <div class="floating-actions">
-        <button class="btn-float" onclick="location.href='/api/report/download?format=pdf'" title="Export PDF Report">📕 PDF</button>
-        <button class="btn-float" onclick="location.href='/api/report/download?format=html'" title="Export Standalone HTML">🌐 HTML</button>
-        <button class="btn-float" onclick="location.href='/api/report/download?format=markdown'" title="Export Markdown for Jira/GitHub">📝 MD</button>
-        <button class="btn-float" onclick="location.href='/api/report/download?format=sarif'" title="Export SARIF Standard">📊 SARIF</button>
-        <button class="btn-float" onclick="window.print()" title="Print / Print to PDF">🖨️</button>
-        <button class="btn-float" onclick="window.scrollTo({top:0, behavior:'smooth'})" title="Back to Top">↑</button>
+        <button class="btn-float" onclick="location.href='/api/report/download?format=pdf'" title="Export PDF Report">[PDF]</button>
+        <button class="btn-float" onclick="location.href='/api/report/download?format=html'" title="Export Standalone HTML">[HTML]</button>
+        <button class="btn-float" onclick="location.href='/api/report/download?format=markdown'" title="Export Markdown for Jira/GitHub">[MD]</button>
+        <button class="btn-float" onclick="location.href='/api/report/download?format=sarif'" title="Export SARIF Standard">[SARIF]</button>
+        <button class="btn-float" onclick="window.print()" title="Print / Print to PDF">[PRINT]</button>
+        <button class="btn-float" onclick="window.scrollTo({top:0, behavior:'smooth'})" title="Back to Top">[TOP]</button>
     </div>
 
     <script>

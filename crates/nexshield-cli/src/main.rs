@@ -3,7 +3,7 @@
 
 use nexshield_cve::CveIndex;
 use nexshield_engine::{IpGeoEngine, ThreatPipeline};
-use nexshield_exploit::{find_msf_module, RcGenerator};
+use nexshield_exploit::RcGenerator;
 use nexshield_notifier::{WebhookConfig, WebhookDispatcher};
 use nexshield_rag::RagEngine;
 use nexshield_remediation::{RemediationEngine, ScriptFormat};
@@ -205,7 +205,7 @@ fn run_database_reset() {
     }
     println!("   [+] Database reset complete. Re-initializing default credentials...");
     let _ = NexDatabase::new(Some(db_path));
-    println!("   [✓] Clean database ready.\n");
+    println!("   [+] Clean database ready.\n");
 }
 
 fn run_native_training(limit: usize) {
@@ -215,14 +215,14 @@ fn run_native_training(limit: usize) {
     println!("\n[*] Phase 1: Calibrating Threat Severity Heuristic Matrices...");
     let pipeline = ThreatPipeline::new();
     let msg = pipeline.ml_predictor().calibrate_model(limit);
-    println!("  [✓] {}", msg);
+    println!("  [+] {}", msg);
 
     println!("\n[*] Phase 2: Indexing RAG Cybersecurity Knowledge Store...");
     let rag = RagEngine::new();
-    println!("  [✓] Successfully tokenized and indexed {} knowledge chunks.", rag.total_chunks());
-    println!("  [✓] TF-IDF Sparse Inverted Vector Table compiled.\n");
+    println!("  [+] Successfully tokenized and indexed {} knowledge chunks.", rag.total_chunks());
+    println!("  [+] TF-IDF Sparse Inverted Vector Table compiled.\n");
     println!("================================================================");
-    println!("  [✓] TRAINING & CALIBRATION COMPLETED IN < 5 MILLISECONDS");
+    println!("  [+] TRAINING & CALIBRATION COMPLETED IN < 5 MILLISECONDS");
     println!("================================================================\n");
 }
 
@@ -232,7 +232,7 @@ fn run_cve_import(dir_str: &str, limit: usize) {
     let index = CveIndex::new();
     match index.import_cvelist_directory(path, limit) {
         Ok(count) => {
-            println!("[✓] Successfully ingested {} CVE records from '{}'.", count, dir_str);
+            println!("[+] Successfully ingested {} CVE records from '{}'.", count, dir_str);
             println!("[+] Total CVE index entries now: {}", index.total_cves());
         }
         Err(e) => {
@@ -286,7 +286,7 @@ fn run_self_test() {
     println!("  [6/6] RAG Knowledge Base Cosine Similarity:  PASS");
 
     println!("================================================================");
-    println!("  [✓] ALL 6 CRITICAL SYSTEM SELF-TESTS PASSED (0.00s)");
+    println!("  [+] ALL 6 CRITICAL SYSTEM SELF-TESTS PASSED (0.00s)");
     println!("================================================================\n");
 }
 
@@ -325,7 +325,7 @@ fn run_full_assessment(target_input: &str, ports_input: &str, report_format: Opt
     let scan_outcome = scan_target(scan_opts);
     let res = &scan_outcome.result;
 
-    println!("[✓] Scan Completed in {:.2}ms | {} open ports detected", res.duration_ms, res.ports.len());
+    println!("[+] Scan Completed in {:.2}ms | {} open ports detected", res.duration_ms, res.ports.len());
     for p in &res.ports {
         let banner_str = p.banner.as_deref().unwrap_or("no banner");
         println!(
@@ -344,7 +344,7 @@ fn run_full_assessment(target_input: &str, ports_input: &str, report_format: Opt
     let analysis = pipeline.analyze(res);
     let threat_elapsed = start_threat.elapsed().as_secs_f64() * 1000.0;
 
-    println!("[✓] Threat Analysis Completed in {:.2}ms\n", threat_elapsed);
+    println!("[+] Threat Analysis Completed in {:.2}ms\n", threat_elapsed);
 
     println!("================== EXECUTIVE THREAT REPORT ==================");
     println!("Overall Risk Score:      {:.1} / 100", analysis.overall_risk_score);
@@ -378,19 +378,19 @@ fn run_full_assessment(target_input: &str, ports_input: &str, report_format: Opt
                 let html = generate_html(&analysis);
                 let out_file = "nexshield_assessment_report.html";
                 fs::write(out_file, html).unwrap();
-                println!("[✓] Exported HTML Executive Report to: {}", out_file);
+                println!("[+] Exported HTML Executive Report to: {}", out_file);
             }
             "md" | "markdown" => {
                 let md = generate_markdown(&analysis);
                 let out_file = "nexshield_assessment_report.md";
                 fs::write(out_file, md).unwrap();
-                println!("[✓] Exported Markdown Executive Report to: {}", out_file);
+                println!("[+] Exported Markdown Executive Report to: {}", out_file);
             }
             "sarif" => {
                 let sarif = generate_sarif(&analysis);
                 let out_file = "nexshield_assessment_report.sarif";
                 fs::write(out_file, sarif).unwrap();
-                println!("[✓] Exported SARIF Code Scanning Report to: {}", out_file);
+                println!("[+] Exported SARIF Code Scanning Report to: {}", out_file);
             }
             _ => println!("[!] Unknown export format: {}", fmt),
         }
@@ -398,13 +398,14 @@ fn run_full_assessment(target_input: &str, ports_input: &str, report_format: Opt
 }
 
 fn run_geo_lookup(ip_str: &str) {
-    let ip: IpAddr = match ip_str.parse() {
-        Ok(addr) => addr,
+    let ip_list = match parse_target(ip_str) {
+        Ok(ips) => ips,
         Err(_) => {
-            eprintln!("[!] Invalid IP: {}", ip_str);
+            eprintln!("[!] Invalid IP or unresolvable hostname: {}", ip_str);
             return;
         }
     };
+    let ip = ip_list.first().copied().unwrap_or(IpAddr::V4(std::net::Ipv4Addr::LOCALHOST));
 
     let engine = IpGeoEngine::new();
     let start = std::time::Instant::now();
@@ -432,7 +433,7 @@ fn run_cve_search(query: &str) {
             println!("[!] No matching CVE records found in local offline database for '{}'.", query);
         }
     } else {
-        println!("[✓] Found {} matching vulnerability definitions:\n", results.len());
+        println!("[+] Found {} matching vulnerability definitions:\n", results.len());
         for rec in &results {
             print_cve_record(rec);
         }
@@ -470,7 +471,7 @@ fn run_rag_query(query: &str) {
     let results = rag.query(query, 3);
     let elapsed = start.elapsed().as_micros();
 
-    println!("[✓] Retrieval completed in {} µs ({} results found):\n", elapsed, results.len());
+    println!("[+] Retrieval completed in {} µs ({} results found):\n", elapsed, results.len());
     for (i, (chunk, score)) in results.iter().enumerate() {
         println!("  ================== MATCH #{} [Relevance: {:.2}%] ==================", i + 1, score * 100.0);
         println!("  Title:    {}", chunk.title);
@@ -482,7 +483,7 @@ fn run_rag_query(query: &str) {
 }
 
 fn run_msf_gen(service: &str, target: &str) {
-    if let Some(module) = find_msf_module(service, service) {
+    if let Some(module) = nexshield_exploit::find_best_msf_module(service, service, None) {
         let script = RcGenerator::generate_script(module, target, module.default_port, "127.0.0.1");
         println!("[*] Metasploit RC Script Generated:\n");
         println!("{}", script);
@@ -532,7 +533,7 @@ fn run_diagnostics() {
     println!("  [4/6] Graph Choke Points (Tarjan SCC):    VERIFIED (O(V+E))");
     println!("  [5/6] Inverted CVE & KEV Index:           VERIFIED (O(1) Lookup)");
     println!("  [6/6] RAG Knowledge Sparse Vector Engine: VERIFIED (Sub-ms Retrieval)");
-    println!("\n[✓] ALL CRITICAL SUBSYSTEMS FULLY OPERATIONAL IN NATIVE RUST!\n");
+    println!("\n[+] ALL CRITICAL SUBSYSTEMS FULLY OPERATIONAL IN NATIVE RUST!\n");
 }
 
 fn truncate(s: &str, max_len: usize) -> String {

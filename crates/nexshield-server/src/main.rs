@@ -40,23 +40,23 @@ fn main() -> std::io::Result<()> {
 
     // 1. Storage & Database
     let db = NexDatabase::new(Some(data_dir.join("nexshield.db")));
-    println!("  [✓] File-backed JSON Storage & Authentication initialized.");
+    println!("  [+] File-backed JSON Storage & Authentication initialized.");
 
     // 2. CVE & KEV Intelligence
     let cve_index = CveIndex::new();
-    println!("  [✓] CVE & CISA KEV Inverted Index loaded ({} definitions).", cve_index.total_cves());
+    println!("  [+] CVE & CISA KEV Inverted Index loaded ({} definitions).", cve_index.total_cves());
 
     // 3. RAG Security Knowledge Base
     let rag_engine = RagEngine::new();
-    println!("  [✓] RAG Cybersecurity Knowledge Base loaded ({} chunks).", rag_engine.total_chunks());
+    println!("  [+] RAG Cybersecurity Knowledge Base loaded ({} chunks).", rag_engine.total_chunks());
 
     // 4. IP Geolocation Radix Trie
     let geo_engine = IpGeoEngine::new();
-    println!("  [✓] Sub-microsecond IP Geolocation & ASN Radix Engine active.");
+    println!("  [+] Sub-microsecond IP Geolocation & ASN Radix Engine active.");
 
     // 5. 21-Engine AI & Rules Threat Pipeline
     let pipeline = ThreatPipeline::new();
-    println!("  [✓] 21 Threat Detection Engines + ML Calibrated Predictor active.");
+    println!("  [+] 21 Threat Detection Engines + ML Calibrated Predictor active.");
 
     // 6. Webhook Notifier
     let notifier = WebhookDispatcher::new(WebhookConfig {
@@ -65,7 +65,7 @@ fn main() -> std::io::Result<()> {
         teams_url: env::var("TEAMS_WEBHOOK_URL").ok(),
         generic_url: env::var("GENERIC_WEBHOOK_URL").ok(),
     });
-    println!("  [✓] SOC Webhook Alert Engine active.");
+    println!("  [+] SOC Webhook Alert Engine active.");
 
     let state = Arc::new(AppState {
         db,
