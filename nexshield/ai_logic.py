@@ -801,16 +801,89 @@ _ROOT = Path(__file__).resolve().parent.parent if (Path(__file__).resolve().pare
 MODEL_PATH = str(_ROOT / "threat_ml_model.pkl")
 VECTORIZER_PATH = str(_ROOT / "threat_ml_vect.pkl")
 
-def extract_is_sensitive_port(X):
-    import numpy as np
-    from ai_logic import SENSITIVE_PORTS
-    return np.array([[1 if p in SENSITIVE_PORTS else 0] for p in X.iloc[:, 0]])
+PRODUCT_PORT_MAP = {
+    "ssh": 22, "openssh": 22, "dropbear": 22,
+    "ftp": 21, "vsftpd": 21, "proftpd": 21, "pure-ftpd": 21,
+    "telnet": 23,
+    "smtp": 25, "postfix": 25, "exim": 25, "sendmail": 25,
+    "dns": 53, "bind": 53, "dnsmasq": 53,
+    "http": 80, "apache": 80, "nginx": 80, "lighttpd": 80, "iis": 80,
+    "https": 443, "tls": 443, "ssl": 443,
+    "smb": 445, "samba": 445, "cifs": 445,
+    "mysql": 3306, "mariadb": 3306,
+    "postgresql": 5432, "postgres": 5432,
+    "mssql": 1433, "sql server": 1433,
+    "oracle": 1521,
+    "redis": 6379,
+    "mongodb": 27017, "mongo": 27017,
+    "elasticsearch": 9200, "elastic": 9200,
+    "rdp": 3389, "remote desktop": 3389,
+    "vnc": 5900,
+    "tomcat": 8080, "jetty": 8080, "jenkins": 8080,
+    "grafana": 3000,
+    "docker": 2375,
+    "kubernetes": 6443, "k8s": 6443, "kubelet": 10250,
+    "ajp": 8009, "ajp13": 8009,
+    "memcache": 11211, "memcached": 11211,
+    "ntp": 123, "snmp": 161,
+}
 
-def train_ml_model():
+VULN_KEYWORDS = [
+    "remote code execution", "rce", "arbitrary code", "command injection",
+    "privilege escalation", "elevation of privilege", "root access",
+    "buffer overflow", "heap overflow", "stack overflow", "memory corruption",
+    "authentication bypass", "unauthenticated", "pre-auth",
+    "sql injection", "sqli", "nosql injection",
+    "directory traversal", "path traversal", "arbitrary file read", "file write",
+    "cross-site scripting", "xss", "csrf", "cross-site request forgery",
+    "denial of service", "dos", "crash", "infinite loop", "resource exhaustion",
+    "information disclosure", "data leak", "sensitive data",
+    "server-side request forgery", "ssrf", "xxe", "xml external entity",
+    "deserialization", "untrusted deserialization",
+    "eternalblue", "backdoor", "exploit", "worm", "malware", "trojan", "netapi", "ms17-010"
+]
+
+def extract_vuln_keywords(text: str) -> str:
+    """Extract key security terms from vulnerability descriptions or banners."""
+    if not text:
+        return ""
+    text_lower = text.lower()
+    matches = [kw for kw in VULN_KEYWORDS if kw in text_lower]
+    return " ".join(matches)
+
+def infer_port_and_protocol(product: str, text: str) -> tuple[int, str]:
+    """Infers realistic network port and protocol from product name or text."""
+    prod_low = (product or "").lower()
+    for name, p in PRODUCT_PORT_MAP.items():
+        if name in prod_low:
+            proto = "udp" if p in (53, 123, 161, 11211) else "tcp"
+            return p, proto
+    
+    port_match = re.search(r'\bport\s+(\d{1,5})\b', text, re.IGNORECASE)
+    if port_match:
+        val = int(port_match.group(1))
+        if 1 <= val <= 65535:
+            return val, "tcp"
+            
+    return 0, "tcp"
+
+def extract_is_sensitive_port(X):
+    """FunctionTransformer helper: checks if a port is in SENSITIVE_PORTS."""
+    import numpy as np
+    try:
+        from ai_logic import SENSITIVE_PORTS
+    except ImportError:
+        try:
+            from nexshield.ai_logic import SENSITIVE_PORTS
+        except ImportError:
+            SENSITIVE_PORTS = {21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 1433, 1521, 2049, 3306, 3389, 4444, 5432}
+    return np.array([[1 if int(p) in SENSITIVE_PORTS else 0] for p in X.iloc[:, 0]])
+
+def train_ml_model(cve_limit: int = 5000, evaluate: bool = True):
     """
     Trains an enhanced ensemble classifier (RF + GBT + MLP)
-    using historical threat data with RandomizedSearchCV for hyperparameter tuning
-    and CalibratedClassifierCV for accurate probabilities.
+    using real CVE data, historical scan threats, and baseline patterns.
+    Includes feature parity alignment, stratified evaluation, and CalibratedClassifierCV.
     """
     try:
         from sklearn.ensemble import RandomForestClassifier, GradientBoostingClassifier, VotingClassifier  # type: ignore
@@ -819,9 +892,9 @@ def train_ml_model():
         from sklearn.compose import ColumnTransformer  # type: ignore
         from sklearn.preprocessing import StandardScaler, OneHotEncoder, FunctionTransformer  # type: ignore
         from sklearn.pipeline import Pipeline  # type: ignore
-        from sklearn.model_selection import RandomizedSearchCV  # type: ignore
         from sklearn.calibration import CalibratedClassifierCV  # type: ignore
-        from scipy.stats import randint, uniform  # type: ignore
+        from sklearn.model_selection import train_test_split  # type: ignore
+        from sklearn.metrics import accuracy_score, classification_report  # type: ignore
         import pandas as pd  # type: ignore
         import numpy as np  # type: ignore
         import joblib  # type: ignore
@@ -839,14 +912,13 @@ def train_ml_model():
     import json
     from cve_lookup import CVELIST_DIR  # type: ignore
 
-
     cves_dir = CVELIST_DIR
 
     local_cve_threats = []
     if cves_dir.exists():
-        print(f"[*] Extracting real CVE pattern data from {cves_dir}...")
+        print(f"[*] Extracting real CVE pattern data from {cves_dir} (limit: {cve_limit})...")
         cve_count = 0
-        for year_dir in cves_dir.iterdir():
+        for year_dir in sorted(cves_dir.iterdir(), reverse=True):
             if not year_dir.is_dir() or not year_dir.name.isdigit():
                 continue
             for chunk_dir in year_dir.iterdir():
@@ -894,61 +966,75 @@ def train_ml_model():
                                 product = prod
                                 break
                         
-                        if desc_en and severity != "unknown":
+                        if desc_en and severity in ("critical", "high", "medium", "low", "info"):
+                            inferred_port, inferred_proto = infer_port_and_protocol(product, desc_en)
+                            kw = extract_vuln_keywords(desc_en)
                             local_cve_threats.append({
                                 "name": f"{cve_id} in {product}" if product else cve_id,
                                 "detail": desc_en,
+                                "keywords": kw,
                                 "severity": severity,
-                                "port": 0,
-                                "protocol": "tcp",
-                                "service": product.lower() if product else "unknown"
+                                "port": inferred_port,
+                                "protocol": inferred_proto,
+                                "service": product.lower() if product else "unknown",
+                                "product": product.lower() if product else "unknown"
                             })
                             cve_count += 1
-                            if cve_count >= 1000:
+                            if cve_count >= cve_limit:
                                 break
                     except Exception as e:
                         logger.debug("Skipping malformed CVE item during model training: %s", e)
-                if cve_count >= 1000:
+                if cve_count >= cve_limit:
                     break
-            if cve_count >= 1000:
+            if cve_count >= cve_limit:
                 break
         print(f"[+] Loaded {len(local_cve_threats)} real CVE threat patterns for training.")
         past_threats.extend(local_cve_threats)
 
     synthetic_threats = [
-        {"name": "MS08-067 (NetAPI) Exploitation", "detail": "vulnerability reference", "severity": "critical", "port": 445, "protocol": "tcp", "service": "smb"},
-        {"name": "vsftpd 2.3.4 Backdoor", "detail": "backdoor reference", "severity": "critical", "port": 21, "protocol": "tcp", "service": "ftp"},
-        {"name": "Tomcat Manager Default Creds", "detail": "default admin credentials reference", "severity": "high", "port": 8080, "protocol": "tcp", "service": "http-alt"},
-        {"name": "Meterpreter Reverse TCP", "detail": "metasploit reverse tcp handler reference", "severity": "critical", "port": 4444, "protocol": "tcp", "service": "unknown"},
-        {"name": "Anonymous FTP", "detail": "anonymous login allowed reference", "severity": "medium", "port": 21, "protocol": "tcp", "service": "ftp"},
-        {"name": "Log4Shell (RCE) Exploit", "detail": "Java Log4j 2.14 JNDI lookup vulnerability CVE-2021-44228", "severity": "critical", "port": 8080, "protocol": "tcp", "service": "http"},
-        {"name": "ProxyLogon SSRF", "detail": "Microsoft Exchange Server SSRF vulnerability CVE-2021-26855", "severity": "critical", "port": 443, "protocol": "tcp", "service": "https"},
-        {"name": "Spring4Shell RCE", "detail": "Spring Framework Cloud Function RCE CVE-2022-22965", "severity": "critical", "port": 80, "protocol": "tcp", "service": "http"},
-        {"name": "Ghostcat AJP", "detail": "tomcat ghostcat file read CVE-2020-1938", "severity": "critical", "port": 8009, "protocol": "tcp", "service": "ajp13"},
-        {"name": "Docker Escape", "detail": "Docker runc container escape privilege escalation CVE-2019-5736", "severity": "critical", "port": 2375, "protocol": "tcp", "service": "docker"},
-        {"name": "Kubernetes API Unauth", "detail": "kubernetes api unauthenticated access", "severity": "critical", "port": 6443, "protocol": "tcp", "service": "https"},
-        {"name": "Redis RCE", "detail": "redis no authentication remote code execution", "severity": "critical", "port": 6379, "protocol": "tcp", "service": "redis"},
-        {"name": "Grafana Path Traversal", "detail": "grafana path traversal arbitrary file read CVE-2021-43798", "severity": "critical", "port": 3000, "protocol": "tcp", "service": "http"},
-        {"name": "SSH Weak Key", "detail": "ssh weak key exchange algorithm diffie-hellman", "severity": "medium", "port": 22, "protocol": "tcp", "service": "ssh"},
-        {"name": "HTTP Info Leak", "detail": "http server header version disclosure information", "severity": "low", "port": 80, "protocol": "tcp", "service": "http"},
-        {"name": "HTTPS Valid", "detail": "tls 1.3 valid certificate secure", "severity": "info", "port": 443, "protocol": "tcp", "service": "https"},
-        {"name": "DNS Open Resolver", "detail": "dns recursion enabled amplification attack", "severity": "high", "port": 53, "protocol": "udp", "service": "domain"},
-        {"name": "Elasticsearch Unauth", "detail": "elasticsearch no authentication data exposure", "severity": "critical", "port": 9200, "protocol": "tcp", "service": "http"},
-        {"name": "MongoDB No Auth", "detail": "mongodb no authentication database exposure", "severity": "critical", "port": 27017, "protocol": "tcp", "service": "mongodb"},
-        {"name": "SMB EternalBlue", "detail": "smbv1 eternalblue ms17-010 worm", "severity": "critical", "port": 445, "protocol": "tcp", "service": "smb"},
-        {"name": "FTP Bounce Attack", "detail": "ftp bounce attack port scanning proxy", "severity": "high", "port": 21, "protocol": "tcp", "service": "ftp"},
-        {"name": "NFS World Readable", "detail": "nfs world readable export no_root_squash", "severity": "high", "port": 2049, "protocol": "tcp", "service": "nfs"},
-        {"name": "WebLogic Unauth RCE", "detail": "oracle weblogic server remote code execution CVE-2020-14882", "severity": "critical", "port": 7001, "protocol": "tcp", "service": "http"},
-        {"name": "Confluence OGNL Injection", "detail": "atlassian confluence ognl injection rce CVE-2022-26134", "severity": "critical", "port": 8090, "protocol": "tcp", "service": "http"},
-        {"name": "SSH Brute Force", "detail": "frequent failed ssh login attempts detected", "severity": "medium", "port": 22, "protocol": "tcp", "service": "ssh"},
-        {"name": "RDP Exposure", "detail": "remote desktop protocol exposed to public internet", "severity": "high", "port": 3389, "protocol": "tcp", "service": "ms-wbt-server"},
-        {"name": "VNC No Auth", "detail": "vnc server allowing unauthenticated access", "severity": "critical", "port": 5900, "protocol": "tcp", "service": "vnc"},
-        {"name": "Memcached UDP Amplification", "detail": "memcached server exposed on udp allowing ddos amplification", "severity": "critical", "port": 11211, "protocol": "udp", "service": "memcache"},
-        {"name": "GitLab Image Exif RCE", "detail": "gitlab exiftool remote code execution CVE-2021-22205", "severity": "critical", "port": 443, "protocol": "tcp", "service": "https"},
-        {"name": "Kubelet Anonymous Read", "detail": "kubernetes kubelet allowing anonymous read access", "severity": "critical", "port": 10250, "protocol": "tcp", "service": "https"},
-        {"name": "PostgreSQL Default Creds", "detail": "postgresql accepting default credentials postgres/postgres", "severity": "high", "port": 5432, "protocol": "tcp", "service": "postgresql"},
+        # Critical
+        {"name": "MS08-067 (NetAPI) Exploitation", "detail": "vulnerability reference rce", "keywords": "remote code execution buffer overflow", "severity": "critical", "port": 445, "protocol": "tcp", "service": "smb", "product": "windows"},
+        {"name": "vsftpd 2.3.4 Backdoor", "detail": "backdoor reference rce", "keywords": "remote code execution unauthenticated", "severity": "critical", "port": 21, "protocol": "tcp", "service": "ftp", "product": "vsftpd"},
+        {"name": "Meterpreter Reverse TCP", "detail": "metasploit reverse tcp handler reference", "keywords": "remote code execution root access", "severity": "critical", "port": 4444, "protocol": "tcp", "service": "unknown", "product": "meterpreter"},
+        {"name": "Log4Shell (RCE) Exploit", "detail": "Java Log4j 2.14 JNDI lookup vulnerability CVE-2021-44228", "keywords": "remote code execution rce unauthenticated", "severity": "critical", "port": 8080, "protocol": "tcp", "service": "http", "product": "log4j"},
+        {"name": "ProxyLogon SSRF", "detail": "Microsoft Exchange Server SSRF vulnerability CVE-2021-26855", "keywords": "server-side request forgery rce authentication bypass", "severity": "critical", "port": 443, "protocol": "tcp", "service": "https", "product": "exchange"},
+        {"name": "Spring4Shell RCE", "detail": "Spring Framework Cloud Function RCE CVE-2022-22965", "keywords": "remote code execution rce", "severity": "critical", "port": 80, "protocol": "tcp", "service": "http", "product": "spring"},
+        {"name": "Ghostcat AJP", "detail": "tomcat ghostcat file read CVE-2020-1938", "keywords": "arbitrary file read rce", "severity": "critical", "port": 8009, "protocol": "tcp", "service": "ajp13", "product": "tomcat"},
+        {"name": "Docker Escape", "detail": "Docker runc container escape privilege escalation CVE-2019-5736", "keywords": "privilege escalation root access", "severity": "critical", "port": 2375, "protocol": "tcp", "service": "docker", "product": "docker"},
+        {"name": "Kubernetes API Unauth", "detail": "kubernetes api unauthenticated access", "keywords": "authentication bypass unauthenticated", "severity": "critical", "port": 6443, "protocol": "tcp", "service": "https", "product": "kubernetes"},
+        {"name": "Redis RCE", "detail": "redis no authentication remote code execution", "keywords": "remote code execution unauthenticated", "severity": "critical", "port": 6379, "protocol": "tcp", "service": "redis", "product": "redis"},
+        {"name": "SMB EternalBlue", "detail": "smbv1 eternalblue ms17-010 worm", "keywords": "remote code execution buffer overflow rce", "severity": "critical", "port": 445, "protocol": "tcp", "service": "smb", "product": "windows"},
+        {"name": "VNC No Auth", "detail": "vnc server allowing unauthenticated access", "keywords": "authentication bypass unauthenticated", "severity": "critical", "port": 5900, "protocol": "tcp", "service": "vnc", "product": "vnc"},
+        
+        # High
+        {"name": "Tomcat Manager Default Creds", "detail": "default admin credentials reference", "keywords": "authentication bypass administrative access", "severity": "high", "port": 8080, "protocol": "tcp", "service": "http-alt", "product": "tomcat"},
+        {"name": "DNS Open Resolver", "detail": "dns recursion enabled amplification attack", "keywords": "denial of service dos amplification", "severity": "high", "port": 53, "protocol": "udp", "service": "domain", "product": "bind"},
+        {"name": "Elasticsearch Unauth", "detail": "elasticsearch no authentication data exposure", "keywords": "information disclosure data leak unauthenticated", "severity": "high", "port": 9200, "protocol": "tcp", "service": "http", "product": "elasticsearch"},
+        {"name": "MongoDB No Auth", "detail": "mongodb no authentication database exposure", "keywords": "information disclosure data leak unauthenticated", "severity": "high", "port": 27017, "protocol": "tcp", "service": "mongodb", "product": "mongodb"},
+        {"name": "FTP Bounce Attack", "detail": "ftp bounce attack port scanning proxy", "keywords": "unauthorized access proxy", "severity": "high", "port": 21, "protocol": "tcp", "service": "ftp", "product": "ftp"},
+        {"name": "NFS World Readable", "detail": "nfs world readable export no_root_squash", "keywords": "arbitrary file read privilege escalation", "severity": "high", "port": 2049, "protocol": "tcp", "service": "nfs", "product": "nfs"},
+        {"name": "RDP Exposure", "detail": "remote desktop protocol exposed to public internet", "keywords": "remote access brute force", "severity": "high", "port": 3389, "protocol": "tcp", "service": "ms-wbt-server", "product": "rdp"},
+        {"name": "PostgreSQL Default Creds", "detail": "postgresql accepting default credentials postgres/postgres", "keywords": "authentication bypass default credentials", "severity": "high", "port": 5432, "protocol": "tcp", "service": "postgresql", "product": "postgresql"},
+        
+        # Medium
+        {"name": "Anonymous FTP", "detail": "anonymous login allowed reference", "keywords": "unauthenticated read-only", "severity": "medium", "port": 21, "protocol": "tcp", "service": "ftp", "product": "vsftpd"},
+        {"name": "SSH Weak Key", "detail": "ssh weak key exchange algorithm diffie-hellman", "keywords": "weak cryptography deprecated cipher", "severity": "medium", "port": 22, "protocol": "tcp", "service": "ssh", "product": "openssh"},
+        {"name": "SSH Brute Force", "detail": "frequent failed ssh login attempts detected", "keywords": "brute force login attempt", "severity": "medium", "port": 22, "protocol": "tcp", "service": "ssh", "product": "openssh"},
+        {"name": "TLS 1.0 Deprecated", "detail": "outdated TLS 1.0 protocol enabled on web server", "keywords": "deprecated protocol weak encryption", "severity": "medium", "port": 443, "protocol": "tcp", "service": "https", "product": "apache"},
+        {"name": "Self-Signed Certificate", "detail": "ssl certificate self-signed untrusted CA", "keywords": "untrusted certificate man-in-the-middle", "severity": "medium", "port": 443, "protocol": "tcp", "service": "https", "product": "nginx"},
+        
+        # Low
+        {"name": "HTTP Info Leak", "detail": "http server header version disclosure information", "keywords": "information disclosure banner leak", "severity": "low", "port": 80, "protocol": "tcp", "service": "http", "product": "apache"},
+        {"name": "Robots.txt Sensitive Disclose", "detail": "robots.txt reveals administrative directories", "keywords": "information disclosure path enumeration", "severity": "low", "port": 80, "protocol": "tcp", "service": "http", "product": "nginx"},
+        {"name": "Missing Security Headers", "detail": "web application missing X-Frame-Options and CSP", "keywords": "missing headers clickjacking", "severity": "low", "port": 80, "protocol": "tcp", "service": "http", "product": "httpd"},
+        
+        # Info
+        {"name": "HTTPS Valid", "detail": "tls 1.3 valid certificate secure encryption", "keywords": "secure valid certificate tls 1.3", "severity": "info", "port": 443, "protocol": "tcp", "service": "https", "product": "nginx"},
+        {"name": "SSH Hardened", "detail": "openssh public key authentication only modern ciphers", "keywords": "secure publickey modern ciphers", "severity": "info", "port": 22, "protocol": "tcp", "service": "ssh", "product": "openssh"},
+        {"name": "DNS Secure Response", "detail": "dnssec validated recursive resolver", "keywords": "dnssec secure authenticated", "severity": "info", "port": 53, "protocol": "udp", "service": "domain", "product": "bind"},
+        {"name": "NTP Synchronized", "detail": "network time protocol pool peer operational", "keywords": "ntp synchronized standard", "severity": "info", "port": 123, "protocol": "udp", "service": "ntp", "product": "chrony"},
     ]
-    past_threats.extend(synthetic_threats * 8)
+    past_threats.extend(synthetic_threats * 6)
 
     valid_severities = {"critical", "high", "medium", "low", "info"}
     past_threats = [t for t in past_threats if (t.get("severity") or "").lower() in valid_severities]
@@ -966,78 +1052,83 @@ def train_ml_model():
 
     data = []
     for t in past_threats:
-        text_parts = [t.get("name", ""), t.get("detail", ""), " ".join(t.get("tags", [])), t.get("source", "")]
-        text_feature = " ".join(text_parts)
+        service_name = str(t.get("service") or "").lower()
+        product_name = str(t.get("product") or "").lower()
+        threat_name = str(t.get("name") or "").lower()
+        kw = str(t.get("keywords") or extract_vuln_keywords(str(t.get("detail") or "")))
+        
+        # Unified text feature aligned with inference format
+        text_feature = f"{service_name} {product_name} {kw} {threat_name}".strip()
+        if not text_feature:
+            text_feature = "general threat"
         
         port_num = t.get("port", 0)
         if not port_num:
-            port_match = re.search(r'Port (\d+)', text_feature, re.IGNORECASE)
+            port_match = re.search(r'Port (\d+)', str(t.get("detail", "")), re.IGNORECASE)
             port_num = int(port_match.group(1)) if port_match else 0
+
+        proto = str(t.get("protocol") or "tcp").lower()
 
         data.append({
             "text": text_feature,
             "port": float(port_num),
-            "protocol": t.get("protocol", "tcp").lower(),
-            "severity": t.get("severity", "info")
+            "protocol": proto,
+            "severity": t.get("severity", "info").lower()
         })
 
     df = pd.DataFrame(data)
     y = df.pop("severity")
 
+    print(f"[*] Training dataset ready with {len(df)} total records across classes:")
+    for sev, count in y.value_counts().items():
+        print(f"    - {sev:10s}: {count:5d} records")
+
     sensitive_port_transformer = FunctionTransformer(extract_is_sensitive_port, validate=False)
 
     preprocessor = ColumnTransformer(
         transformers=[
-            ('text', TfidfVectorizer(max_features=2500, ngram_range=(1, 3), sublinear_tf=True), 'text'),
+            ('text', TfidfVectorizer(max_features=3000, ngram_range=(1, 2), sublinear_tf=True), 'text'),
             ('num', StandardScaler(), ['port']),
             ('cat', OneHotEncoder(handle_unknown='ignore'), ['protocol']),
             ('sensitive', sensitive_port_transformer, ['port'])
         ])
 
-    rf = RandomForestClassifier(random_state=42, class_weight="balanced")
-    gbt = GradientBoostingClassifier(random_state=42)
-    mlp = MLPClassifier(hidden_layer_sizes=(64,), max_iter=300, random_state=42, early_stopping=True)
+    rf = RandomForestClassifier(n_estimators=100, random_state=42, class_weight="balanced")
+    gbt = GradientBoostingClassifier(n_estimators=80, learning_rate=0.1, random_state=42)
+    mlp = MLPClassifier(hidden_layer_sizes=(64,), max_iter=250, random_state=42, early_stopping=True)
 
     ensemble = VotingClassifier(estimators=[("rf", rf), ("gbt", gbt), ("mlp", mlp)], voting="soft")
 
-    tune_pipeline = Pipeline([
-        ('preprocessor', preprocessor),
-        ('classifier', ensemble)
-    ])
+    if evaluate:
+        print("[*] Performing stratified 80/20 train/test evaluation split...")
+        try:
+            X_train, X_test, y_train, y_test = train_test_split(df, y, test_size=0.20, random_state=42, stratify=y)
+            eval_pipeline = Pipeline([
+                ('preprocessor', preprocessor),
+                ('classifier', ensemble)
+            ])
+            eval_pipeline.fit(X_train, y_train)
+            y_pred = eval_pipeline.predict(X_test)
+            acc = accuracy_score(y_test, y_pred)
+            print(f"[+] Out-of-sample Test Accuracy: {acc*100:.1f}%")
+            print("[*] Detailed Classification Report:")
+            print(classification_report(y_test, y_pred, zero_division=0))
+        except Exception as e:
+            print(f"[!] Evaluation step encountered non-fatal error: {e}")
 
-    param_distributions = {
-        'classifier__rf__n_estimators': randint(50, 150),
-        'classifier__gbt__learning_rate': uniform(0.05, 0.15),
-    }
-
-    unique_labels = list(set(y))
-    cv_folds = min(3, min(y.tolist().count(label) for label in unique_labels) if all(y.tolist().count(l) >= 2 for l in unique_labels) else 2)
+    cv_folds = min(3, min(y.value_counts()))
     cv_folds = max(2, cv_folds)
-
-    print("[*] Starting RandomizedSearchCV for hyperparameter tuning...")
-    search = RandomizedSearchCV(tune_pipeline, param_distributions, n_iter=3, cv=cv_folds, scoring='accuracy', random_state=42)
-    
-    try:
-        search.fit(df, y)
-        print(f"[*] Best tuning accuracy: {search.best_score_*100:.1f}%")
-        best_params = search.best_params_
-    except Exception as e:
-        print(f"[!] Hyperparameter tuning failed: {e}. Using defaults.")
-        best_params = {}
-
-    if best_params:
-        rf.set_params(n_estimators=best_params.get('classifier__rf__n_estimators', 100))
-        gbt.set_params(learning_rate=best_params.get('classifier__gbt__learning_rate', 0.1))
 
     final_pipeline = Pipeline([
         ('preprocessor', preprocessor),
         ('classifier', CalibratedClassifierCV(estimator=ensemble, cv=cv_folds))
     ])
     
+    print("[*] Fitting final calibrated ensemble pipeline...")
     final_pipeline.fit(df, y)
 
     joblib.dump(final_pipeline, MODEL_PATH)
-    print(f"[+] AI pipeline (Ensemble+Tuning+Calibration) trained and saved to {MODEL_PATH}!")
+    print(f"[+] AI pipeline (Ensemble + Calibration) trained and saved to {MODEL_PATH}!")
     
     try:
         vectorizer = final_pipeline.named_steps['preprocessor'].named_transformers_['text']
@@ -1053,39 +1144,51 @@ def _engine_ml_predict(ctx):
     try:
         import joblib  # type: ignore
         import os
-        import pandas as pd # type: ignore
+        import pandas as pd  # type: ignore
         if not os.path.exists(MODEL_PATH):
             return []
 
         pipeline = joblib.load(MODEL_PATH)
 
-        text_feature = f"{ctx['service']} {ctx['product']} {ctx['version']}"
+        service = str(ctx.get("service") or "").lower()
+        product = str(ctx.get("product") or "").lower()
+        version = str(ctx.get("version") or "").lower()
+        banner = str(ctx.get("banner") or "").lower()
+        kw = extract_vuln_keywords(f"{service} {product} {version} {banner}")
+
+        text_feature = f"{service} {product} {version} {banner} {kw}".strip()
+        if not text_feature:
+            text_feature = "unknown service"
+
+        port_val = float(ctx.get("port") or 0)
+        protocol_val = str(ctx.get("protocol") or "tcp").lower()
+
         df_pred = pd.DataFrame([{
             "text": text_feature,
-            "port": float(ctx["port"]),
-            "protocol": ctx["protocol"].lower()
+            "port": port_val,
+            "protocol": protocol_val
         }])
 
         pred = pipeline.predict(df_pred)[0]
         probs = pipeline.predict_proba(df_pred)[0]
         max_prob = max(probs)
 
-        if pred in ["high", "critical"] and max_prob > 0.60:
-            confidence_label = "Very High" if max_prob > 0.90 else "High" if max_prob > 0.80 else "Moderate"
+        if pred in ["high", "critical"] and max_prob >= 0.30:
+            confidence_label = "Very High" if max_prob > 0.70 else "High" if max_prob > 0.50 else "Moderate"
             return [_make_threat(
                 name=f"AI Predicted: {pred.title()} Risk ({confidence_label} Confidence)",
                 severity=pred,
-                host=ctx["host"],
-                cve_id=f"AI-{ctx['port']}-{ctx['host'].replace('.', '_')}",
+                host=ctx.get("host", "unknown"),
+                cve_id=f"AI-{int(port_val)}-{str(ctx.get('host', 'host')).replace('.', '_')}",
                 source=MODELS["ml_predict"],
                 detail=(
                     f"Advanced ML Engine predicted {pred} risk with {max_prob*100:.1f}% calibrated confidence. "
-                    f"Service: {ctx['product']} {ctx['version']}"
+                    f"Service: {product or service} {version}".strip()
                 ),
                 tags=["machine_learning", "ai_predicted", f"confidence_{confidence_label.lower().replace(' ', '_')}"]
             )]
     except Exception as e:
-        print(f"ML Predict Error: {e}")
+        logger.debug(f"ML Predict Error: {e}")
     return []
 
 
@@ -1168,7 +1271,7 @@ def _engine_cve_correlation(ctx):
                     if match_cpe(cpe_23, crit, allow_wildcard_candidate=False):
                         matched = True
                         break
-
+                    
             if matched:
                 matched_cves.append(cve_doc)
                 seen_ids.add(cve_id)
