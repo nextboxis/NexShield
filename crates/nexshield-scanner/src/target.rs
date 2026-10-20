@@ -17,17 +17,38 @@ pub const TOP_100_PORTS: &[u16] = &[
     8443, 8888, 9100, 9999, 10000, 32768, 49152, 49153, 49154,
 ];
 
-/// Parses port specification string: "80,443,8000-8010", "top100", or "default"
+pub const VULN_PORTS: &[u16] = &[
+    21, 22, 23, 25, 53, 80, 110, 111, 135, 139, 143, 443, 445, 873, 1099, 1433, 1521, 2049, 2181,
+    2375, 2376, 3000, 3306, 3389, 4444, 5000, 5432, 5900, 5984, 5985, 5986, 6379, 7001, 8000,
+    8080, 8081, 8443, 8888, 9000, 9092, 9200, 9300, 11211, 27017, 27018, 50000,
+];
+
+pub const STEALTH_PORTS: &[u16] = &[
+    21, 22, 23, 25, 53, 80, 110, 135, 139, 443, 445, 1433, 3306, 3389, 8080,
+];
+
+pub const SSL_PORTS: &[u16] = &[
+    80, 443, 465, 587, 636, 853, 990, 992, 993, 995, 3000, 5000, 8000, 8080, 8443, 8888, 9000, 9443,
+];
+
+/// Parses port specification string: "80,443,8000-8010", named profiles ("vuln", "quick", "deep", etc.), or "default"
 pub fn parse_ports(spec: &str) -> Result<Vec<u16>, String> {
     let trimmed = spec.trim().to_lowercase();
     if trimmed.is_empty() || trimmed == "default" {
         return Ok(DEFAULT_PORTS.to_vec());
     }
-    if trimmed == "top100" || trimmed == "quick" {
-        return Ok(TOP_100_PORTS.to_vec());
-    }
-    if trimmed == "web" || trimmed == "ssl" {
-        return Ok(vec![80, 443, 3000, 5000, 8000, 8080, 8443, 8888, 9000, 9443]);
+
+    // Check if entire spec matches a named scan profile keyword
+    if trimmed.chars().all(|c| c.is_ascii_alphabetic() || c == '_' || c == '-') {
+        match trimmed.as_str() {
+            "top100" | "quick" => return Ok(TOP_100_PORTS.to_vec()),
+            "vuln" | "vulnerability" => return Ok(VULN_PORTS.to_vec()),
+            "deep" | "os" => return Ok(TOP_100_PORTS.to_vec()),
+            "stealth" => return Ok(STEALTH_PORTS.to_vec()),
+            "web" | "ssl" | "tls" => return Ok(SSL_PORTS.to_vec()),
+            "full" | "all" => return Ok((1..=1024).collect()),
+            _ => return Ok(DEFAULT_PORTS.to_vec()), // Graceful fallback for any profile keyword
+        }
     }
 
     let mut ports = Vec::new();
@@ -35,6 +56,18 @@ pub fn parse_ports(spec: &str) -> Result<Vec<u16>, String> {
         let part = part.trim();
         if part.is_empty() {
             continue;
+        }
+
+        // Check if individual item is a named profile
+        match part {
+            "default" => { ports.extend_from_slice(DEFAULT_PORTS); continue; }
+            "top100" | "quick" => { ports.extend_from_slice(TOP_100_PORTS); continue; }
+            "vuln" | "vulnerability" => { ports.extend_from_slice(VULN_PORTS); continue; }
+            "deep" | "os" => { ports.extend_from_slice(TOP_100_PORTS); continue; }
+            "stealth" => { ports.extend_from_slice(STEALTH_PORTS); continue; }
+            "web" | "ssl" | "tls" => { ports.extend_from_slice(SSL_PORTS); continue; }
+            "full" | "all" => { ports.extend(1..=1024); continue; }
+            _ => {}
         }
 
         if let Some((start_str, end_str)) = part.split_once('-') {
@@ -63,7 +96,7 @@ pub fn parse_ports(spec: &str) -> Result<Vec<u16>, String> {
     ports.sort_unstable();
     ports.dedup();
     if ports.is_empty() {
-        return Err("No valid ports specified".to_string());
+        return Ok(DEFAULT_PORTS.to_vec());
     }
     Ok(ports)
 }
@@ -175,6 +208,21 @@ mod tests {
 
         let default_ports = parse_ports("default").unwrap();
         assert_eq!(default_ports.len(), DEFAULT_PORTS.len());
+
+        let vuln_ports = parse_ports("vuln").unwrap();
+        assert_eq!(vuln_ports.len(), VULN_PORTS.len());
+
+        let quick_ports = parse_ports("quick").unwrap();
+        assert_eq!(quick_ports.len(), TOP_100_PORTS.len());
+
+        let stealth_ports = parse_ports("stealth").unwrap();
+        assert_eq!(stealth_ports.len(), STEALTH_PORTS.len());
+
+        let ssl_ports = parse_ports("ssl").unwrap();
+        assert_eq!(ssl_ports.len(), SSL_PORTS.len());
+
+        let full_ports = parse_ports("full").unwrap();
+        assert_eq!(full_ports.len(), 1024);
     }
 
     #[test]
