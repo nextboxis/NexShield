@@ -12,7 +12,10 @@ import threading
 import time
 import random
 from datetime import datetime, timezone
-from config import network_scans, check_connection  # type: ignore
+try:
+    from nexshield.config import network_scans, check_connection  # type: ignore
+except ImportError:
+    from config import network_scans, check_connection  # type: ignore
 
 logger = logging.getLogger(__name__)
 
@@ -52,35 +55,44 @@ def get_scan_status():
 
 def check_nmap_installed():
     """
-    Deep dependency check for nmap binary.
+    Deep dependency check for nmap or native Rust scanner binary.
     Returns (ok: bool, info: dict) with version, path, and capabilities.
     """
-    info = {"installed": False, "path": None, "version": None, "error": None}
+    info = {"installed": False, "path": None, "version": None, "error": None, "engine": "nmap"}
 
     nmap_path = shutil.which("nmap")
-    if not nmap_path:
-        info["error"] = (
-            "nmap is not installed or not on PATH. "
-            "Install it: https://nmap.org/download.html — "
-            "On Windows, add nmap to your system PATH after install."
-        )
-        return False, info
+    if nmap_path:
+        try:
+            scanner = nmap.PortScanner()  # type: ignore
+            version = scanner.nmap_version()  # type: ignore
+            info["version"] = ".".join(str(v) for v in version)
+            info["path"] = nmap_path
+            info["installed"] = True
+            info["engine"] = "nmap"
+            return True, info
+        except Exception:
+            pass
 
-    info["path"] = nmap_path
+    # Check for compiled native Rust scanner binary
+    from pathlib import Path
+    import os
+    project_root = Path(__file__).resolve().parent.parent
+    rust_cli = project_root / "target" / "release" / ("nexshield-cli.exe" if os.name == "nt" else "nexshield-cli")
+    if not rust_cli.exists():
+        rust_cli = project_root / "target" / "debug" / ("nexshield-cli.exe" if os.name == "nt" else "nexshield-cli")
 
-    try:
-        scanner = nmap.PortScanner()  # type: ignore
-        version = scanner.nmap_version()  # type: ignore
-        info["version"] = ".".join(str(v) for v in version)
+    if rust_cli.exists():
+        info["path"] = str(rust_cli)
+        info["version"] = "NexShield Native Engine v6.1 (Pure Rust)"
         info["installed"] = True
-    except nmap.PortScannerError as e:  # type: ignore
-        info["error"] = f"nmap binary found but python-nmap failed: {e}"
-        return False, info
-    except Exception as e:
-        info["error"] = f"Unexpected error checking nmap: {e}"
-        return False, info
+        info["engine"] = "rust"
+        return True, info
 
-    return True, info
+    info["error"] = (
+        "nmap is not installed or not on PATH, and native Rust scanner binary was not found. "
+        "Run 'cargo build --release' or install nmap from https://nmap.org/download.html"
+    )
+    return False, info
 
 
 def validate_target(target: str) -> dict:
@@ -205,6 +217,54 @@ def run_scan(target=DEFAULT_TARGET, ports=DEFAULT_PORTS, scan_type="default",
         scanner = nmap.PortScanner()  # type: ignore
         scan_id = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         start_time = time.time()
+
+        if nmap_info.get("engine") == "rust":
+            import subprocess
+            update_progress(20, "Executing native Rust multithreaded port scanner...")
+            rust_cmd = [nmap_info["path"], "scan", target, ports]
+            proc = subprocess.run(rust_cmd, capture_output=True, text=True, check=False)
+            elapsed = round(time.time() - start_time, 2)
+            update_progress(60, "Native scan complete. Processing findings...")
+
+            detected_ports = []
+            for line in proc.stdout.splitlines():
+                if "-> Port" in line:
+                    parts = line.split()
+                    try:
+                        p_str = parts[2].split("/")[0]
+                        port_num = int(p_str)
+                        srv = parts[5] if len(parts) > 5 else "unknown"
+                        detected_ports.append({
+                            "port": port_num,
+                            "service": srv,
+                            "state": "open",
+                            "protocol": "tcp",
+                        })
+                    except Exception:
+                        pass
+
+            host_data = {
+                "scan_id": scan_id,
+                "target": target,
+                "ports": ports,
+                "scan_type": scan_type,
+                "scan_args": "native-rust-bitmap",
+                "host": target,
+                "hostname": target,
+                "state": "up",
+                "protocols": ["tcp"],
+                "open_port_count": len(detected_ports),
+                "services_detected": detected_ports,
+                "scan_duration_sec": elapsed,
+                "nmap_version": "NexShield Native Engine v6.1 (Pure Rust)",
+                "scanned_at": datetime.now(timezone.utc),
+                "tcp_ports": {p["port"]: {"state": "open", "name": p["service"]} for p in detected_ports},
+            }
+            results = [host_data]
+            if check_connection():
+                network_scans.insert_one(host_data)
+            update_progress(100, f"Scan finished successfully. {len(detected_ports)} open port(s) detected via Rust.")
+            return results
 
         logger.info("SCAN START — target: %s  ports: %s  type: %s", target, ports, scan_type)
         logger.info("    nmap args: %s", scan_args)
