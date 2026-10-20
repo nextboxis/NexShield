@@ -38,6 +38,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Fade-in effect
     document.body.style.opacity = 0;
+    closeModal();
     setTimeout(() => {
         document.body.style.transition = "opacity 0.8s ease";
         document.body.style.opacity = 1;
@@ -882,6 +883,7 @@ async function showHostReport(host) {
     
     title.innerText = `IP_PROFILING::${host}`;
     body.innerHTML = `<div style="opacity: 0.6; font-family: var(--font-mono); font-size: 0.85rem">FETCHING_NODE_TELEMETRY...</div>`;
+    overlay.classList.remove("d-none");
     overlay.classList.add("modal--active");
 
     const hostThreats = currentThreats.filter((threat) => threat.host === host);
@@ -993,12 +995,16 @@ function openModal(threat) {
             </div>
         </div>
     `;
+    overlay.classList.remove("d-none");
     overlay.classList.add("modal--active");
 }
 
 function closeModal() {
     const overlay = document.getElementById("modalOverlay");
-    if (overlay) overlay.classList.remove("modal--active");
+    if (overlay) {
+        overlay.classList.remove("modal--active");
+        overlay.classList.add("d-none");
+    }
 }
 
 // ── Toast Notification System ────────────────────────────────────
@@ -1134,6 +1140,7 @@ function showShortcutsHelp() {
             <kbd>Esc</kbd> <span>Close modal / dismiss</span>
         </div>
     `;
+    overlay.classList.remove("d-none");
     overlay.classList.add("modal--active");
 }
 

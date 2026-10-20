@@ -1040,9 +1040,9 @@ body {
 .modal-overlay {
     position: fixed;
     inset: 0;
-    background: rgba(0, 0, 0, 0.65);
-    backdrop-filter: blur(4px);
-    display: flex;
+    background: rgba(0, 0, 0, 0.75);
+    backdrop-filter: blur(6px);
+    display: none;
     align-items: center;
     justify-content: center;
     z-index: 1000;
@@ -1051,9 +1051,26 @@ body {
     transition: opacity 0.2s ease;
 }
 
-.modal-overlay.open, .modal-overlay:not(.d-none):not([style*="display: none"]) {
-    opacity: 1;
-    pointer-events: auto;
+.modal-overlay.modal--active,
+.modal-overlay.open,
+.modal-overlay.is-active {
+    display: flex !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+.modal-overlay.d-none {
+    display: none !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+}
+
+/* Modals that toggle via d-none removal */
+#passwordModal:not(.d-none),
+#remediationModal:not(.d-none) {
+    display: flex !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
 }
 
 .modal-panel {
