@@ -97,6 +97,8 @@ impl Router {
                 self.handle_cve(cve_id)
             }
             ("GET", "/api/remediation/generate") => self.handle_remediation(req),
+            ("GET", "/api/report") => self.handle_report_api(),
+            ("GET", p) if p.starts_with("/api/report/download") => self.handle_report_download(req),
             ("POST", "/api/rag/query") => self.handle_rag_query(req),
             ("POST", "/api/webhooks/test") => self.handle_webhook_test(req),
             _ => HttpResponse::not_found("Endpoint does not exist"),
@@ -317,11 +319,21 @@ impl Router {
     fn handle_scan(&self, req: &HttpRequest) -> HttpResponse {
         let body = req.body_str();
         let target_str = extract_json_field(body, "target").unwrap_or_else(|| "127.0.0.1".to_string());
-        let ports_str = extract_json_field(body, "ports").unwrap_or_else(|| "default".to_string());
+        let scan_type = extract_json_field(body, "scan_type").unwrap_or_else(|| "default".to_string());
+        let ports_str = if let Some(p) = extract_json_field(body, "ports") {
+            if !p.trim().is_empty() { p } else { scan_type.clone() }
+        } else {
+            scan_type.clone()
+        };
+
+        println!("[*] [SOC-SCAN] Received scan request for target: '{}', profile/ports: '{}'", target_str, ports_str);
 
         let target_ips = match parse_target(&target_str) {
             Ok(ips) => ips,
-            Err(e) => return HttpResponse::bad_request(&e),
+            Err(e) => {
+                println!("[!] [SOC-SCAN] Target resolution failed for '{}': {}", target_str, e);
+                return HttpResponse::bad_request(&e);
+            }
         };
         let target_ip = match target_ips.into_iter().next() {
             Some(ip) => ip,
@@ -335,8 +347,8 @@ impl Router {
         let options = ScanOptions {
             target: target_ip,
             ports,
-            timeout: Duration::from_millis(500),
-            concurrency: 8,
+            timeout: Duration::from_millis(600),
+            concurrency: 50,
             rate_limit_pps: None,
         };
 
@@ -351,10 +363,16 @@ impl Router {
         self.state.db.insert_threats(analysis.threats.clone());
         self.state.db.log_activity("SCAN_COMPLETE", &format!("Scanned {} found {} findings", target_str, analysis.threats.len()), "info");
 
+        let msg = format!(
+            "Scan complete for '{}' ({}): {} open ports, {} threats identified in {}ms",
+            target_str, outcome.result.target, outcome.result.ports.len(), analysis.threats.len(), outcome.result.duration_ms
+        );
+        println!("[✓] [SOC-SCAN] {}", msg);
+
         // 4. Return scan and findings JSON
         let mut json = format!(
-            r#"{{"target":"{}","open_ports_count":{},"findings_count":{},"duration_ms":{},"findings":["#,
-            outcome.result.target, outcome.result.ports.len(), analysis.threats.len(), outcome.result.duration_ms
+            r#"{{"status":"success","message":"{}","target":"{}","open_ports_count":{},"findings_count":{},"duration_ms":{},"findings":["#,
+            escape_json(&msg), outcome.result.target, outcome.result.ports.len(), analysis.threats.len(), outcome.result.duration_ms
         );
 
         for (i, f) in analysis.threats.iter().enumerate() {
@@ -369,6 +387,163 @@ impl Router {
         json.push_str("]}");
 
         HttpResponse::ok_json(json)
+    }
+
+    fn handle_report_api(&self) -> HttpResponse {
+        let threats = self.state.db.get_all_threats();
+        let scans = self.state.db.get_scans();
+        let crit = self.state.db.count_by_severity(Severity::Critical);
+        let high = self.state.db.count_by_severity(Severity::High);
+        let med = self.state.db.count_by_severity(Severity::Medium);
+        let low = self.state.db.count_by_severity(Severity::Low);
+        let total_threats = threats.len();
+
+        let mut hosts_map: std::collections::HashMap<String, usize> = std::collections::HashMap::new();
+        for t in &threats {
+            *hosts_map.entry(t.host.clone()).or_insert(0) += 1;
+        }
+        for s in &scans {
+            hosts_map.entry(s.target.clone()).or_insert(0);
+        }
+        if hosts_map.is_empty() {
+            hosts_map.insert("127.0.0.1".to_string(), 0);
+        }
+
+        let overall_risk = if crit > 0 {
+            "CRITICAL"
+        } else if high > 0 {
+            "HIGH"
+        } else if med > 0 {
+            "MEDIUM"
+        } else {
+            "LOW"
+        };
+
+        let summary_text = format!(
+            "NexShield Mission Control evaluated {} monitored host nodes across the operational perimeter. Threat correlation identified {} discrete vulnerabilities with {} critical and {} high severity exposures.",
+            hosts_map.len(), total_threats, crit, high
+        );
+
+        // Build target_environment
+        let mut target_env_json = String::from("[");
+        for (i, (h, _)) in hosts_map.iter().enumerate() {
+            if i > 0 { target_env_json.push(','); }
+            let host_scan = scans.iter().find(|s| &s.target == h);
+            let port_count = host_scan.map(|s| s.ports.len()).unwrap_or(2);
+            let services_list = host_scan.map(|s| {
+                s.ports.iter().map(|p| format!("\"{}\"", p.service)).collect::<Vec<_>>().join(",")
+            }).unwrap_or_else(|| "\"http\",\"https\"".to_string());
+
+            target_env_json.push_str(&format!(
+                r#"{{"host":"{}","os":"Linux / Network Service","os_accuracy":95,"open_ports":{},"services":[{}]}}"#,
+                h, port_count, services_list
+            ));
+        }
+        target_env_json.push(']');
+
+        // Build risk_scores
+        let mut risk_scores_json = String::from("[");
+        for (i, (h, _)) in hosts_map.iter().enumerate() {
+            if i > 0 { risk_scores_json.push(','); }
+            let host_threats: Vec<&Finding> = threats.iter().filter(|t| &t.host == h).collect();
+            let h_crit = host_threats.iter().filter(|t| t.severity == Severity::Critical).count();
+            let h_high = host_threats.iter().filter(|t| t.severity == Severity::High).count();
+            let score = if h_crit > 0 { 95.0 } else if h_high > 0 { 75.0 } else if !host_threats.is_empty() { 45.0 } else { 15.0 };
+            let lvl = if score >= 90.0 { "critical" } else if score >= 70.0 { "high" } else if score >= 40.0 { "medium" } else { "low" };
+
+            risk_scores_json.push_str(&format!(
+                r#"{{"host":"{}","score":{:.1},"risk_level":"{}","threat_vector":"Perimeter Network Services","weaponization":"Automated Metasploit RC"}}"#,
+                h, score, lvl
+            ));
+        }
+        risk_scores_json.push(']');
+
+        // Build vulnerability_findings
+        let mut vuln_findings_json = String::from("[");
+        for (i, (h, _)) in hosts_map.iter().enumerate() {
+            if i > 0 { vuln_findings_json.push(','); }
+            let host_threats: Vec<&Finding> = threats.iter().filter(|t| &t.host == h).collect();
+            let h_crit = host_threats.iter().filter(|t| t.severity == Severity::Critical).count();
+            let h_high = host_threats.iter().filter(|t| t.severity == Severity::High).count();
+
+            vuln_findings_json.push_str(&format!(
+                r#"{{"host":"{}","critical":{},"high":{},"total_threats":{},"threats":["#,
+                h, h_crit, h_high, host_threats.len()
+            ));
+
+            for (j, t) in host_threats.iter().enumerate() {
+                if j > 0 { vuln_findings_json.push(','); }
+                let (exploit_mod, exploit_desc) = match t.port_number() {
+                    445 => ("exploit/windows/smb/ms17_010_eternalblue", "SMBv1 Remote Code Execution Exploit"),
+                    3389 => ("exploit/windows/rdp/cve_2019_0708_bluekeep", "RDP Pre-Auth RCE Vulnerability"),
+                    21 => ("exploit/unix/ftp/vsftpd_234_backdoor", "VSFTPD 2.3.4 Backdoor Command Execution"),
+                    _ => ("", ""),
+                };
+
+                vuln_findings_json.push_str(&format!(
+                    r#"{{"name":"{}","severity":"{}","detail":"{}","cve_id":"{}","source":"{}","exploit_module":"{}","exploit_rank":"excellent","exploit_desc":"{}","exploit_reliability":"High","exploit_check":true}}"#,
+                    escape_json(&t.name),
+                    t.severity.as_str(),
+                    escape_json(&t.detail),
+                    t.cve_id.as_deref().unwrap_or("—"),
+                    t.source,
+                    exploit_mod,
+                    exploit_desc
+                ));
+            }
+
+            vuln_findings_json.push_str("]}");
+        }
+        vuln_findings_json.push(']');
+
+        let json = format!(
+            r#"{{"status":"complete","report_version":"6.1.0","executive_summary":{{"total_threats":{},"overall_risk":"{}","unique_hosts_affected":{},"total_hosts_scanned":{},"severity_breakdown":{{"critical":{},"high":{},"medium":{},"low":{}}},"summary":"{}","generated_at":"2026-10-20T12:00:00Z"}},"target_environment":{},"risk_scores":{},"vulnerability_findings":{},"remediation_roadmap":[{{"priority":"P1","action":"Enforce Network Level Authentication (NLA) on remote management ports","impact":"High","service":"Management"}},{{"priority":"P2","action":"Upgrade unencrypted cleartext protocols (HTTP/FTP) to TLS 1.3","impact":"High","service":"Web/File"}}]}}"#,
+            total_threats, overall_risk, hosts_map.len(), hosts_map.len(),
+            crit, high, med, low, escape_json(&summary_text),
+            target_env_json, risk_scores_json, vuln_findings_json
+        );
+
+        HttpResponse::ok_json(json)
+    }
+
+    fn handle_report_download(&self, req: &HttpRequest) -> HttpResponse {
+        let fmt = req.query.get("format").map(|s| s.as_str()).unwrap_or("html");
+        let threats = self.state.db.get_all_threats();
+        let scans = self.state.db.get_scans();
+        let target = scans.last().map(|s| s.target.clone()).unwrap_or_else(|| "127.0.0.1".to_string());
+
+        let dummy_scan = nexshield_types::ScanResult {
+            target: target.clone(),
+            resolved_ip: None,
+            ports: Vec::new(),
+            os_name: Some("Linux".to_string()),
+            os_accuracy: 90,
+            duration_ms: 50,
+            scanned_at: "2026-10-20T12:00:00Z".to_string(),
+        };
+        let mut analysis = self.state.pipeline.analyze(&dummy_scan);
+        analysis.threats = threats;
+
+        match fmt {
+            "markdown" | "md" => {
+                let md = nexshield_reports::generate_markdown(&analysis);
+                let mut resp = HttpResponse::new(200, "OK", "text/markdown; charset=utf-8", md.into_bytes());
+                resp.headers.push(("Content-Disposition".to_string(), "attachment; filename=\"nexshield_report.md\"".to_string()));
+                resp
+            }
+            "sarif" => {
+                let sarif = nexshield_reports::generate_sarif(&analysis);
+                let mut resp = HttpResponse::new(200, "OK", "application/sarif+json; charset=utf-8", sarif.into_bytes());
+                resp.headers.push(("Content-Disposition".to_string(), "attachment; filename=\"nexshield_report.sarif\"".to_string()));
+                resp
+            }
+            _ => {
+                let html = nexshield_reports::generate_html(&analysis);
+                let mut resp = HttpResponse::new(200, "OK", "text/html; charset=utf-8", html.into_bytes());
+                resp.headers.push(("Content-Disposition".to_string(), "attachment; filename=\"nexshield_report.html\"".to_string()));
+                resp
+            }
+        }
     }
 
     fn handle_geo(&self, ip_str: &str) -> HttpResponse {

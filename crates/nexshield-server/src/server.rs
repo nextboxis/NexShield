@@ -84,6 +84,9 @@ impl HttpServer {
 
         if let Some(req) = HttpRequest::parse(&buffer[..bytes_read]) {
             let response = router.handle(&req);
+            if req.path.starts_with("/api") || req.path == "/" || req.path == "/report" {
+                println!("  [HTTP] {} {} -> {}", req.method, req.path, response.status);
+            }
             let response_bytes = response.to_bytes();
             stream.write_all(&response_bytes)?;
             stream.flush()?;

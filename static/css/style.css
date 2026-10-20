@@ -4,39 +4,37 @@
    ═══════════════════════════════════════════════════════════════════ */
 
 :root {
-    /* Color Palette */
-    --bg-body: #0a0e17;
-    --bg-surface: #101625;
-    --bg-surface-elevated: #161e31;
-    --bg-surface-hover: #1b253c;
-    --bg-input: #121828;
+    /* 1. Base Dark Slate Surfaces */
+    --bg-body: #0b0f19;
+    --bg-surface: #111827;
+    --bg-surface-elevated: #1e293b;
+    --bg-surface-hover: #243247;
+    --bg-input: #0f172a;
 
     /* Borders */
-    --border-subtle: rgba(255, 255, 255, 0.07);
-    --border-medium: rgba(255, 255, 255, 0.12);
-    --border-focus: #6366f1;
+    --border-subtle: rgba(255, 255, 255, 0.08);
+    --border-medium: rgba(255, 255, 255, 0.15);
+    --border-focus: #38bdf8;
 
-    /* Brand & Accents */
-    --primary: #6366f1;
-    --primary-hover: #4f46e5;
-    --primary-dim: rgba(99, 102, 241, 0.12);
-
-    --emerald: #10b981;
-    --emerald-dim: rgba(16, 185, 129, 0.12);
-
-    --crimson: #ef4444;
-    --crimson-dim: rgba(239, 68, 68, 0.12);
-
-    --amber: #f59e0b;
-    --amber-dim: rgba(245, 158, 11, 0.12);
-
-    --sky: #0ea5e9;
-    --sky-dim: rgba(14, 165, 233, 0.12);
-
-    /* Text */
+    /* 2. Text Shades */
     --text-primary: #f8fafc;
     --text-secondary: #94a3b8;
     --text-muted: #64748b;
+
+    /* 3. Primary Accent (Tech Cyan) */
+    --primary: #38bdf8;
+    --primary-hover: #0284c7;
+    --primary-dim: rgba(56, 189, 248, 0.12);
+
+    /* 4. Status Accents (Danger Rose & Safe Emerald) */
+    --crimson: #f43f5e;
+    --crimson-dim: rgba(244, 63, 94, 0.14);
+    --emerald: #10b981;
+    --emerald-dim: rgba(16, 185, 129, 0.14);
+    --amber: #f43f5e; /* Unified into alert shade */
+    --amber-dim: rgba(244, 63, 94, 0.12);
+    --sky: #38bdf8;
+    --sky-dim: rgba(56, 189, 248, 0.12);
 
     /* Typography */
     --font-sans: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;

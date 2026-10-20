@@ -26,6 +26,9 @@ pub fn parse_ports(spec: &str) -> Result<Vec<u16>, String> {
     if trimmed == "top100" || trimmed == "quick" {
         return Ok(TOP_100_PORTS.to_vec());
     }
+    if trimmed == "web" || trimmed == "ssl" {
+        return Ok(vec![80, 443, 3000, 5000, 8000, 8080, 8443, 8888, 9000, 9443]);
+    }
 
     let mut ports = Vec::new();
     for part in trimmed.split(',') {
@@ -65,15 +68,45 @@ pub fn parse_ports(spec: &str) -> Result<Vec<u16>, String> {
     Ok(ports)
 }
 
+/// Cleans a target string by stripping URLs schemes, paths, and trailing ports
+pub fn clean_target(target: &str) -> String {
+    let mut s = target.trim();
+    if let Some(stripped) = s.strip_prefix("https://") {
+        s = stripped;
+    } else if let Some(stripped) = s.strip_prefix("http://") {
+        s = stripped;
+    }
+    // Remove any trailing path or query parameter, unless it is a CIDR prefix (0..=32)
+    let s = if let Some((host, path)) = s.split_once('/') {
+        if path.parse::<u8>().map(|p| p <= 32).unwrap_or(false) {
+            s // Retain CIDR notation (e.g., 192.168.1.0/30)
+        } else {
+            host
+        }
+    } else {
+        s
+    };
+    // Remove port if present (and not CIDR format)
+    let mut final_s = s;
+    if !final_s.contains('/') {
+        if let Some((host, port)) = final_s.split_once(':') {
+            if port.parse::<u16>().is_ok() {
+                final_s = host;
+            }
+        }
+    }
+    final_s.trim().to_string()
+}
+
 /// Parses target specification: single IP, hostname, or CIDR range (e.g. 192.168.1.0/30)
 pub fn parse_target(target: &str) -> Result<Vec<IpAddr>, String> {
-    let trimmed = target.trim();
-    if trimmed.is_empty() {
+    let cleaned = clean_target(target);
+    if cleaned.is_empty() {
         return Err("Target string is empty".to_string());
     }
 
     // Check if CIDR
-    if let Some((ip_str, prefix_str)) = trimmed.split_once('/') {
+    if let Some((ip_str, prefix_str)) = cleaned.split_once('/') {
         let base_ip = Ipv4Addr::from_str(ip_str.trim())
             .map_err(|e| format!("Invalid CIDR base IP: {}", e))?;
         let prefix = prefix_str
@@ -105,20 +138,30 @@ pub fn parse_target(target: &str) -> Result<Vec<IpAddr>, String> {
     }
 
     // Try parsing directly as IP
-    if let Ok(ip) = IpAddr::from_str(trimmed) {
+    if let Ok(ip) = IpAddr::from_str(&cleaned) {
         return Ok(vec![ip]);
     }
 
-    // Try resolving hostname
-    let host_with_port = format!("{}:80", trimmed);
+    // Try resolving hostname (prioritizing IPv4 for universal connectivity)
+    let host_with_port = format!("{}:80", cleaned);
     if let Ok(addrs) = host_with_port.to_socket_addrs() {
-        let unique_ips: Vec<IpAddr> = addrs.map(|sa| sa.ip()).collect();
-        if !unique_ips.is_empty() {
-            return Ok(vec![unique_ips[0]]);
+        let mut v4_ips = Vec::new();
+        let mut v6_ips = Vec::new();
+        for sa in addrs {
+            match sa.ip() {
+                IpAddr::V4(ip) => v4_ips.push(IpAddr::V4(ip)),
+                IpAddr::V6(ip) => v6_ips.push(IpAddr::V6(ip)),
+            }
+        }
+        if let Some(first_v4) = v4_ips.into_iter().next() {
+            return Ok(vec![first_v4]);
+        }
+        if let Some(first_v6) = v6_ips.into_iter().next() {
+            return Ok(vec![first_v6]);
         }
     }
 
-    Err(format!("Could not resolve target: {}", trimmed))
+    Err(format!("Could not resolve target: {}", cleaned))
 }
 
 #[cfg(test)]
@@ -141,5 +184,12 @@ mod tests {
 
         let cidr = parse_target("192.168.1.0/30").unwrap();
         assert_eq!(cidr.len(), 4);
+    }
+
+    #[test]
+    fn test_clean_target() {
+        assert_eq!(clean_target("https://google.com/search?q=test"), "google.com");
+        assert_eq!(clean_target("http://127.0.0.1:8080/api"), "127.0.0.1");
+        assert_eq!(clean_target("192.168.1.0/24"), "192.168.1.0/24");
     }
 }

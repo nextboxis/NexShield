@@ -650,45 +650,34 @@ function renderHostsGrid(hosts) {
 }
 
 // ── Action Handlers ──────────────────────────────────────────────
-function triggerScan() {
-    const target = document.getElementById("scanTarget")?.value.trim() || "";
-    const ports = document.getElementById("scanPorts")?.value.trim() || "";
-    if (!target) {
-        showToast("Enter a real target IP, CIDR, or hostname first.", "error");
-        document.getElementById("scanTarget")?.focus();
-        return;
+function updateScanProgress(pct, msg) {
+    const wrap = document.getElementById("scanProgress");
+    const text = document.getElementById("scanProgressText");
+    const bar = document.getElementById("scanProgressBar");
+    if (wrap) wrap.classList.remove("d-none");
+    if (text) text.innerText = `${pct}%`;
+    if (bar) bar.style.width = `${pct}%`;
+}
+
+function hideScanProgress() {
+    const wrap = document.getElementById("scanProgress");
+    if (wrap) {
+        setTimeout(() => wrap.classList.add("d-none"), 600);
     }
+}
 
-    startLoadingState("btnScan", "SCANNING...");
-    startRadar();
-    showToast("Initiating live target scan...", "info");
-
-    const scanType = document.getElementById("scanType")?.value || "default";
-    const payload = { target, scan_type: scanType };
-    if (ports) payload.ports = ports;
-
-    // Show progress bar
-    const progressWrap = document.getElementById("scanProgress");
-    if (progressWrap) progressWrap.classList.remove("d-none");
-
-    fetchJson("/api/scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-    })
-        .then((data) => showToast(data.message, data.status || "success"))
-        .catch((error) => {
-            stopRadar();
-            showToast(error.message, "error");
-        })
-        .finally(() => stopLoadingState("btnScan"));
+function triggerScan() {
+    triggerManualScan();
 }
 
 function triggerAnalysis() {
     startLoadingState("btnAnalyze", "ANALYZING...");
     showToast("Launching AI analysis pipeline...", "info");
     fetchJson("/api/analyze", { method: "POST" })
-        .then((data) => showToast(data.message, data.status || "success"))
+        .then((data) => {
+            showToast(data.message, data.status || "success");
+            syncIntelligence();
+        })
         .catch((error) => showToast(error.message, "error"))
         .finally(() => stopLoadingState("btnAnalyze"));
 }
@@ -697,7 +686,10 @@ function triggerTraining() {
     startLoadingState("btnTrain", "TRAINING...");
     showToast("Optimizing AI multi-models...", "info");
     fetchJson("/api/train", { method: "POST" })
-        .then((data) => showToast(data.message, data.status || "success"))
+        .then((data) => {
+            showToast(data.message, data.status || "success");
+            syncIntelligence();
+        })
         .catch((error) => showToast(error.message, "error"))
         .finally(() => stopLoadingState("btnTrain"));
 }
@@ -726,30 +718,53 @@ function triggerResetData() {
 }
 
 function triggerManualScan() {
-    const target = document.getElementById("scanTarget").value.trim();
-    const ports = document.getElementById("scanPorts").value.trim();
+    const target = (document.getElementById("scanTarget")?.value || "").trim();
+    const ports = (document.getElementById("scanPorts")?.value || "").trim();
     const scanType = document.getElementById("scanType")?.value || "default";
-    if (!target) return showToast("Enter an IP range or host.", "error");
+    if (!target) {
+        showToast("Enter a target IP, hostname (e.g. google.com), or CIDR.", "error");
+        document.getElementById("scanTarget")?.focus();
+        return;
+    }
 
+    startLoadingState("btnScan", "SCANNING...");
     startLoadingState("execScanBtn", "SCANNING...");
+    startRadar();
+    updateScanProgress(25, `Probing ${target}...`);
+
+    let progressTimer = setInterval(() => {
+        const bar = document.getElementById("scanProgressBar");
+        if (bar) {
+            let current = parseInt(bar.style.width) || 25;
+            if (current < 85) {
+                updateScanProgress(current + 15, `Scanning services...`);
+            }
+        }
+    }, 200);
+
     const payload = { target, scan_type: scanType };
     if (ports) payload.ports = ports;
-
-    // Show progress bar
-    const progressWrap = document.getElementById("scanProgress");
-    if (progressWrap) progressWrap.classList.remove("d-none");
 
     fetchJson("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
     }).then((data) => {
-        showToast(data.message, data.status || "success");
-        if (data.status === "accepted") startRadar();
+        clearInterval(progressTimer);
+        updateScanProgress(100, "Scan Complete!");
+        showToast(data.message || `Scan completed: ${data.open_ports_count || 0} open ports detected`, "success");
+        // REAL-TIME VISUAL UPDATE: Trigger full sync immediately!
+        syncIntelligence();
     }).catch((error) => {
+        clearInterval(progressTimer);
         stopRadar();
-        showToast(error.message, "error");
-    }).finally(() => stopLoadingState("execScanBtn"));
+        showToast(error.message || "Target scan failed", "error");
+    }).finally(() => {
+        clearInterval(progressTimer);
+        hideScanProgress();
+        stopLoadingState("btnScan");
+        stopLoadingState("execScanBtn");
+    });
 }
 
 function quarantineHost(host) {
