@@ -1,0 +1,9 @@
+[package]
+name = "nexshield-scanner"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+nexshield-types = { path = "../nexshield-types" }
+nexshield-core = { path = "../nexshield-core" }
