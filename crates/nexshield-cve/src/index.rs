@@ -119,6 +119,87 @@ impl CveIndex {
     pub fn kev_matcher(&self) -> &KevMatcher {
         &self.kev_matcher
     }
+
+    /// Recursively imports CVE JSON records from an official CVE v5 repository directory.
+    pub fn import_cvelist_directory(&self, dir_path: &std::path::Path, limit: usize) -> std::io::Result<usize> {
+        if !dir_path.exists() {
+            return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "CVE directory not found"));
+        }
+
+        let mut count = 0;
+        let mut stack = vec![dir_path.to_path_buf()];
+
+        while let Some(current_dir) = stack.pop() {
+            if let Ok(entries) = std::fs::read_dir(&current_dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_dir() {
+                        stack.push(path);
+                    } else if path.extension().and_then(|s| s.to_str()) == Some("json") {
+                        if let Ok(content) = std::fs::read_to_string(&path) {
+                            if let Some(record) = self.parse_cve_json(&content) {
+                                self.insert(record);
+                                count += 1;
+                                if limit > 0 && count >= limit {
+                                    return Ok(count);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(count)
+    }
+
+    fn parse_cve_json(&self, content: &str) -> Option<CveRecord> {
+        let cve_id = extract_quoted_field(content, "\"cveId\":")?;
+        let summary = extract_quoted_field(content, "\"value\":")
+            .unwrap_or_else(|| "No description available.".to_string());
+        let short_name = extract_quoted_field(content, "\"shortName\":")
+            .unwrap_or_else(|| "system".to_string());
+        
+        let score = extract_number_field(content, "\"baseScore\":").unwrap_or(7.5);
+        let severity = if score >= 9.0 {
+            Severity::Critical
+        } else if score >= 7.0 {
+            Severity::High
+        } else if score >= 4.0 {
+            Severity::Medium
+        } else {
+            Severity::Low
+        };
+        let is_kev = self.kev_matcher.is_known_exploited(&cve_id);
+
+        Some(CveRecord {
+            cve_id,
+            product: short_name,
+            cvss_score: score,
+            severity,
+            summary,
+            is_kev,
+        })
+    }
+}
+
+fn extract_quoted_field(src: &str, key: &str) -> Option<String> {
+    let key_pos = src.find(key)?;
+    let after_key = &src[key_pos + key.len()..];
+    let quote_start = after_key.find('"')?;
+    let content_start = quote_start + 1;
+    let quote_end = after_key[content_start..].find('"')?;
+    Some(after_key[content_start..content_start + quote_end].to_string())
+}
+
+fn extract_number_field(src: &str, key: &str) -> Option<f32> {
+    let key_pos = src.find(key)?;
+    let after_key = src[key_pos + key.len()..].trim_start();
+    let num_str: String = after_key
+        .chars()
+        .take_while(|c| c.is_ascii_digit() || *c == '.')
+        .collect();
+    num_str.parse().ok()
 }
 
 #[cfg(test)]

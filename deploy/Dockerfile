@@ -1,39 +1,44 @@
-FROM python:3.12-slim
+# Multi-stage pure Rust build for NexShield v6.1
+FROM rust:1.80-slim as builder
+
+WORKDIR /usr/src/nexshield
+
+# Copy Rust workspace definition and crates
+COPY Cargo.toml Cargo.lock ./
+COPY crates ./crates
+
+# Build optimized release binaries
+RUN cargo build --release
+
+# Final runtime image (pure native execution, zero Python runtime)
+FROM debian:bookworm-slim
 
 WORKDIR /app
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PORT=5000
-
-# Install nmap, ping, and network utilities
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    nmap \
-    iputils-ping \
     curl \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Install python dependencies
-COPY requirements.txt .
-COPY requirements-optional.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Copy compiled binaries from builder
+COPY --from=builder /usr/src/nexshield/target/release/nexshield-cli /app/nexshield-cli
+COPY --from=builder /usr/src/nexshield/target/release/nexshield-server /app/nexshield-server
+COPY --from=builder /usr/src/nexshield/target/release/nexshield-scanner /app/nexshield-scanner
 
-# Copy application source
-COPY . .
+# Copy templates, static assets, and data directory
+COPY templates ./templates
+COPY static ./static
+COPY data ./data
 
-# Create non-root user and assign permissions
+# Create non-root user
 RUN useradd -m -u 1000 -s /bin/bash nexshield \
-    && mkdir -p /app/data \
     && chown -R nexshield:nexshield /app
 
 USER nexshield
 
-# Expose Flask default port
 EXPOSE 5000
 
-# Healthcheck to ensure web service is healthy
-HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000').read()" || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+    CMD curl -f http://127.0.0.1:5000/api/stats || exit 1
 
-# Run the application
-CMD ["python", "run.py", "--host", "0.0.0.0"]
+CMD ["/app/nexshield-cli", "run", "5000", "0.0.0.0"]

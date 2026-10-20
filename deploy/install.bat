@@ -2,57 +2,32 @@
 cd /d "%~dp0\.."
 echo.
 echo ========================================================
-echo   NexShield v5 - Windows Setup
+echo   NexShield v6.1 - Windows Setup (Pure Rust Engine)
 echo ========================================================
 echo.
 
-REM ── Check Python ────────────────────────────────────────────
-echo [*] Checking for Python...
-python --version >nul 2>&1
+REM ── Check Cargo / Rust ──────────────────────────────────────
+echo [*] Checking for Cargo & Rust toolchain...
+cargo --version >nul 2>&1
 IF %ERRORLEVEL% NEQ 0 (
     echo.
-    echo [!] Python is NOT installed or not in PATH.
-    echo     Download Python 3.9+: https://www.python.org/downloads/
-    echo     IMPORTANT: Check "Add Python to PATH" during install!
+    echo [!] Rust / Cargo is NOT installed or not in PATH.
+    echo     Download Rust installer: https://rustup.rs/
+    echo     IMPORTANT: Restart your terminal after installing!
     echo.
     pause
     exit /b 1
 )
 
-FOR /F "tokens=2" %%G IN ('python --version 2^>^&1') DO SET PYVER=%%G
-echo [+] Python %PYVER% detected
+FOR /F "tokens=2" %%G IN ('cargo --version 2^>^&1') DO SET RUSTVER=%%G
+echo [+] Cargo %RUSTVER% detected
 
-REM ── Create Virtual Environment ──────────────────────────────
+REM ── Compile Release Binaries ─────────────────────────────────
 echo.
-echo [*] Creating virtual environment (.venv)...
-IF EXIST .venv (
-    echo [+] Virtual environment already exists, reusing it.
-) ELSE (
-    python -m venv .venv
-    IF %ERRORLEVEL% NEQ 0 (
-        echo [!] Failed to create virtual environment.
-        echo     Try: python -m pip install --upgrade pip virtualenv
-        pause
-        exit /b 1
-    )
-)
-
-REM ── Activate ────────────────────────────────────────────────
-echo [*] Activating virtual environment...
-call .venv\Scripts\activate.bat
-
-REM ── Upgrade pip ─────────────────────────────────────────────
-echo [*] Upgrading pip...
-python -m pip install --upgrade pip -q
-
-REM ── Install Dependencies ────────────────────────────────────
-echo [*] Installing dependencies...
-pip install -r requirements.txt -q
+echo [*] Compiling optimized release binaries (zero external dependencies)...
+cargo build --release --offline
 IF %ERRORLEVEL% NEQ 0 (
-    echo.
-    echo [!] Some packages failed to install.
-    echo     Trying individual installs...
-    pip install flask tinydb flask-socketio flask-cors python-dotenv requests python-nmap -q
+    cargo build --release
 )
 
 REM ── Create .env ─────────────────────────────────────────────
@@ -71,12 +46,10 @@ echo ========================================================
 echo.
 echo   To start NexShield, run:
 echo.
-echo       python run.py
+echo       run.bat
+echo          OR
+echo       .\target\release\nexshield-cli.exe run
 echo.
-echo   That's it! No database setup needed.
 echo   Dashboard will open at: http://127.0.0.1:5000
-echo.
-echo   Optional: Install nmap for network scanning:
-echo       https://nmap.org/download.html
 echo.
 pause

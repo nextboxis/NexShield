@@ -3,66 +3,32 @@ cd "$(dirname "$0")/.."
 
 echo ""
 echo "========================================================"
-echo "  NexShield v5 - Linux/macOS Setup"
+echo "  NexShield v6.1 - Linux/macOS Setup (Pure Rust Engine)"
 echo "========================================================"
 echo ""
 
-# ── Check Python 3 ───────────────────────────────────────────
-PYTHON_CMD=""
-if command -v python3 &> /dev/null; then
-    PYTHON_CMD="python3"
-elif command -v python &> /dev/null; then
-    PYTHON_CMD="python"
-else
-    echo "[!] Python3 is NOT installed."
-    echo "    Install it:"
-    echo "      Ubuntu/Debian: sudo apt install python3 python3-venv python3-pip"
-    echo "      CentOS/RHEL:  sudo yum install python3"
-    echo "      macOS:        brew install python3"
+# ── Check Cargo / Rust ─────────────────────────────────────────
+if ! command -v cargo &> /dev/null; then
+    echo "[!] Rust / Cargo is NOT installed."
+    echo "    Install it via: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
     exit 1
 fi
 
-PYVER=$($PYTHON_CMD --version 2>&1 | awk '{print $2}')
-echo "[+] Python $PYVER detected ($PYTHON_CMD)"
+RUSTVER=$(cargo --version 2>&1 | awk '{print $2}')
+echo "[+] Cargo $RUSTVER detected"
 
-# ── Create Virtual Environment ───────────────────────────────
+# ── Compile Release Binaries ───────────────────────────────────
 echo ""
-echo "[*] Creating virtual environment (.venv)..."
-if [ -d ".venv" ]; then
-    echo "[+] Virtual environment already exists, reusing it."
-else
-    $PYTHON_CMD -m venv .venv
-    if [ $? -ne 0 ]; then
-        echo "[!] Failed to create virtual environment."
-        echo "    Try: sudo apt install python3-venv  (Ubuntu/Debian)"
-        exit 1
-    fi
-fi
+echo "[*] Compiling optimized release binaries (zero external dependencies)..."
+cargo build --release --offline || cargo build --release
 
-# ── Activate ─────────────────────────────────────────────────
-echo "[*] Activating virtual environment..."
-source .venv/bin/activate
-
-# ── Upgrade pip ──────────────────────────────────────────────
-echo "[*] Upgrading pip..."
-pip install --upgrade pip -q
-
-# ── Install Dependencies ─────────────────────────────────────
-echo "[*] Installing dependencies..."
-pip install -r requirements.txt -q
-if [ $? -ne 0 ]; then
-    echo ""
-    echo "[!] Some packages failed. Trying individual installs..."
-    pip install flask tinydb flask-socketio flask-cors python-dotenv requests python-nmap -q
-fi
-
-# ── Create .env ──────────────────────────────────────────────
+# ── Create .env ────────────────────────────────────────────────
 if [ ! -f ".env" ] && [ -f ".env.example" ]; then
     cp .env.example .env
     echo "[+] Created .env from template"
 fi
 
-# ── Done ─────────────────────────────────────────────────────
+# ── Done ───────────────────────────────────────────────────────
 echo ""
 echo "========================================================"
 echo "  Setup Complete!"
@@ -70,13 +36,7 @@ echo "========================================================"
 echo ""
 echo "  To start NexShield, run:"
 echo ""
-echo "      source .venv/bin/activate"
-echo "      python run.py"
+echo "      ./target/release/nexshield-cli run"
 echo ""
-echo "  That's it! No database setup needed."
 echo "  Dashboard will open at: http://127.0.0.1:5000"
-echo ""
-echo "  Optional: Install nmap for network scanning:"
-echo "      sudo apt install nmap   (Debian/Ubuntu)"
-echo "      brew install nmap       (macOS)"
 echo ""

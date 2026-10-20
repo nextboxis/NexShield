@@ -59,6 +59,10 @@ impl ThreatPipeline {
         }
     }
 
+    pub fn ml_predictor(&self) -> &MlThreatPredictor {
+        &self.ml_predictor
+    }
+
     /// Execute the complete analysis pipeline against scan results
     pub fn analyze(&self, scan: &ScanResult) -> AnalysisReport {
         let mut raw_threats = Vec::new();
