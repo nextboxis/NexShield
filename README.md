@@ -115,6 +115,31 @@ To eliminate visual distraction and maintain peak operational clarity for SOC an
 
 ---
 
+## 🖥️ Mission Control Frontend Subsystems & Operations
+
+NexShield's web dashboard operates with zero external JS frameworks, zero external CDNs, and zero bloated runtimes. Every component is powered by pure standard CSS and vanilla asynchronous JavaScript:
+
+1. **Active Security Findings Table (`/api/threats`):**
+   - Displays real-time synchronized vulnerability records.
+   - Includes CVE/Technique IDs, target host/port, calculated CVSS risk score, verified exploit modules, and immediate single-click remediation.
+2. **Security Events & Auditing Logs (`/api/activity`):**
+   - Live telemetry terminal streaming all scan completions, quarantine actions, credential validations, and pipeline runs with millisecond timestamps.
+3. **Real-Time Visual Radar Scanner (`/api/scan`):**
+   - Enter IP or domain (e.g. `google.com`, `127.0.0.1`), select profile (`Quick`, `Default`, `Deep`, `Stealth`), and click **LAUNCH RECON**.
+   - Features animated visual radar, progress bar with service status indicators, and immediate post-scan intelligence synchronization without page reloads.
+4. **Network Attacking Surface Topology Canvas (`/api/topology`):**
+   - High-performance HTML5 `<canvas>` rendering interactive network infrastructure nodes.
+   - Automatically clusters hosts into subnet gateways (`gw-core`, `gw-127.0.0`, etc.) with animated pulse indicators color-coded by severity (Red: Critical, Orange: High, Yellow: Medium, Green: Low).
+5. **AI Copilot RAG Drawer (`/api/rag/query`):**
+   - Click the **RAG AI Copilot** button (or bottom-right icon) to open the sliding analysis drawer.
+   - Operators can enter security queries (e.g., *"How to mitigate MS17-010 EternalBlue on Windows SMB?"*). The pure Rust RAG engine performs inverted index token retrieval against NIST/CISA/CIS knowledge bases and returns actionable playbooks with verified source citations.
+6. **Executive Pentest Intelligence Report (`/report` & `/api/report`):**
+   - Minimalist, distraction-free executive security dossier.
+   - Automatically computes overall perimeter risk posture, radar exposure metrics, full host inventory, vulnerability breakdown, and 4-quadrant remediation roadmap.
+   - **Multi-Format Instant Export:** Export to PDF (1-click native print dialog), Standalone HTML, Markdown (Jira/GitHub ready), SARIF v2.1.0 (for CI/CD pipelines), and CSV.
+
+---
+
 ## 🚀 Quick Start (Linux & Windows)
 
 ### Option 1: One-Click Startup Scripts

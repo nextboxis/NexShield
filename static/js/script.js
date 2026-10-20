@@ -242,9 +242,19 @@ function escapeHtml(value) {
 }
 
 function formatTimestamp(value) {
-    if (!value) return "Unknown";
-    const parsed = value.$date ? new Date(value.$date) : new Date(value);
-    return Number.isNaN(parsed.getTime()) ? "Unknown" : parsed.toLocaleString();
+    if (!value) return "Just now";
+    let raw = value.$date || value;
+    if (typeof raw === "string" && raw.endsWith("s")) {
+        raw = parseInt(raw, 10);
+    }
+    if (typeof raw === "number" || (!Number.isNaN(Number(raw)) && !String(raw).includes("-") && !String(raw).includes(":"))) {
+        const num = Number(raw);
+        const ms = num < 10000000000 ? num * 1000 : num;
+        const d = new Date(ms);
+        if (!Number.isNaN(d.getTime())) return d.toLocaleTimeString();
+    }
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? "Just now" : parsed.toLocaleTimeString();
 }
 
 function severityClass(severity) {
@@ -363,7 +373,7 @@ function updateTrend(id, value, label = "ACTIVE_NODES") {
 async function fetchThreats() {
     try {
         const data = await fetchJson("/api/threats?limit=100");
-        currentThreats = Array.isArray(data.threats) ? data.threats : [];
+        currentThreats = Array.isArray(data.threats) ? data.threats : (Array.isArray(data) ? data : []);
         applyFilters();
         updateTicker(currentThreats);
     } catch (err) {
@@ -375,9 +385,8 @@ async function fetchThreats() {
 async function fetchGlobalCVEs() {
     try {
         const data = await fetchJson("/api/cve/recent?limit=50");
-        if (data && data.cves) {
-            renderTopVulnerabilities(data.cves);
-        }
+        const cves = Array.isArray(data.cves) ? data.cves : (Array.isArray(data) ? data : []);
+        renderTopVulnerabilities(cves);
     } catch (err) {
         console.error("Global CVEs fail:", err);
     }
@@ -501,7 +510,13 @@ async function fetchThreatTrends() {
     try {
         const data = await fetchJson("/api/threat-trends");
         lastTrendData = data;
-        drawDonut(data.severity_distribution);
+        const dist = data.severity_distribution || {
+            critical: Array.isArray(data.critical) ? (data.critical[data.critical.length - 1] || 0) : 0,
+            high: Array.isArray(data.high) ? (data.high[data.high.length - 1] || 0) : 0,
+            medium: Array.isArray(data.medium) ? (data.medium[data.medium.length - 1] || 0) : 0,
+            low: Array.isArray(data.low) ? (data.low[data.low.length - 1] || 0) : 0,
+        };
+        drawDonut(dist);
     } catch (err) { console.error("Trend fail:", err); }
 }
 
@@ -509,10 +524,10 @@ function drawDonut(dist) {
     const container = document.getElementById("severityRadarContainer");
     if (!container) return;
 
-    const critical = dist.critical || 0;
-    const high = dist.high || 0;
-    const medium = dist.medium || 0;
-    const low = dist.low || 0;
+    const critical = (dist && dist.critical) || 0;
+    const high = (dist && dist.high) || 0;
+    const medium = (dist && dist.medium) || 0;
+    const low = (dist && dist.low) || 0;
 
     const data = {
         datasets: [{
@@ -523,8 +538,6 @@ function drawDonut(dist) {
     renderDonutCanvas(container, data);
 }
 
-
-
 // ── Host Risk Heatmap ──────────────────────────────────────────────
 async function fetchRiskScores() {
     try {
@@ -532,7 +545,8 @@ async function fetchRiskScores() {
         if (grid && grid.children.length === 0) renderSkeletonMap();
 
         const data = await fetchJson("/api/risk-scores");
-        renderRiskHeatmap(data.scores);
+        const scores = Array.isArray(data.scores) ? data.scores : (Array.isArray(data) ? data : []);
+        renderRiskHeatmap(scores);
     } catch (err) { console.error("Risk fail:", err); }
 }
 
@@ -568,7 +582,7 @@ async function fetchActivity() {
         const list = document.getElementById("activityList");
         if (!list) return;
 
-        const events = Array.isArray(data.events) ? data.events : [];
+        const events = Array.isArray(data.events) ? data.events : (Array.isArray(data) ? data : []);
         if (events.length === 0) {
             list.innerHTML = '<div style="opacity: 0.5; font-family: var(--font-mono)">[WAITING] No recorded activity.</div>';
             return;
@@ -611,9 +625,9 @@ async function fetchHosts() {
     try {
         const data = await fetchJson("/api/hosts");
         const badge = document.getElementById("hostCountBadge");
-        if (badge) badge.textContent = data.total || 0;
+        const hosts = Array.isArray(data.hosts) ? data.hosts : (Array.isArray(data) ? data : []);
+        if (badge) badge.textContent = data.total || hosts.length || 0;
         
-        const hosts = data.hosts || [];
         renderHostsGrid(hosts);
         renderMissionMap(hosts);
     } catch (err) {
@@ -1807,10 +1821,10 @@ async function initNetworkTopologyMap() {
 
     try {
         const data = await fetchJson("/api/topology");
-        if (data.status !== "complete") return;
+        if (data.status !== "complete" && data.status !== "success" && !Array.isArray(data.nodes)) return;
 
-        topologyNodes = data.nodes || [];
-        topologyLinks = data.links || [];
+        topologyNodes = Array.isArray(data.nodes) ? data.nodes : [];
+        topologyLinks = Array.isArray(data.links) ? data.links : (Array.isArray(data.edges) ? data.edges : []);
 
         const mapNodesSpan = document.getElementById("mapNodes");
         if (mapNodesSpan) mapNodesSpan.textContent = data.total_hosts || topologyNodes.length;
@@ -1836,17 +1850,17 @@ function setupTopologyCanvas(canvas) {
 
     gateways.forEach((gw, idx) => {
         const cx = width * ((idx + 1) / (gateways.length + 1));
-        const cy = height * 0.5;
+        const cy = height * 0.35;
         nodePositions.set(gw.id, { x: cx, y: cy, ...gw });
     });
 
     hosts.forEach((h, idx) => {
         const parentGwId = `gw-${h.subnet}`;
-        const parentPos = nodePositions.get(parentGwId) || { x: width * 0.5, y: height * 0.5 };
-        const angle = (idx * (2 * Math.PI / Math.max(hosts.length, 1)));
-        const radius = Math.min(width, height) * 0.3;
+        const parentPos = nodePositions.get(parentGwId) || nodePositions.get("gw-core") || Array.from(nodePositions.values()).find(n => n.type === 'gateway') || { x: width * 0.5, y: height * 0.5 };
+        const angle = (idx * (2 * Math.PI / Math.max(hosts.length, 1))) + 0.4;
+        const radius = Math.min(width, height) * 0.32;
         const x = parentPos.x + Math.cos(angle) * radius;
-        const y = parentPos.y + Math.sin(angle) * radius;
+        const y = Math.min(height - 25, Math.max(25, parentPos.y + Math.sin(angle) * radius));
         nodePositions.set(h.id, { x, y, ...h });
     });
 
@@ -1975,8 +1989,10 @@ function appendRagMessage(sender, content, citations = [], isUser = false) {
         citations.forEach(c => {
             const badge = document.createElement("span");
             badge.className = "rag-citation-pill";
-            badge.innerText = `📄 ${c.doc_id || c.title}`;
-            badge.title = `${c.title} (Relevance: ${Math.round((c.relevance || 0) * 100)}%)`;
+            const label = typeof c === "string" ? c : (c.doc_id || c.title || "Ref");
+            const title = typeof c === "string" ? c : `${c.title || c.doc_id} (Relevance: ${Math.round((c.relevance || 0) * 100)}%)`;
+            badge.innerText = `📄 ${label}`;
+            badge.title = title;
             citContainer.appendChild(badge);
         });
         msgDiv.appendChild(citContainer);
@@ -2026,8 +2042,10 @@ async function submitRagQuery(event) {
         const loadingElem = document.getElementById(tempId);
         if (loadingElem) loadingElem.remove();
 
-        if (res && res.status === "complete" && res.data) {
-            appendRagMessage("NEXSHIELD RAG COPILOT", res.data.answer || "Analysis complete.", res.data.citations || []);
+        if (res && (res.status === "complete" || res.status === "success") && (res.data || res.answer)) {
+            const ans = (res.data && res.data.answer) || res.answer || "Analysis complete.";
+            const cit = (res.data && res.data.citations) || res.citations || [];
+            appendRagMessage("NEXSHIELD RAG COPILOT", ans, cit);
         } else {
             appendRagMessage("NEXSHIELD RAG COPILOT", `<span style="color:var(--red);">Analysis failed: ${escapeHtml(res?.message || "Internal server error")}</span>`);
         }

@@ -149,3 +149,17 @@ impl HttpResponse {
         bytes
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_post_request_parsing() {
+        let raw = b"POST /api/rag/query HTTP/1.1\r\nHost: 127.0.0.1:5000\r\nContent-Type: application/json\r\nContent-Length: 38\r\n\r\n{\"query\":\"mitigate SMB EternalBlue\"}";
+        let req = HttpRequest::parse(raw).expect("Failed to parse request");
+        assert_eq!(req.method, "POST");
+        assert_eq!(req.path, "/api/rag/query");
+        assert_eq!(req.body_str(), "{\"query\":\"mitigate SMB EternalBlue\"}");
+    }
+}
