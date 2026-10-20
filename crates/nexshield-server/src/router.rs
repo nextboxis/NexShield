@@ -50,8 +50,7 @@ impl Router {
         // UI & Page Routes
         if req.method == "GET" {
             match path {
-                "/" => return HttpResponse::redirect("/dashboard"),
-                "/dashboard" => return self.serve_template("dashboard.html"),
+                "/" | "/dashboard" => return self.serve_template("index.html"),
                 "/login" => return self.serve_template("login.html"),
                 "/report" => return self.serve_template("report.html"),
                 _ if path.starts_with("/static/") => {
