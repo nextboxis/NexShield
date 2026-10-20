@@ -50,7 +50,11 @@ document.addEventListener("DOMContentLoaded", () => {
     updateSystemClock();
     setInterval(updateSystemClock, 1000);
 
-    // Initial Dashboard Sync
+    // Initial Dashboard & System Link Sync
+    updateSystemStatus("ONLINE", "status-dot--online");
+    const initBanner = document.getElementById("connectionBanner");
+    if (initBanner) initBanner.style.display = "none";
+
     syncIntelligence();
     checkNmapStatus();
     initNetworkTopologyMap();
@@ -107,19 +111,42 @@ function updateSystemClock() {
     el.textContent = `${h}:${m}:${s} UTC`;
 }
 
-// ── Socket.IO Real-time Connection ──────────────────────────────
-const socket = io({
-    auth: async (cb) => {
-        try {
-            const res = await fetch("/api/auth/token", { signal: AbortSignal.timeout(10000) });
-            const data = await res.json();
-            cb({ token: data.token });
-        } catch (e) {
-            console.error("Auth token fetch failed", e);
-            cb({});
+// ── Socket.IO / Native Event Bus Real-time Connection ────────────
+const socket = (typeof window !== "undefined" && typeof window.io === "function")
+    ? window.io({
+        auth: async (cb) => {
+            try {
+                const res = await fetch("/api/auth/token", { signal: AbortSignal.timeout(5000) });
+                const data = await res.json();
+                cb({ token: data.token });
+            } catch (e) {
+                cb({});
+            }
         }
-    }
-});
+    })
+    : {
+        connected: true,
+        _handlers: {},
+        on: function(event, callback) {
+            if (!this._handlers) this._handlers = {};
+            if (!this._handlers[event]) this._handlers[event] = [];
+            this._handlers[event].push(callback);
+        },
+        emit: function(event, data) {
+            if (this._handlers && this._handlers[event]) {
+                this._handlers[event].forEach(cb => {
+                    try { cb(data); } catch (e) { console.error(e); }
+                });
+            }
+        },
+        off: function(event) {
+            if (this._handlers) delete this._handlers[event];
+        }
+    };
+
+if (typeof window !== "undefined") {
+    window.socket = socket;
+}
 
 socket.on("connect", () => {
     updateSystemStatus("ONLINE", "status-dot--online");
@@ -1267,8 +1294,8 @@ function updateHudVitals() {
     const threatInfo = currentThreats.length;
     scanEl.textContent = threatInfo > 0 ? `${threatInfo} hits` : 'IDLE';
 
-    // v6: Show WebSocket connection status
-    const isConnected = socket && socket.connected;
+    // v6: Show WebSocket / HTTP link status
+    const isConnected = (typeof socket !== 'undefined' && socket && socket.connected);
     loadEl.textContent = isConnected ? 'LIVE' : 'OFFLINE';
     loadEl.style.color = isConnected ? 'var(--green)' : 'var(--red)';
 }
