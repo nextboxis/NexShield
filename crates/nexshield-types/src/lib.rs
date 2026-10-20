@@ -78,6 +78,22 @@ pub struct ThreatItem {
     pub created_at: String, // ISO8601 string or Unix timestamp
 }
 
+pub type Finding = ThreatItem;
+
+impl ThreatItem {
+    pub fn title(&self) -> &str {
+        &self.name
+    }
+
+    pub fn description(&self) -> &str {
+        &self.detail
+    }
+
+    pub fn port_number(&self) -> u16 {
+        self.port.unwrap_or(0)
+    }
+}
+
 impl Eq for ThreatItem {}
 
 impl PartialOrd for ThreatItem {

@@ -1,0 +1,9 @@
+[package]
+name = "nexshield-storage"
+version = "6.1.0"
+edition = "2021"
+authors = ["NexShield Core Team"]
+description = "Thread-safe, file-backed JSON document store and authentication storage for NexShield (Pure Rust std)"
+
+[dependencies]
+nexshield-types = { path = "../nexshield-types" }

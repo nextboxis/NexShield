@@ -1,0 +1,9 @@
+[package]
+name = "nexshield-rag"
+version = "6.1.0"
+edition = "2021"
+authors = ["NexShield Core Team"]
+description = "Retrieval-Augmented Generation (RAG) security knowledge and advisory engine for NexShield"
+
+[dependencies]
+nexshield-types = { path = "../nexshield-types" }

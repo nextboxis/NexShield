@@ -7,9 +7,16 @@ name = "nexshield-cli"
 version = "6.1.0"
 dependencies = [
  "nexshield-core",
+ "nexshield-cve",
  "nexshield-engine",
+ "nexshield-exploit",
+ "nexshield-notifier",
+ "nexshield-rag",
+ "nexshield-remediation",
  "nexshield-reports",
  "nexshield-scanner",
+ "nexshield-server",
+ "nexshield-storage",
  "nexshield-types",
 ]
 
@@ -21,10 +28,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "nexshield-cve"
+version = "6.1.0"
+dependencies = [
+ "nexshield-types",
+]
+
+[[package]]
 name = "nexshield-engine"
 version = "6.1.0"
 dependencies = [
  "nexshield-core",
+ "nexshield-types",
+]
+
+[[package]]
+name = "nexshield-exploit"
+version = "6.1.0"
+dependencies = [
+ "nexshield-types",
+]
+
+[[package]]
+name = "nexshield-notifier"
+version = "6.1.0"
+dependencies = [
+ "nexshield-types",
+]
+
+[[package]]
+name = "nexshield-rag"
+version = "6.1.0"
+dependencies = [
+ "nexshield-types",
+]
+
+[[package]]
+name = "nexshield-remediation"
+version = "6.1.0"
+dependencies = [
  "nexshield-types",
 ]
 
@@ -41,6 +83,30 @@ name = "nexshield-scanner"
 version = "6.1.0"
 dependencies = [
  "nexshield-core",
+ "nexshield-types",
+]
+
+[[package]]
+name = "nexshield-server"
+version = "6.1.0"
+dependencies = [
+ "nexshield-core",
+ "nexshield-cve",
+ "nexshield-engine",
+ "nexshield-exploit",
+ "nexshield-notifier",
+ "nexshield-rag",
+ "nexshield-remediation",
+ "nexshield-reports",
+ "nexshield-scanner",
+ "nexshield-storage",
+ "nexshield-types",
+]
+
+[[package]]
+name = "nexshield-storage"
+version = "6.1.0"
+dependencies = [
  "nexshield-types",
 ]
 

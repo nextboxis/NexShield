@@ -1,0 +1,9 @@
+[package]
+name = "nexshield-remediation"
+version = "6.1.0"
+edition = "2021"
+authors = ["NexShield Core Team"]
+description = "Automated remediation script and playbook generator for NexShield (Ansible, PowerShell, Bash)"
+
+[dependencies]
+nexshield-types = { path = "../nexshield-types" }

@@ -1,0 +1,9 @@
+[package]
+name = "nexshield-notifier"
+version = "6.1.0"
+edition = "2021"
+authors = ["NexShield Core Team"]
+description = "Outbound SOC Webhook Alert Engine for NexShield (Slack, Discord, MS Teams, SIEM)"
+
+[dependencies]
+nexshield-types = { path = "../nexshield-types" }

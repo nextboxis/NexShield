@@ -292,8 +292,23 @@ Examples:
     parser.add_argument("--reset-db", action="store_true", help="Reset the database")
     parser.add_argument("--train", action="store_true", help="Train AI ML models and build RAG knowledge store")
     parser.add_argument("--cve-limit", type=int, default=5000, help="Max CVEs to ingest during training (default: 5000)")
+    parser.add_argument("--rust", action="store_true", help="Launch native high-performance Pure Rust server")
 
     args = parser.parse_args()
+
+    if args.rust:
+        rust_bin = PROJECT_DIR / "target" / "release" / ("nexshield-server.exe" if platform.system() == "Windows" else "nexshield-server")
+        if not rust_bin.exists():
+            print_status("*", "Compiling native Rust server binary...")
+            subprocess.run(["cargo", "build", "--release", "--bin", "nexshield-server"], cwd=str(PROJECT_DIR))
+        port = str(args.port or 5000)
+        host = args.host or "127.0.0.1"
+        env = os.environ.copy()
+        env["PORT"] = port
+        env["HOST"] = host
+        print_status("+", f"Executing Native Pure Rust NexShield Server on http://{host}:{port}")
+        ret = subprocess.call([str(rust_bin)], env=env)
+        sys.exit(ret)
 
     print(BANNER)
     print(f"   OS: {platform.system()} {platform.release()}")

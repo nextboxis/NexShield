@@ -7,6 +7,13 @@ license.workspace = true
 [dependencies]
 nexshield-types = { path = "../nexshield-types" }
 nexshield-core = { path = "../nexshield-core" }
+nexshield-storage = { path = "../nexshield-storage" }
+nexshield-cve = { path = "../nexshield-cve" }
+nexshield-remediation = { path = "../nexshield-remediation" }
+nexshield-notifier = { path = "../nexshield-notifier" }
+nexshield-rag = { path = "../nexshield-rag" }
+nexshield-exploit = { path = "../nexshield-exploit" }
 nexshield-scanner = { path = "../nexshield-scanner" }
 nexshield-engine = { path = "../nexshield-engine" }
 nexshield-reports = { path = "../nexshield-reports" }
+nexshield-server = { path = "../nexshield-server" }
