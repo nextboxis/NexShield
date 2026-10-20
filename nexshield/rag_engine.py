@@ -657,6 +657,46 @@ class SecurityKnowledgeStore:
         with self._lock:
             return list(self._docs.values())
 
+    def save_cache(self, path: Optional[Path] = None) -> bool:
+        """Serializes indexed knowledge documents to a JSON cache file."""
+        target = path or INDEX_CACHE_PATH
+        try:
+            with self._lock:
+                data = {
+                    "version": 1,
+                    "exported_at": datetime.now(timezone.utc).isoformat(),
+                    "total_documents": len(self._docs),
+                    "documents": [d.to_dict() for d in self._docs.values()],
+                }
+            target.parent.mkdir(parents=True, exist_ok=True)
+            with open(target, "w", encoding="utf-8") as f:
+                json.dump(data, f)
+            logger.info(f"Saved {len(data['documents'])} RAG documents to cache: {target}")
+            return True
+        except Exception as exc:
+            logger.warning(f"Failed to save RAG knowledge cache: {exc}")
+            return False
+
+    def load_cache(self, path: Optional[Path] = None) -> bool:
+        """Loads knowledge documents from disk cache and builds vector index."""
+        target = path or INDEX_CACHE_PATH
+        if not target.exists():
+            return False
+        try:
+            with open(target, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            docs_raw = data.get("documents", [])
+            with self._lock:
+                for item in docs_raw:
+                    doc = KnowledgeDocument.from_dict(item)
+                    self._docs[doc.doc_id] = doc
+            self.build_vector_index()
+            logger.info(f"Loaded and indexed {len(self._docs)} RAG documents from cache: {target}")
+            return True
+        except Exception as exc:
+            logger.warning(f"Failed to load RAG knowledge cache: {exc}")
+            return False
+
 
 class RAGRetriever:
     """
@@ -1024,12 +1064,34 @@ rag_retriever = RAGRetriever(knowledge_store)
 rag_generator = RAGGenerator(rag_retriever)
 
 
+def build_and_export_rag_index(max_cves: int = 5000, export_path: Optional[Path] = None) -> Dict[str, Any]:
+    """
+    Explicitly trains/builds the RAG knowledge store from foundation rules and local CVEs,
+    then saves the indexed dataset to the JSON cache.
+    """
+    target = export_path or INDEX_CACHE_PATH
+    logger.info(f"Building RAG knowledge store with up to {max_cves} CVEs...")
+    ingested = knowledge_store.ingest_cve_files(max_cves=max_cves)
+    knowledge_store.build_vector_index()
+    saved = knowledge_store.save_cache(target)
+    stats = knowledge_store.get_stats()
+    stats["ingested_cves"] = ingested
+    stats["saved_to_cache"] = saved
+    stats["cache_path"] = str(target)
+    return stats
+
+
 def initialize_rag_subsystem():
-    """Initializes the RAG subsystem in a background worker."""
+    """Initializes the RAG subsystem in a background worker, loading from cache if available."""
     def _worker():
         try:
-            ingested = knowledge_store.ingest_cve_files(max_cves=300)
+            if knowledge_store.load_cache():
+                logger.info(f"RAG Subsystem ready from cache with {len(knowledge_store.all_documents())} docs.")
+                return
+
+            ingested = knowledge_store.ingest_cve_files(max_cves=500)
             knowledge_store.build_vector_index()
+            knowledge_store.save_cache()
             logger.info(f"RAG Subsystem ready with {len(knowledge_store.all_documents())} docs ({ingested} CVEs ingested).")
         except Exception as e:
             logger.warning(f"RAG Subsystem background indexing warning: {e}")
