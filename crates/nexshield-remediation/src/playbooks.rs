@@ -1,11 +1,13 @@
 //! Automated hardening and remediation script generator.
-//! Produces production-ready Ansible YAML, PowerShell PS1, and Bash SH scripts.
+//! Produces production-ready Ansible YAML, PowerShell PS1, Bash SH, Terraform HCL, and Kubernetes NetworkPolicy YAML.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ScriptFormat {
     Ansible,
     PowerShell,
     Bash,
+    Terraform,
+    Kubernetes,
 }
 
 impl ScriptFormat {
@@ -14,13 +16,27 @@ impl ScriptFormat {
             ScriptFormat::Ansible => "yml",
             ScriptFormat::PowerShell => "ps1",
             ScriptFormat::Bash => "sh",
+            ScriptFormat::Terraform => "tf",
+            ScriptFormat::Kubernetes => "k8s.yaml",
+        }
+    }
+
+    pub fn from_str_name(s: &str) -> Self {
+        match s.trim().to_lowercase().as_str() {
+            "ansible" | "yml" | "yaml" => ScriptFormat::Ansible,
+            "ps1" | "powershell" => ScriptFormat::PowerShell,
+            "tf" | "terraform" | "hcl" => ScriptFormat::Terraform,
+            "k8s" | "kubernetes" | "netpol" => ScriptFormat::Kubernetes,
+            _ => ScriptFormat::Bash,
         }
     }
 }
 
 pub struct RemediationBlueprint {
     pub service_key: &'static str,
+    pub default_port: u16,
     pub title: &'static str,
+    pub compliance_controls: &'static [&'static str],
     pub ansible: &'static str,
     pub powershell: &'static str,
     pub bash: &'static str,
@@ -29,7 +45,9 @@ pub struct RemediationBlueprint {
 pub static REMEDIATION_CATALOG: &[RemediationBlueprint] = &[
     RemediationBlueprint {
         service_key: "smb",
+        default_port: 445,
         title: "Disable Insecure SMBv1 and Enforce SMB Signing",
+        compliance_controls: &["CIS-4.8", "NIST-AC-17", "PCI-DSS-2.2.4"],
         ansible: r#"---
 - name: Hardening SMB Service
   hosts: all
@@ -62,7 +80,9 @@ echo "[+] SMB ports restricted."
     },
     RemediationBlueprint {
         service_key: "telnet",
+        default_port: 23,
         title: "Disable Plaintext Telnet Service and Enforce SSH",
+        compliance_controls: &["CIS-4.6", "NIST-SC-8", "PCI-DSS-2.2.7"],
         ansible: r#"---
 - name: Decommission Telnet
   hosts: all
@@ -92,7 +112,9 @@ echo "[+] Telnet daemon blocked."
     },
     RemediationBlueprint {
         service_key: "http",
+        default_port: 80,
         title: "Enforce HTTPS TLS Redirection and Security Headers",
+        compliance_controls: &["CIS-3.10", "NIST-SC-23", "PCI-DSS-4.2.1"],
         ansible: r#"---
 - name: Enforce HTTPS Redirection
   hosts: webservers
@@ -117,7 +139,9 @@ echo "[+] Ensure Web server configuration directs port 80 to 443."
     },
     RemediationBlueprint {
         service_key: "rdp",
+        default_port: 3389,
         title: "Enforce RDP Network Level Authentication (NLA)",
+        compliance_controls: &["CIS-12.6", "NIST-IA-2", "PCI-DSS-8.4.2"],
         ansible: r#"---
 - name: Hardening Remote Desktop
   hosts: windows
@@ -143,7 +167,9 @@ echo "[+] RDP port protected."
     },
     RemediationBlueprint {
         service_key: "redis",
+        default_port: 6379,
         title: "Secure Redis In-Memory Store & Bind to Localhost",
+        compliance_controls: &["CIS-12.2", "NIST-SC-7", "PCI-DSS-1.3.1"],
         ansible: r#"---
 - name: Hardening Redis Server
   hosts: redis
@@ -174,25 +200,115 @@ impl RemediationEngine {
     /// Generate hardening script for a given service and target format.
     pub fn generate_script(service: &str, format: ScriptFormat) -> Option<String> {
         let key = service.trim().to_lowercase();
-        let bp = REMEDIATION_CATALOG.iter().find(|b| {
-            key.contains(b.service_key) || b.service_key.contains(&key)
-        })?;
+        let bp = REMEDIATION_CATALOG
+            .iter()
+            .find(|b| key.contains(b.service_key) || b.service_key.contains(&key))
+            .unwrap_or(&REMEDIATION_CATALOG[0]);
 
         let body = match format {
-            ScriptFormat::Ansible => bp.ansible,
-            ScriptFormat::PowerShell => bp.powershell,
-            ScriptFormat::Bash => bp.bash,
+            ScriptFormat::Ansible => bp.ansible.to_string(),
+            ScriptFormat::PowerShell => bp.powershell.to_string(),
+            ScriptFormat::Bash => bp.bash.to_string(),
+            ScriptFormat::Terraform => Self::generate_terraform(bp),
+            ScriptFormat::Kubernetes => Self::generate_kubernetes_netpol(bp),
         };
 
-        Some(body.to_string())
+        Some(body)
+    }
+
+    fn generate_terraform(bp: &RemediationBlueprint) -> String {
+        let controls = bp.compliance_controls.join(", ");
+        format!(
+            r#"# NexShield Cloud-Native Remediation (Terraform HCL)
+# Policy: {}
+# Compliance Mappings: [{}]
+
+resource "aws_security_group" "nexshield_lockdown_{}" {{
+  name        = "nexshield-restrict-{}-{}"
+  description = "{}"
+
+  # Allow access strictly from internal bastion CIDR
+  ingress {{
+    description = "Restricted {} access from SOC Bastion"
+    from_port   = {}
+    to_port     = {}
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/24"]
+  }}
+
+  egress {{
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }}
+
+  tags = {{
+    ManagedBy  = "NexShield-v6.2"
+    Service    = "{}"
+    Compliance = "{}"
+  }}
+}}
+"#,
+            bp.title,
+            controls,
+            bp.service_key,
+            bp.service_key,
+            bp.default_port,
+            bp.title,
+            bp.service_key,
+            bp.default_port,
+            bp.default_port,
+            bp.service_key,
+            controls
+        )
+    }
+
+    fn generate_kubernetes_netpol(bp: &RemediationBlueprint) -> String {
+        let controls = bp.compliance_controls.join(", ");
+        format!(
+            r#"# NexShield Zero-Trust Kubernetes NetworkPolicy
+# Policy: {}
+# Compliance Mappings: [{}]
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nexshield-isolate-{}
+  namespace: production
+  annotations:
+    nexshield.io/remediation-title: "{}"
+    nexshield.io/compliance-controls: "{}"
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/component: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: security-bastion
+      ports:
+        - protocol: TCP
+          port: {}
+"#,
+            bp.title,
+            controls,
+            bp.service_key,
+            bp.title,
+            controls,
+            bp.service_key,
+            bp.default_port
+        )
     }
 
     /// Retrieve title and overview of remediation.
     pub fn get_blueprint(service: &str) -> Option<&'static RemediationBlueprint> {
         let key = service.trim().to_lowercase();
-        REMEDIATION_CATALOG.iter().find(|b| {
-            key.contains(b.service_key) || b.service_key.contains(&key)
-        })
+        REMEDIATION_CATALOG
+            .iter()
+            .find(|b| key.contains(b.service_key) || b.service_key.contains(&key))
     }
 }
 
@@ -209,5 +325,17 @@ mod tests {
         let ps = RemediationEngine::generate_script("rdp", ScriptFormat::PowerShell);
         assert!(ps.is_some());
         assert!(ps.unwrap().contains("UserAuthentication"));
+
+        let tf = RemediationEngine::generate_script("redis", ScriptFormat::Terraform);
+        assert!(tf.is_some());
+        let tf_str = tf.unwrap();
+        assert!(tf_str.contains("aws_security_group"));
+        assert!(tf_str.contains("6379"));
+
+        let k8s = RemediationEngine::generate_script("smb", ScriptFormat::Kubernetes);
+        assert!(k8s.is_some());
+        let k8s_str = k8s.unwrap();
+        assert!(k8s_str.contains("kind: NetworkPolicy"));
+        assert!(k8s_str.contains("port: 445"));
     }
 }

@@ -609,6 +609,13 @@ async function fetchActivity() {
     try {
         const data = await fetchJson("/api/activity");
         const list = document.getElementById("activityList");
+        const auditBadge = document.getElementById("auditChainBadge");
+        if (auditBadge && typeof data.chain_valid === "boolean") {
+            const count = data.verified_entries ?? (Array.isArray(data.events) ? data.events.length : 0);
+            auditBadge.textContent = data.chain_valid ? `[AUDIT: VERIFIED (${count})]` : "[AUDIT: TAMPER_ALERT]";
+            auditBadge.style.borderColor = data.chain_valid ? "var(--green)" : "var(--red)";
+            auditBadge.style.color = data.chain_valid ? "var(--green)" : "var(--red)";
+        }
         if (!list) return;
 
         const events = Array.isArray(data.events) ? data.events : (Array.isArray(data) ? data : []);
@@ -617,12 +624,18 @@ async function fetchActivity() {
             return;
         }
 
-        list.innerHTML = events.slice(0, 25).map((event) => `
+        list.innerHTML = events.slice(0, 25).map((event) => {
+            const hashBadge = event.short_hash
+                ? `<span style="opacity:0.45;font-family:var(--font-mono);font-size:0.7rem;margin-left:6px;" title="SHA-256 Chain Entry: ${escapeHtml(event.entry_hash || '')} | Prev: ${escapeHtml(event.prev_hash || '')}">[SHA256:${escapeHtml(event.short_hash)}]</span>`
+                : "";
+            return `
             <div style="margin-bottom: 4px">
                 <span style="opacity: 0.4">[${escapeHtml(formatTimestamp(event.timestamp))}]</span>
                 <span class="${consoleSeverityClass(event.severity)}">${escapeHtml(event.message || "No message")}</span>
+                ${hashBadge}
             </div>
-        `).join("");
+        `;
+        }).join("");
     } catch (err) {
         console.error("Activity fail:", err);
     }
@@ -796,6 +809,15 @@ function triggerManualScan() {
         clearInterval(progressTimer);
         updateScanProgress(100, "Scan Complete!");
         showToast(data.message || `Scan completed: ${data.open_ports_count || 0} open ports detected`, "success");
+        const opened = Array.isArray(data.newly_opened_ports) ? data.newly_opened_ports : [];
+        const closed = Array.isArray(data.newly_closed_ports) ? data.newly_closed_ports : [];
+        if (opened.length > 0 || closed.length > 0) {
+            showToast(
+                `[PORT DRIFT] ${data.target || target}: +${opened.length} newly opened [${opened.join(", ")}], -${closed.length} closed [${closed.join(", ")}]`,
+                "warning",
+                5500
+            );
+        }
         // REAL-TIME VISUAL UPDATE: Trigger full sync immediately!
         syncIntelligence();
     }).catch((error) => {
@@ -1002,6 +1024,7 @@ async function showHostReport(host) {
                 ${portsTable}
                 <div style="margin-top: 1.5rem; display: flex; flex-wrap: wrap; gap: 10px;">
                     <button class="btn-console" style="border-color: var(--red); color: var(--red);" onclick="quarantineHost('${escapeHtml(host)}')">QUARANTINE_NODE</button>
+                    <button class="btn-console" style="color: var(--cyan); border-color: var(--cyan);" onclick="closeModal(); showRemediationModal('smb', 'terraform')">REMEDIATE_IaC [TF/K8S]</button>
                     <button class="btn-console" style="color: var(--orange); border-color: var(--orange);" onclick="targetScanHost('${escapeHtml(host)}')">TARGETED_SCAN</button>
                     <button class="btn-console" onclick="exportReport('csv', { host: '${escapeHtml(host)}' })">EXPORT_THREATS_CSV</button>
                     ${data.footprint ? `<button class="btn-console" onclick="window.location.href='/api/export-scan?host=${encodeURIComponent(host)}'">EXPORT_FOOTPRINT_JSON</button>` : ''}
@@ -1028,11 +1051,27 @@ function stopRadar() {
 }
 
 // ── Modal Handling ────────────────────────────────────────────────
+function inferServiceFromThreat(threat) {
+    const port = Number(threat?.port || 0);
+    if (port === 445 || port === 139) return "smb";
+    if (port === 3389) return "rdp";
+    if (port === 21) return "ftp";
+    if (port === 23) return "telnet";
+    if (port === 6379) return "redis";
+    const name = (threat?.name || "").toLowerCase();
+    if (name.includes("rdp") || name.includes("bluekeep")) return "rdp";
+    if (name.includes("ftp")) return "ftp";
+    if (name.includes("telnet")) return "telnet";
+    if (name.includes("redis")) return "redis";
+    return "smb";
+}
+
 function openModal(threat) {
     const overlay = document.getElementById("modalOverlay");
     const title = document.getElementById("modalTitle");
     const body = document.getElementById("modalBody");
     if (!overlay || !title || !body || !threat) return;
+    const remService = inferServiceFromThreat(threat);
 
     title.innerText = `THREAT::${(threat.name || "Unknown").toUpperCase()}`;
     body.innerHTML = `
@@ -1046,9 +1085,10 @@ function openModal(threat) {
                 <span style="opacity: 0.5">TIMESTAMP</span> <span>${escapeHtml(formatTimestamp(threat.detected_at))}</span>
             </div>
             <div style="margin-top: 2rem; display: flex; flex-wrap: wrap; gap: 10px;">
+                <button class="btn-console" style="border-color: var(--green); color: var(--green);" onclick="closeModal(); showRemediationModal('${remService}', 'terraform')">REMEDIATE_IaC [TF/K8S]</button>
                 <button class="btn-console" onclick="exportReport('csv', { host: '${threat.host || ""}' })">EXPORT_CSV</button>
                 <button class="btn-console" onclick="lookupCVE('${threat.cve_id || ""}')">LOOKUP_CVE</button>
-                <button class="btn-console btn-console--rag" style="border-color: #38bdf8; color: #38bdf8;" onclick="deepAnalyzeWithRag('${threat._id || threat.cve_id || ""}')">AI RAG DEEP DIVE</button>
+                <button class="btn-console btn-console--rag" style="border-color: #38bdf8; color: #38bdf8;" onclick="deepAnalyzeWithRag('${threat._id || threat.id || threat.cve_id || ""}')">AI RAG DEEP DIVE</button>
                 <button class="btn-console" style="border-color: var(--red); color: var(--red);" onclick="quarantineHost('${escapeHtml(threat.host || "")}')">QUARANTINE</button>
             </div>
         </div>
@@ -1905,28 +1945,35 @@ function toggleMobileNav() {
 }
 
 // ── Automated Remediation Script Generator ──────────────────────────────
-let currentRemediationHost = "";
-let currentRemediationFormat = "ansible";
+let currentRemediationService = "smb";
+let currentRemediationFormat = "terraform";
+let currentRemediationScriptContent = "";
 
-async function showRemediationModal(host, fmt = "ansible") {
-    currentRemediationHost = host || "target";
-    currentRemediationFormat = fmt || "ansible";
+async function showRemediationModal(serviceOrHost, fmt = "terraform") {
+    const knownServices = ["smb", "rdp", "ftp", "telnet", "redis"];
+    const lower = (serviceOrHost || "smb").toLowerCase();
+    currentRemediationService = knownServices.includes(lower) ? lower : "smb";
+    currentRemediationFormat = fmt || "terraform";
 
     const modal = document.getElementById("remediationModal");
     const codeBlock = document.getElementById("remediationCodeBlock");
     const title = document.getElementById("remediationTitle");
 
-    if (title) title.textContent = `REMEDIATION_SCRIPT::${currentRemediationHost.toUpperCase()} [${currentRemediationFormat.toUpperCase()}]`;
-    if (codeBlock) codeBlock.textContent = "Loading remediation script tasks...";
+    if (title) title.textContent = `REMEDIATION_PLAYBOOK::${currentRemediationService.toUpperCase()} [${currentRemediationFormat.toUpperCase()}]`;
+    if (codeBlock) codeBlock.textContent = "Generating automated hardening script / IaC policy...";
 
     if (modal) modal.classList.remove("d-none");
 
     try {
-        const res = await fetchJson(`/api/remediation/generate?host=${encodeURIComponent(currentRemediationHost)}&format=${currentRemediationFormat}`);
-        if (res.status === "complete") {
-            if (codeBlock) codeBlock.textContent = res.script;
+        const res = await fetchJson(`/api/remediation/generate?service=${encodeURIComponent(currentRemediationService)}&format=${encodeURIComponent(currentRemediationFormat)}`);
+        if (res && res.script) {
+            currentRemediationScriptContent = res.script;
+            const controls = Array.isArray(res.compliance_controls) && res.compliance_controls.length > 0
+                ? `# Compliance Controls: ${res.compliance_controls.join(" | ")}\n`
+                : "";
+            if (codeBlock) codeBlock.textContent = controls + res.script;
         } else {
-            if (codeBlock) codeBlock.textContent = `# Error generating script: ${res.message || "Unknown error"}`;
+            if (codeBlock) codeBlock.textContent = `# Error generating script: ${res?.message || "Unknown error"}`;
         }
     } catch (err) {
         if (codeBlock) codeBlock.textContent = `# Failed to fetch remediation script: ${err.message}`;
@@ -1934,7 +1981,7 @@ async function showRemediationModal(host, fmt = "ansible") {
 }
 
 function switchRemediationFormat(fmt) {
-    showRemediationModal(currentRemediationHost, fmt);
+    showRemediationModal(currentRemediationService, fmt);
 }
 
 function closeRemediationModal() {
@@ -1943,9 +1990,29 @@ function closeRemediationModal() {
 }
 
 function downloadRemediationScript() {
-    if (!currentRemediationHost) return;
-    const url = `/api/remediation/download?host=${encodeURIComponent(currentRemediationHost)}&format=${currentRemediationFormat}`;
-    window.location.href = url;
+    if (!currentRemediationScriptContent) {
+        showToast("Generate a remediation script first.", "warning");
+        return;
+    }
+    const extMap = {
+        terraform: ".tf",
+        kubernetes: "-netpol.yaml",
+        ansible: "-playbook.yml",
+        powershell: "-harden.ps1",
+        bash: "-harden.sh",
+    };
+    const ext = extMap[currentRemediationFormat] || ".txt";
+    const filename = `nexshield-${currentRemediationService}${ext}`;
+    const blob = new Blob([currentRemediationScriptContent], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast(`Downloaded ${filename}`, "success");
 }
 
 // ── Interactive 2D Network Topology Renderer ─────────────────────────────
@@ -2263,6 +2330,200 @@ async function triggerRagReindex() {
         showToast("Error triggering reindex: " + err.message, "error");
     }
 }
+
+// ═════════════════════════════════════════════════════════════════════
+//  NexShield v6.2 Enterprise SOC Extensions:
+//  1. Cryptographic SHA-256 Audit Chain Verifier
+//  2. Tarjan Choke-Point & Attack Path Highlighter
+//  3. CIS / NIST / PCI-DSS Compliance Matrix Viewer
+//  4. Ctrl+K Tactical Command Palette
+// ═════════════════════════════════════════════════════════════════════
+
+async function verifyAuditChainNow() {
+    try {
+        const res = await fetchJson("/api/audit/verify");
+        const badge = document.getElementById("auditChainBadge");
+        if (res && res.valid) {
+            if (badge) {
+                badge.textContent = `[AUDIT: VERIFIED (${res.verified_entries})]`;
+                badge.style.borderColor = "var(--green)";
+                badge.style.color = "var(--green)";
+            }
+            const shortHead = (res.head_hash || "").slice(0, 16);
+            showToast(`[AUDIT OK] Verified ${res.verified_entries} SHA-256 hash-chained records (Head: ${shortHead}...)`, "success", 5000);
+        } else {
+            if (badge) {
+                badge.textContent = "[AUDIT: TAMPER_ALERT]";
+                badge.style.borderColor = "var(--red)";
+                badge.style.color = "var(--red)";
+            }
+            showToast("[AUDIT ALERT] Cryptographic hash chain verification failed!", "error", 6000);
+        }
+    } catch (err) {
+        showToast(`Audit verification error: ${err.message}`, "error");
+    }
+}
+
+async function toggleAttackPathMode() {
+    try {
+        const data = await fetchJson("/api/topology/chokepoints");
+        const cps = Array.isArray(data.choke_points) ? data.choke_points : [];
+        const path = Array.isArray(data.shortest_attack_path) ? data.shortest_attack_path : [];
+        const hud = document.getElementById("mapHud");
+        if (hud) {
+            hud.style.display = "block";
+            hud.innerHTML = `[TARJAN CHOKE POINTS]: <strong>${escapeHtml(cps.join(", ") || "gw-core")}</strong> &bull; [SHORTEST LATERAL PATH]: <strong>${escapeHtml(path.join(" -> "))}</strong>`;
+        }
+        showToast(`[ATTACK PATH] Choke Points: ${cps.join(", ")} | Lateral Path: ${path.join(" -> ")}`, "info", 5500);
+    } catch (err) {
+        showToast(`Topology choke-point analysis error: ${err.message}`, "error");
+    }
+}
+
+async function showComplianceModal() {
+    const overlay = document.getElementById("modalOverlay");
+    const title = document.getElementById("modalTitle");
+    const body = document.getElementById("modalBody");
+    if (!overlay || !title || !body) return;
+
+    title.innerText = "COMPLIANCE_READINESS::CIS_NIST_PCI_DSS";
+    body.innerHTML = `<div style="font-family:var(--font-mono);opacity:0.7;">EVALUATING_COMPLIANCE_CONTROLS...</div>`;
+    overlay.classList.remove("d-none");
+    overlay.classList.add("modal--active");
+
+    try {
+        const res = await fetchJson("/api/compliance");
+        const controls = Array.isArray(res.controls) ? res.controls : [];
+        const rows = controls.map(c => {
+            const color = c.status === "PASS" ? "var(--green)" : "var(--red)";
+            return `<tr>
+                <td style="font-family:var(--font-mono);font-size:0.75rem;">${escapeHtml(c.id)}</td>
+                <td>${escapeHtml(c.title)}</td>
+                <td><span style="color:${color};font-family:var(--font-mono);font-weight:700;">[${escapeHtml(c.status)}]</span></td>
+            </tr>`;
+        }).join("");
+
+        body.innerHTML = `
+            <div style="font-family:var(--font-mono);font-size:0.82rem;">
+                <div style="display:flex;justify-content:space-between;align-items:center;padding:0.75rem 1rem;background:#0a0e17;border:1px solid #1f2d42;border-radius:6px;margin-bottom:1rem;">
+                    <span>OVERALL COMPLIANCE READINESS SCORE</span>
+                    <strong style="font-size:1.25rem;color:${res.readiness_score >= 80 ? 'var(--green)' : res.readiness_score >= 50 ? 'var(--yellow)' : 'var(--red)'};">${res.readiness_score}%</strong>
+                </div>
+                <table class="minimal-table">
+                    <thead><tr><th>Control ID</th><th>Requirement</th><th>Status</th></tr></thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+        `;
+    } catch (err) {
+        body.innerHTML = `<div class="sev-critical">${escapeHtml(err.message)}</div>`;
+    }
+}
+
+const COMMAND_PALETTE_ACTIONS = [
+    { cmd: "scan 127.0.0.1", desc: "Run default service scan on localhost (127.0.0.1)", run: () => { document.getElementById("scanTarget").value = "127.0.0.1"; triggerManualScan(); } },
+    { cmd: "scan vuln 127.0.0.1", desc: "Run Vulnerability Script profile scan on 127.0.0.1", run: () => { document.getElementById("scanTarget").value = "127.0.0.1"; document.getElementById("scanType").value = "vuln"; triggerManualScan(); } },
+    { cmd: "fix smb terraform", desc: "Generate AWS Security Group Terraform (.tf) for SMB Port 445", run: () => showRemediationModal("smb", "terraform") },
+    { cmd: "fix redis kubernetes", desc: "Generate Zero-Trust Kubernetes NetworkPolicy (.yaml) for Redis 6379", run: () => showRemediationModal("redis", "kubernetes") },
+    { cmd: "fix rdp ansible", desc: "Generate Ansible Hardening Playbook (.yml) for RDP Port 3389", run: () => showRemediationModal("rdp", "ansible") },
+    { cmd: "verify audit", desc: "Verify SHA-256 cryptographic hash chain across all activity logs", run: () => verifyAuditChainNow() },
+    { cmd: "compliance", desc: "Open CIS v8 / NIST 800-53 / PCI-DSS v4.0 Compliance Readiness Matrix", run: () => showComplianceModal() },
+    { cmd: "paths", desc: "Highlight Tarjan network choke points & shortest lateral attack path", run: () => toggleAttackPathMode() },
+    { cmd: "copilot", desc: "Open NexShield AI Security Copilot (RAG Advisor)", run: () => toggleRagCopilot(true) },
+    { cmd: "export sarif", desc: "Download GitHub SARIF v2.1.0 Static/Dynamic Analysis Report", run: () => { window.location.href = "/api/report/download?format=sarif"; } },
+];
+
+function openCommandPalette() {
+    const modal = document.getElementById("cmdPaletteModal");
+    const input = document.getElementById("cmdPaletteInput");
+    if (!modal) return;
+    modal.classList.remove("d-none");
+    if (input) {
+        input.value = "";
+        setTimeout(() => input.focus(), 50);
+    }
+    filterCommandPaletteList();
+}
+
+function closeCommandPalette() {
+    const modal = document.getElementById("cmdPaletteModal");
+    if (modal) modal.classList.add("d-none");
+}
+
+function filterCommandPaletteList() {
+    const input = document.getElementById("cmdPaletteInput");
+    const list = document.getElementById("cmdPaletteList");
+    if (!list) return;
+    const q = (input?.value || "").trim().toLowerCase();
+
+    const matches = COMMAND_PALETTE_ACTIONS.filter(a =>
+        !q || a.cmd.toLowerCase().includes(q) || a.desc.toLowerCase().includes(q)
+    );
+
+    list.innerHTML = matches.map((item, idx) => `
+        <button type="button" onclick="executeCommandPaletteIndex(${COMMAND_PALETTE_ACTIONS.indexOf(item)})"
+            style="display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;padding:0.6rem 0.85rem;background:#0a0e17;border:1px solid ${idx === 0 ? '#38bdf8' : '#1f2d42'};border-radius:6px;color:#f3f4f6;cursor:pointer;font-family:var(--font-mono);font-size:0.78rem;">
+            <strong style="color:#38bdf8;">&gt; ${escapeHtml(item.cmd)}</strong>
+            <span style="color:#9ca3af;font-size:0.72rem;margin-left:1rem;">${escapeHtml(item.desc)}</span>
+        </button>
+    `).join("");
+}
+
+function executeCommandPaletteIndex(idx) {
+    const item = COMMAND_PALETTE_ACTIONS[idx];
+    closeCommandPalette();
+    if (item && typeof item.run === "function") {
+        item.run();
+    }
+}
+
+function handleCommandPaletteKey(event) {
+    if (event.key === "Escape") {
+        closeCommandPalette();
+        return;
+    }
+    if (event.key === "Enter") {
+        event.preventDefault();
+        const raw = (document.getElementById("cmdPaletteInput")?.value || "").trim();
+        const lower = raw.toLowerCase();
+        closeCommandPalette();
+
+        if (lower.startsWith("scan ")) {
+            const parts = raw.split(/\s+/);
+            const target = parts[parts.length - 1];
+            if (target) {
+                const targetInput = document.getElementById("scanTarget");
+                if (targetInput) targetInput.value = target;
+                triggerManualScan();
+                return;
+            }
+        }
+        if (lower.startsWith("fix ")) {
+            const parts = lower.split(/\s+/);
+            const svc = parts[1] || "smb";
+            const fmt = parts[2] || "terraform";
+            showRemediationModal(svc, fmt);
+            return;
+        }
+        const match = COMMAND_PALETTE_ACTIONS.find(a =>
+            a.cmd.toLowerCase().includes(lower) || a.desc.toLowerCase().includes(lower)
+        );
+        if (match) match.run();
+    }
+}
+
+document.addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        const modal = document.getElementById("cmdPaletteModal");
+        if (modal && !modal.classList.contains("d-none")) {
+            closeCommandPalette();
+        } else {
+            openCommandPalette();
+        }
+    }
+});
+
 
 
 

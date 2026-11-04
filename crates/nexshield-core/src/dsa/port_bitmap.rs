@@ -79,6 +79,43 @@ impl PortBitmap {
         result
     }
 
+    /// Bitwise XOR (ports that changed state between two scans): O(1024) words
+    #[inline]
+    pub fn xor(&self, other: &Self) -> Self {
+        let mut result = Self::new();
+        for i in 0..WORDS {
+            result.words[i] = self.words[i] ^ other.words[i];
+        }
+        result
+    }
+
+    /// Construct a PortBitmap directly from a slice of open port numbers
+    pub fn from_ports(ports: &[u16]) -> Self {
+        let mut bm = Self::new();
+        for &p in ports {
+            bm.set(p);
+        }
+        bm
+    }
+
+    /// Returns ports that are open in `self` (current) but were closed in `previous`: `curr & !prev`
+    pub fn newly_opened(&self, previous: &Self) -> Vec<u16> {
+        let mut diff = Self::new();
+        for i in 0..WORDS {
+            diff.words[i] = self.words[i] & !previous.words[i];
+        }
+        diff.iter_open().collect()
+    }
+
+    /// Returns ports that were open in `previous` but are closed in `self` (current): `prev & !curr`
+    pub fn newly_closed(&self, previous: &Self) -> Vec<u16> {
+        let mut diff = Self::new();
+        for i in 0..WORDS {
+            diff.words[i] = previous.words[i] & !self.words[i];
+        }
+        diff.iter_open().collect()
+    }
+
     /// Iterate over all open port numbers (1 to 65535)
     pub fn iter_open(&self) -> impl Iterator<Item = u16> + '_ {
         self.words
@@ -161,5 +198,19 @@ mod tests {
 
         let open_ports: Vec<u16> = bm.iter_open().collect();
         assert_eq!(open_ports, vec![22, 80, 443]);
+    }
+
+    #[test]
+    fn test_port_drift_xor_and_diff() {
+        let prev = PortBitmap::from_ports(&[22, 80, 443]);
+        let curr = PortBitmap::from_ports(&[80, 443, 445, 3389]);
+
+        let opened = curr.newly_opened(&prev);
+        let closed = curr.newly_closed(&prev);
+        let xor_changed = curr.xor(&prev);
+
+        assert_eq!(opened, vec![445, 3389]);
+        assert_eq!(closed, vec![22]);
+        assert_eq!(xor_changed.count_open(), 3);
     }
 }

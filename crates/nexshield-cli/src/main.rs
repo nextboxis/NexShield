@@ -243,50 +243,66 @@ fn run_cve_import(dir_str: &str, limit: usize) {
 
 fn run_self_test() {
     println!("================================================================");
-    println!("  NEXSHIELD EMBEDDED DIAGNOSTIC SELF-TEST SUITE");
+    println!("  NEXSHIELD v6.2 EMBEDDED DIAGNOSTIC SELF-TEST SUITE");
     println!("================================================================");
 
-    // 1. BitSet
+    // 1. BitSet & Port-Drift XOR
     let mut bs = nexshield_core::PortBitmap::new();
     bs.set(80);
     bs.set(443);
-    assert!(bs.contains(80) && bs.contains(443));
-    println!("  [1/6] 65,536-bit Port Bitmap (BitSet):      PASS");
+    let prev = nexshield_core::PortBitmap::from_ports(&[80, 22]);
+    let opened = bs.newly_opened(&prev);
+    assert!(bs.contains(80) && bs.contains(443) && opened.contains(&443) && !opened.contains(&80));
+    println!("  [1/8] 65,536-bit Port Bitmap & XOR Drift:    PASS");
 
     // 2. Radix Trie
     let mut trie = nexshield_core::IpRadixTrie::new();
     let ip = std::net::Ipv4Addr::new(192, 168, 1, 1);
     trie.insert_cidr(ip, 24, "Private Subnet");
     assert_eq!(trie.lookup(ip), Some("Private Subnet"));
-    println!("  [2/6] IPv4 Radix Trie (O(1) LPM):            PASS");
+    println!("  [2/8] IPv4 Radix Trie (O(1) LPM):            PASS");
 
     // 3. Tarjan's SCC & Dijkstra
     let mut graph = nexshield_core::AttackGraph::new();
-    graph.add_edge("10.0.0.1", "10.0.0.2");
-    graph.add_edge("10.0.0.2", "10.0.0.3");
+    graph.add_undirected_edge("10.0.0.1", "10.0.0.2");
+    graph.add_undirected_edge("10.0.0.2", "10.0.0.3");
     let path = graph.shortest_path("10.0.0.1", "10.0.0.3");
-    assert!(path.is_some());
-    println!("  [3/6] Tarjan SCC & Dijkstra Attack Graph:    PASS");
+    let cps = graph.find_choke_points();
+    assert!(path.is_some() && cps.contains(&"10.0.0.2".to_string()));
+    println!("  [3/8] Tarjan Choke-Points & BFS Attack Path: PASS");
 
     // 4. Token Bucket
     let tb = nexshield_core::TokenBucket::new(100.0, 100.0);
     assert!(tb.try_acquire(10.0));
-    println!("  [4/6] Token Bucket Rate Limiter:             PASS");
+    println!("  [4/8] Token Bucket Rate Limiter:             PASS");
 
     // 5. CISA KEV & Inverted Index
     let cve_idx = CveIndex::new();
     let rec = cve_idx.lookup_cve_id("CVE-2021-44228");
     assert!(rec.is_some() && rec.unwrap().is_kev);
-    println!("  [5/6] Inverted CVE Index & CISA KEV Engine:  PASS");
+    println!("  [5/8] Inverted CVE Index & CISA KEV Engine:  PASS");
 
     // 6. RAG TF-IDF
     let rag = RagEngine::new();
     let results = rag.query("EternalBlue smb exploit", 1);
     assert!(!results.is_empty());
-    println!("  [6/6] RAG Knowledge Base Cosine Similarity:  PASS");
+    println!("  [6/8] RAG Knowledge Base Cosine Similarity:  PASS");
+
+    // 7. Aho-Corasick Multi-Pattern Automaton
+    let ac = nexshield_core::AhoCorasick::new(&["openssh", "redis_version"], true);
+    let ac_hits = ac.find_all("SSH-2.0-OpenSSH_9.6p1 redis_version:7.2.4");
+    assert_eq!(ac_hits.len(), 2);
+    println!("  [7/8] Aho-Corasick Multi-Pattern Automaton:  PASS");
+
+    // 8. Threat Intelligence Bloom Filter & IaC Playbooks
+    let bf = nexshield_core::ThreatBloomFilter::with_threat_intel_defaults();
+    let tf = RemediationEngine::generate_script("smb", ScriptFormat::Terraform);
+    let k8s = RemediationEngine::generate_script("redis", ScriptFormat::Kubernetes);
+    assert!(bf.contains("185.220.101.1") && tf.is_some() && k8s.is_some());
+    println!("  [8/8] Threat Bloom Filter & IaC Generators:  PASS");
 
     println!("================================================================");
-    println!("  [+] ALL 6 CRITICAL SYSTEM SELF-TESTS PASSED (0.00s)");
+    println!("  [+] ALL 8 CRITICAL SYSTEM SELF-TESTS PASSED (0.00s)");
     println!("================================================================\n");
 }
 
@@ -449,11 +465,7 @@ fn print_cve_record(rec: &nexshield_cve::CveRecord) {
 }
 
 fn run_remediation_gen(service: &str, format_str: &str) {
-    let fmt = match format_str.to_lowercase().as_str() {
-        "ansible" | "yml" | "yaml" => ScriptFormat::Ansible,
-        "ps1" | "powershell" => ScriptFormat::PowerShell,
-        _ => ScriptFormat::Bash,
-    };
+    let fmt = ScriptFormat::from_str_name(format_str);
 
     if let Some(script) = RemediationEngine::generate_script(service, fmt) {
         println!("[*] Generated Automated Hardening Remediation Script ({:?}):\n", fmt);

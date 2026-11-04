@@ -28,7 +28,7 @@
                     <span class="nav-brand__icon">[NEX]</span>
                     <span class="nav-brand__name">NexShield</span>
                 </a>
-                <span class="badge-rust-core">Pure Rust v6.1</span>
+                <span class="badge-rust-core">Pure Rust v6.2</span>
                 <div class="nav-live-status">
                     <span class="status-indicator-dot" id="statusDot"></span>
                     <span id="statusText">System Active</span>
@@ -50,6 +50,10 @@
                     <span class="search-icon">/</span>
                     <input type="text" id="globalSearch" placeholder="Search threats, hosts, CVEs..." onkeyup="globalSearchHandler(event)" />
                 </div>
+
+                <button class="btn btn--secondary btn--sm" onclick="openCommandPalette(); return false;" title="Tactical Command Palette (Ctrl+K)">
+                    <span>[CMD: Ctrl+K]</span>
+                </button>
 
                 <button class="btn-copilot" onclick="toggleRagCopilot(); return false;" title="AI Copilot RAG Assistant">
                     <span>AI Copilot</span>
@@ -289,6 +293,7 @@
                                 <button type="button" class="topoc-btn" id="mapZoomOut" title="Zoom Out (-)">[ − ]</button>
                                 <button type="button" class="topoc-btn" id="mapZoomReset" title="Reset Zoom (1:1)">[ 1:1 ]</button>
                                 <button type="button" class="topoc-btn" id="mapZoomFit" title="Fit to Screen">[ FIT ]</button>
+                                <button type="button" class="topoc-btn" id="mapTogglePaths" onclick="toggleAttackPathMode()" title="Highlight Choke Points & Shortest Lateral Attack Path">[ PATHS ]</button>
                                 <span class="map-zoom-badge" id="mapZoomValue">100%</span>
                             </div>
                             <canvas id="missionMap" width="600" height="260"></canvas>
@@ -390,9 +395,14 @@
                 <div class="panel-card__header">
                     <div class="panel-title-group">
                         <h2 class="panel-title">Security Event Audit Log</h2>
-                        <p class="panel-desc">Real-time tamper-evident system and assessment log</p>
+                        <p class="panel-desc">Real-time tamper-evident SHA-256 hash-chained assessment log</p>
                     </div>
-                    <span class="last-synced" id="lastUpdated">Synced</span>
+                    <div style="display:flex;align-items:center;gap:0.75rem;">
+                        <button type="button" class="btn btn--secondary btn--sm" id="auditChainBadge" onclick="verifyAuditChainNow()" title="Verify SHA-256 Cryptographic Audit Log Chain">
+                            [AUDIT: VERIFIED]
+                        </button>
+                        <span class="last-synced" id="lastUpdated">Synced</span>
+                    </div>
                 </div>
                 <div class="panel-card__body">
                     <div class="activity-stream-box" id="activityList">
@@ -461,6 +471,8 @@
             <div class="modal-body">
                 <div class="remediation-toolbar">
                     <div class="format-buttons">
+                        <button class="btn btn--secondary btn--sm" onclick="switchRemediationFormat('terraform')">Terraform (.tf)</button>
+                        <button class="btn btn--secondary btn--sm" onclick="switchRemediationFormat('kubernetes')">K8s NetPol (.yaml)</button>
                         <button class="btn btn--secondary btn--sm" onclick="switchRemediationFormat('ansible')">Ansible (.yml)</button>
                         <button class="btn btn--secondary btn--sm" onclick="switchRemediationFormat('powershell')">PowerShell (.ps1)</button>
                         <button class="btn btn--secondary btn--sm" onclick="switchRemediationFormat('bash')">Bash (.sh)</button>
@@ -468,6 +480,20 @@
                     <button class="btn btn--primary btn--sm" onclick="downloadRemediationScript()">Download Script</button>
                 </div>
                 <pre id="remediationCodeBlock" class="code-viewer"></pre>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Tactical Command Palette Modal (Ctrl+K) ────────────────── -->
+    <div class="modal-overlay d-none" id="cmdPaletteModal" onclick="closeCommandPalette()" role="dialog" aria-modal="true" aria-labelledby="cmdPaletteTitle">
+        <div class="modal-panel" onclick="event.stopPropagation()" style="max-width:620px;">
+            <div class="modal-header">
+                <h2 class="modal-title" id="cmdPaletteTitle">[CMD] NexShield Tactical Command Palette</h2>
+                <button class="modal-close-btn" onclick="closeCommandPalette()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="cmdPaletteInput" class="input-text w-100" placeholder="Type command (e.g., scan 127.0.0.1, fix smb terraform, fix redis k8s, verify audit, compliance, paths)..." autocomplete="off" onkeydown="handleCommandPaletteKey(event)" oninput="filterCommandPaletteList()" />
+                <div id="cmdPaletteList" class="cmd-palette-list" style="margin-top:0.85rem;display:flex;flex-direction:column;gap:0.4rem;"></div>
             </div>
         </div>
     </div>

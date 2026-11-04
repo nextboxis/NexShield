@@ -10,7 +10,7 @@ use std::path::{Path, PathBuf};
 use std::sync::{Arc, RwLock};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// An activity log record matching NexShield console expectations.
+/// An activity log record with tamper-evident SHA-256 hash-chain links.
 #[derive(Debug, Clone)]
 pub struct ActivityRecord {
     pub id: String,
@@ -18,6 +18,8 @@ pub struct ActivityRecord {
     pub message: String,
     pub severity: String,
     pub timestamp: String,
+    pub prev_hash: String,
+    pub entry_hash: String,
 }
 
 /// A stored user account.
@@ -192,18 +194,63 @@ impl NexDatabase {
         inner.network_scans.len()
     }
 
-    // --- Activity Log Operations ---
+    pub fn get_latest_scan_for_host(&self, target: &str) -> Option<ScanResult> {
+        let inner = self.inner.read().unwrap();
+        inner
+            .network_scans
+            .iter()
+            .rev()
+            .find(|s| s.target == target)
+            .cloned()
+    }
+
+    // --- Activity Log Operations (Tamper-Evident SHA-256 Hash Chain) ---
 
     pub fn log_activity(&self, event_type: &str, message: &str, severity: &str) {
         let mut inner = self.inner.write().unwrap();
+        let id = format!("act_{}", inner.activity_log.len() + 1);
+        let timestamp = Self::now_str();
+        let prev_hash = inner
+            .activity_log
+            .last()
+            .map(|r| r.entry_hash.clone())
+            .unwrap_or_else(|| "0".repeat(64));
+
+        let payload = format!("{}|{}|{}|{}|{}", prev_hash, id, timestamp, event_type, message);
+        let entry_hash = Sha256::digest_hex(payload.as_bytes());
+
         let record = ActivityRecord {
-            id: format!("act_{}", inner.activity_log.len() + 1),
+            id,
             event_type: event_type.to_string(),
             message: message.to_string(),
             severity: severity.to_string(),
-            timestamp: Self::now_str(),
+            timestamp,
+            prev_hash,
+            entry_hash,
         };
         inner.activity_log.push(record);
+    }
+
+    /// Verifies the cryptographic SHA-256 hash chain across all activity logs.
+    /// Returns `(is_valid, verified_count, head_hash)`.
+    pub fn verify_audit_chain(&self) -> (bool, usize, String) {
+        let inner = self.inner.read().unwrap();
+        let mut expected_prev = "0".repeat(64);
+        for rec in &inner.activity_log {
+            if rec.prev_hash != expected_prev {
+                return (false, inner.activity_log.len(), rec.entry_hash.clone());
+            }
+            let payload = format!(
+                "{}|{}|{}|{}|{}",
+                rec.prev_hash, rec.id, rec.timestamp, rec.event_type, rec.message
+            );
+            let computed = Sha256::digest_hex(payload.as_bytes());
+            if computed != rec.entry_hash {
+                return (false, inner.activity_log.len(), rec.entry_hash.clone());
+            }
+            expected_prev = rec.entry_hash.clone();
+        }
+        (true, inner.activity_log.len(), expected_prev)
     }
 
     pub fn get_activity_log(&self, limit: usize) -> Vec<ActivityRecord> {
@@ -298,10 +345,16 @@ mod tests {
     fn test_threat_and_activity_logging() {
         let db = NexDatabase::new(None);
         db.log_activity("SCAN_START", "Initiated scan on 127.0.0.1", "info");
+        db.log_activity("SCAN_COMPLETE", "Completed scan on 127.0.0.1", "info");
 
         let logs = db.get_activity_log(10);
-        assert_eq!(logs.len(), 1);
-        assert_eq!(logs[0].event_type, "SCAN_START");
+        assert_eq!(logs.len(), 2);
+        assert_eq!(logs[0].event_type, "SCAN_COMPLETE");
+
+        let (valid, count, head_hash) = db.verify_audit_chain();
+        assert!(valid);
+        assert_eq!(count, 2);
+        assert_eq!(head_hash.len(), 64);
 
         let finding = Finding {
             id: "THREAT-101".to_string(),
