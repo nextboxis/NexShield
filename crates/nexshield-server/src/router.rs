@@ -87,6 +87,7 @@ impl Router {
             ("GET", "/api/schedules") => self.handle_get_schedules(),
             ("POST", "/api/schedules") => self.handle_add_schedule(req),
             ("GET", "/api/system/architecture") => self.handle_system_architecture(),
+            ("GET", "/api/ai/status") => self.handle_ai_status(),
             ("GET", "/api/scan/nmap-check") => self.handle_nmap_check(),
             ("GET", "/api/auth/token") => self.handle_auth_token(),
             ("GET", "/api/auth/session") => self.handle_auth_session(),
@@ -668,8 +669,61 @@ impl Router {
     }
 
     fn handle_train(&self) -> HttpResponse {
-        self.state.db.log_activity("TRAINING_COMPLETED", "ML calibrated models synchronized with CVE dataset", "info");
-        HttpResponse::ok_json(r#"{"status":"success","message":"Threat ML models successfully trained and calibrated"}"#.to_string())
+        let cve_dir = std::path::Path::new("cve_data");
+        let metrics = self
+            .state
+            .pipeline
+            .ml_predictor()
+            .train_from_cve_directory(cve_dir, 1500);
+        let rag_stats = self.state.rag_engine.index_cve_corpus(cve_dir, 1500);
+        let _ = self.state.cve_index.import_cvelist_directory(cve_dir, 500);
+
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(1_760_000_000);
+
+        let msg = format!(
+            "Trained Hybrid SGD + Naive Bayes model on {} samples (Loss {:.4} -> {:.4}, Val Acc {:.2}%, Macro-F1 {:.3}, {} RAG playbooks)",
+            metrics.samples_total,
+            metrics.initial_loss,
+            metrics.final_loss,
+            metrics.val_accuracy,
+            metrics.macro_f1,
+            rag_stats.static_playbooks
+        );
+        self.state.db.log_activity("TRAINING_COMPLETED", &msg, "info");
+        self.event_bus
+            .publish("MODEL_TRAINED", "nexshield-ai-v8", &msg, "info", now_secs);
+
+        HttpResponse::ok_json(format!(
+            r#"{{"status":"success","message":"{}","metrics":{{"samples_total":{},"train_samples":{},"val_samples":{},"epochs":{},"initial_loss":{:.4},"final_loss":{:.4},"val_accuracy":{:.2},"precision":{:.3},"recall":{:.3},"macro_f1":{:.3},"vocab_size":{},"rag_playbooks":{},"cve_indexed":{},"weights_path":"{}"}}}}"#,
+            escape_json(&msg),
+            metrics.samples_total,
+            metrics.train_samples,
+            metrics.val_samples,
+            metrics.epochs,
+            metrics.initial_loss,
+            metrics.final_loss,
+            metrics.val_accuracy,
+            metrics.precision,
+            metrics.recall,
+            metrics.macro_f1,
+            metrics.vocab_size,
+            rag_stats.static_playbooks,
+            self.state.cve_index.total_cves(),
+            escape_json(&metrics.weights_path)
+        ))
+    }
+
+    fn handle_ai_status(&self) -> HttpResponse {
+        let ml_json = self.state.pipeline.ml_predictor().model_status_json();
+        let rag_json = self.state.rag_engine.status_json();
+        let total_cves = self.state.cve_index.total_cves();
+        HttpResponse::ok_json(format!(
+            r#"{{"status":"success","version":"8.0.0","ml_model":{},"rag_engine":{},"cve_intelligence":{{"total_indexed_cves":{}}}}}"#,
+            ml_json, rag_json, total_cves
+        ))
     }
 
     fn handle_reset_data(&self) -> HttpResponse {
@@ -1523,5 +1577,18 @@ mod tests {
 
         let cp_req = make_req("GET", "/api/topology/chokepoints", &[], "");
         assert_eq!(router.handle(&cp_req).status, 200);
+
+        // 4. Test AI Model Training & Status Telemetry
+        let train_req = make_req("POST", "/api/train", &[], "");
+        let train_resp = router.handle(&train_req);
+        assert_eq!(train_resp.status, 200);
+        let train_body = String::from_utf8_lossy(&train_resp.body);
+        assert!(train_body.contains(r#""macro_f1":"#));
+
+        let ai_req = make_req("GET", "/api/ai/status", &[], "");
+        let ai_resp = router.handle(&ai_req);
+        assert_eq!(ai_resp.status, 200);
+        let ai_body = String::from_utf8_lossy(&ai_resp.body);
+        assert!(ai_body.contains("Okapi BM25"));
     }
 }

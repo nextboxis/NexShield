@@ -214,19 +214,62 @@ fn run_database_reset() {
 
 fn run_native_training(limit: usize) {
     println!("================================================================");
-    println!("  NEXSHIELD AI & KNOWLEDGE TRAINING PIPELINE (PURE RUST)");
+    println!("  NEXSHIELD v8.0 NATIVE AI & BM25 RAG TRAINING PIPELINE");
     println!("================================================================");
-    println!("\n[*] Phase 1: Calibrating Threat Severity Heuristic Matrices...");
-    let pipeline = ThreatPipeline::new();
-    let msg = pipeline.ml_predictor().calibrate_model(limit);
-    println!("  [+] {}", msg);
+    let start_time = std::time::Instant::now();
+    let cve_dir = Path::new("cve_data");
 
-    println!("\n[*] Phase 2: Indexing RAG Cybersecurity Knowledge Store...");
+    println!("\n[*] Phase 1: Streaming Local CVE v5 Intelligence Corpus...");
+    let cve_index = CveIndex::new();
+    let disk_cve_limit = limit.min(400);
+    let imported_cves = cve_index
+        .import_cvelist_directory(cve_dir, disk_cve_limit)
+        .unwrap_or(0);
+    println!(
+        "  [+] Ingested {} CVE v5 records (Total active index: {} CVEs)",
+        imported_cves,
+        cve_index.total_cves()
+    );
+
+    println!("\n[*] Phase 2: Training Hybrid L2-SGD Logistic Regression + Naive Bayes...");
+    let pipeline = ThreatPipeline::new();
+    let metrics = pipeline
+        .ml_predictor()
+        .train_from_cve_directory(cve_dir, limit);
+    println!("  [+] Feature Space:        268 dims (12 structural + 256 FNV-1a N-gram buckets)");
+    println!(
+        "  [+] Dataset Split:        {} total ({} train / {} validation, {} epochs)",
+        metrics.samples_total, metrics.train_samples, metrics.val_samples, metrics.epochs
+    );
+    println!(
+        "  [+] Cross-Entropy Loss:   {:.4} -> {:.4} (L2 lambda = {})",
+        metrics.initial_loss, metrics.final_loss, metrics.l2_lambda
+    );
+    println!(
+        "  [+] Validation Metrics:   Accuracy: {:.2}% | Precision: {:.3} | Recall: {:.3} | Macro-F1: {:.3}",
+        metrics.val_accuracy, metrics.precision, metrics.recall, metrics.macro_f1
+    );
+    println!("  [+] Discriminative Vocab: {} Naive Bayes log-odds tokens", metrics.vocab_size);
+    println!("  [+] Persisted Weights:    {}", metrics.weights_path);
+
+    println!("\n[*] Phase 3: Compiling Okapi BM25 (k1=1.5, b=0.75) RAG Knowledge Index...");
     let rag = RagEngine::new();
-    println!("  [+] Successfully tokenized and indexed {} knowledge chunks.", rag.total_chunks());
-    println!("  [+] TF-IDF Sparse Inverted Vector Table compiled.\n");
+    let rag_stats = rag.index_cve_corpus(cve_dir, limit);
+    println!(
+        "  [+] Indexed {} expert defensive playbooks + {} CVE corpus links.",
+        rag_stats.static_playbooks, rag_stats.cve_advisories_indexed
+    );
+    println!(
+        "  [+] BM25 Inverted Vector Table compiled ({} unique terms, avgdl={:.1}).\n",
+        rag_stats.unique_vocabulary_terms, rag_stats.avg_doc_length
+    );
+
+    let elapsed_ms = start_time.elapsed().as_secs_f64() * 1000.0;
     println!("================================================================");
-    println!("  [+] TRAINING & CALIBRATION COMPLETED IN < 5 MILLISECONDS");
+    println!(
+        "  [+] AI MODEL TRAINING & RAG INDEXING COMPLETED IN {:.2}ms",
+        elapsed_ms
+    );
     println!("================================================================\n");
 }
 
