@@ -96,7 +96,7 @@ impl Router {
             ("POST", "/api/auth/register") => self.handle_auth_register(req),
             ("POST", "/api/scan") => self.handle_scan(req),
             ("POST", "/api/analyze") => self.handle_analyze(),
-            ("POST", "/api/train") => self.handle_train(),
+            ("POST", "/api/train") => self.handle_train(req),
             ("POST", "/api/reset-data") => self.handle_reset_data(),
             ("POST", "/api/quarantine") => self.handle_quarantine(req),
             ("GET", p) if p.starts_with("/api/host/") => {
@@ -118,7 +118,8 @@ impl Router {
             ("GET", p) if p.starts_with("/api/export") => self.handle_export(req),
             ("GET", p) if p.starts_with("/api/exploit/generate") => self.handle_exploit_generate(req),
             ("POST", "/api/exploit/execute") => self.handle_exploit_execute(req),
-            ("POST", "/api/rag/query") => self.handle_rag_query(req),
+            ("POST", "/api/rag/query") | ("GET", "/api/rag/query") => self.handle_rag_query(req),
+            ("GET", p) if p.starts_with("/api/rag/query") => self.handle_rag_query(req),
             ("GET", p) if p.starts_with("/api/rag/threat/") => {
                 let id = &p[16..];
                 self.handle_rag_threat(id)
@@ -131,7 +132,7 @@ impl Router {
 
     fn handle_health(&self) -> HttpResponse {
         HttpResponse::ok_json(
-            r#"{"status":"ok","version":"7.0.0","engine":"native_rust_multithreaded","architecture":"dsa_wal_merkle_sse_v7"}"#.to_string()
+            r#"{"status":"ok","version":"8.0.0","engine":"native_rust_multithreaded","architecture":"dsa_wal_merkle_sse_bm25_ml_v8"}"#.to_string()
         )
     }
 
@@ -668,14 +669,20 @@ impl Router {
         HttpResponse::ok_json(r#"{"status":"success","message":"Intelligence analysis complete"}"#.to_string())
     }
 
-    fn handle_train(&self) -> HttpResponse {
+    fn handle_train(&self, req: &HttpRequest) -> HttpResponse {
+        let limit = extract_json_field(req.body_str(), "limit")
+            .or_else(|| req.query.get("limit").cloned())
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(5000)
+            .max(100);
+
         let cve_dir = std::path::Path::new("cve_data");
         let metrics = self
             .state
             .pipeline
             .ml_predictor()
-            .train_from_cve_directory(cve_dir, 1500);
-        let rag_stats = self.state.rag_engine.index_cve_corpus(cve_dir, 1500);
+            .train_from_cve_directory(cve_dir, limit);
+        let rag_stats = self.state.rag_engine.index_cve_corpus(cve_dir, limit);
         let _ = self.state.cve_index.import_cvelist_directory(cve_dir, 500);
 
         let now_secs = std::time::SystemTime::now()
@@ -761,9 +768,47 @@ impl Router {
     }
 
     fn handle_host_details(&self, host_str: &str) -> HttpResponse {
+        let threats = self.state.db.get_all_threats();
+        let host_threats: Vec<&Finding> = threats.iter().filter(|t| t.host == host_str).collect();
+        let max_risk = host_threats
+            .iter()
+            .map(|t| t.risk_score)
+            .fold(15.0_f64, f64::max);
+        let risk_level = if max_risk >= 85.0 {
+            "CRITICAL"
+        } else if max_risk >= 65.0 {
+            "HIGH"
+        } else if max_risk >= 40.0 {
+            "MEDIUM"
+        } else {
+            "LOW"
+        };
+
+        let ports_json = if let Some(scan) = self.state.db.get_latest_scan_for_host(host_str) {
+            scan.ports
+                .iter()
+                .map(|p| {
+                    format!(
+                        r#"{{"port":{},"service":"{}","version":"{}","state":"{}"}}"#,
+                        p.port,
+                        escape_json(&p.service),
+                        escape_json(&p.version),
+                        format!("{:?}", p.state).to_lowercase()
+                    )
+                })
+                .collect::<Vec<_>>()
+                .join(",")
+        } else {
+            r#"{"port":80,"service":"http","version":"","state":"open"},{"port":443,"service":"https","version":"","state":"open"}"#.to_string()
+        };
+
         let json = format!(
-            r#"{{"ip":"{}","status":"monitored","risk_score":15.0,"risk_level":"LOW","ports":[{{"port":80,"service":"http","state":"open"}},{{"port":443,"service":"https","state":"open"}}]}}"#,
-            host_str
+            r#"{{"ip":"{}","status":"monitored","risk_score":{:.1},"risk_level":"{}","threats_count":{},"ports":[{}]}}"#,
+            escape_json(host_str),
+            max_risk,
+            risk_level,
+            host_threats.len(),
+            ports_json
         );
         HttpResponse::ok_json(json)
     }
@@ -1227,14 +1272,29 @@ impl Router {
     }
 
     fn handle_rag_reindex(&self) -> HttpResponse {
-        HttpResponse::ok_json(
-            r#"{"status":"complete","message":"RAG Knowledge store reindexed successfully. 6 expert cybersecurity playbooks active."}"#.to_string()
-        )
+        let stats = self
+            .state
+            .rag_engine
+            .index_cve_corpus(std::path::Path::new("cve_data"), 1500);
+        HttpResponse::ok_json(format!(
+            r#"{{"status":"complete","message":"Okapi BM25 RAG store reindexed: {} playbooks + {} CVE advisories ({} unique terms).","playbooks":{},"cve_advisories":{},"unique_terms":{}}}"#,
+            stats.static_playbooks,
+            stats.cve_advisories_indexed,
+            stats.unique_vocabulary_terms,
+            stats.static_playbooks,
+            stats.cve_advisories_indexed,
+            stats.unique_vocabulary_terms
+        ))
     }
 
     fn handle_rag_query(&self, req: &HttpRequest) -> HttpResponse {
         let body = req.body_str();
-        let query = extract_json_field(body, "query").unwrap_or_default();
+        let query = extract_json_field(body, "query")
+            .or_else(|| extract_json_field(body, "q"))
+            .or_else(|| req.query.get("q").cloned())
+            .or_else(|| req.query.get("query").cloned())
+            .map(|q| q.replace('+', " ").replace("%20", " "))
+            .unwrap_or_default();
         if query.trim().is_empty() {
             return HttpResponse::bad_request("Query text cannot be empty");
         }
@@ -1568,9 +1628,19 @@ mod tests {
         let quar_body = String::from_utf8_lossy(&quar_resp.body);
         assert!(quar_body.contains("NexShield_Isolate_185.220.101.1"));
 
-        // 3. Test RAG Copilot, Compliance Matrix, and Choke-Points
+        // 3. Test RAG Copilot (POST + GET), Host Details, Compliance Matrix, and Choke-Points
         let rag_req = make_req("POST", "/api/rag/query", &[], r#"{"query":"EternalBlue SMBv1 mitigation"}"#);
         assert_eq!(router.handle(&rag_req).status, 200);
+
+        let rag_get_req = make_req("GET", "/api/rag/query", &[("q", "kubernetes+etcd+zero+trust")], "");
+        let rag_get_resp = router.handle(&rag_get_req);
+        assert_eq!(rag_get_resp.status, 200);
+        assert!(String::from_utf8_lossy(&rag_get_resp.body).contains("Kubernetes"));
+
+        let host_req = make_req("GET", "/api/host/127.0.0.1", &[], "");
+        let host_resp = router.handle(&host_req);
+        assert_eq!(host_resp.status, 200);
+        assert!(String::from_utf8_lossy(&host_resp.body).contains("threats_count"));
 
         let comp_req = make_req("GET", "/api/compliance", &[], "");
         assert_eq!(router.handle(&comp_req).status, 200);
@@ -1578,12 +1648,13 @@ mod tests {
         let cp_req = make_req("GET", "/api/topology/chokepoints", &[], "");
         assert_eq!(router.handle(&cp_req).status, 200);
 
-        // 4. Test AI Model Training & Status Telemetry
-        let train_req = make_req("POST", "/api/train", &[], "");
+        // 4. Test AI Model Training (with custom limit) & Status Telemetry
+        let train_req = make_req("POST", "/api/train", &[], r#"{"limit":600}"#);
         let train_resp = router.handle(&train_req);
         assert_eq!(train_resp.status, 200);
         let train_body = String::from_utf8_lossy(&train_resp.body);
         assert!(train_body.contains(r#""macro_f1":"#));
+        assert!(train_body.contains(r#""samples_total":600"#));
 
         let ai_req = make_req("GET", "/api/ai/status", &[], "");
         let ai_resp = router.handle(&ai_req);

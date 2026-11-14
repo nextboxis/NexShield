@@ -570,15 +570,28 @@ impl MlThreatPredictor {
             trained_at_epoch_secs: now_secs,
         };
 
-        if let Ok(mut guard) = self.state.write() {
-            guard.weights = w;
-            guard.nb_log_odds = vocab;
-            guard.nb_prior_log_odds = nb_prior_log_odds;
-            guard.metrics = metrics.clone();
-        }
+        // Monotonic quality guard: only overwrite persisted state if this run has >= sample count,
+        // >= Macro-F1, is the initial training run, or is a non-persisted evaluation.
+        let should_update = if let Ok(guard) = self.state.read() {
+            !persist_to_disk
+                || guard.metrics.trained_at_epoch_secs == 0
+                || samples.len() >= guard.metrics.samples_total
+                || macro_f1 >= guard.metrics.macro_f1
+        } else {
+            true
+        };
 
-        if persist_to_disk {
-            let _ = self.save_weights();
+        if should_update {
+            if let Ok(mut guard) = self.state.write() {
+                guard.weights = w;
+                guard.nb_log_odds = vocab;
+                guard.nb_prior_log_odds = nb_prior_log_odds;
+                guard.metrics = metrics.clone();
+            }
+
+            if persist_to_disk {
+                let _ = self.save_weights();
+            }
         }
 
         metrics
