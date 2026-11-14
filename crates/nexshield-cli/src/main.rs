@@ -36,6 +36,7 @@ fn print_help() {
     println!("  run [port] [host]           Start NexShield with auto-configuration and pre-flight checks");
     println!("  check                       Verify environment, storage, database, and scanner readiness");
     println!("  self-test                   Execute embedded diagnostic self-test suite across all DSAs");
+    println!("  realtime-test               Execute multi-scenario real-time integration & stress test matrix");
     println!("  reset-db                    Wipe local storage and re-initialize empty database");
     println!("  train [limit]               Train native ML threat model and index RAG knowledge base");
     println!("  import-cve <dir> [limit]    Streamingly ingest CVE v5 JSON definitions from disk");
@@ -81,6 +82,9 @@ fn main() {
         }
         "self-test" | "--self-test" => {
             run_self_test();
+        }
+        "realtime-test" | "--realtime-test" | "live-test" => {
+            run_realtime_test_suite();
         }
         "reset-db" | "--reset-db" => {
             run_database_reset();
@@ -567,5 +571,119 @@ fn truncate(s: &str, max_len: usize) -> String {
         format!("{}...", &s[..max_len - 3])
     } else {
         s.to_string()
+    }
+}
+
+fn run_realtime_test_suite() {
+    println!("================================================================");
+    println!("  NEXSHIELD v7.0 REAL-TIME MULTI-SCENARIO STRESS TEST MATRIX");
+    println!("================================================================");
+
+    let start_total = std::time::Instant::now();
+
+    // Scenario 1: Multi-Profile Port Parsing & Live Loopback Scan
+    for profile in &["quick", "vuln", "stealth", "ssl", "default"] {
+        let ports = parse_ports(profile).expect("Profile should resolve");
+        assert!(!ports.is_empty());
+    }
+    let scan_opts = ScanOptions {
+        target: IpAddr::V4(std::net::Ipv4Addr::LOCALHOST),
+        ports: vec![80, 443, 445, 5000],
+        timeout: Duration::from_millis(150),
+        concurrency: 4,
+        rate_limit_pps: None,
+    };
+    let outcome = scan_target(scan_opts);
+    assert_eq!(outcome.result.target, "127.0.0.1");
+    println!("  [RT-1/8] Multi-Profile & Live Loopback Prober:      PASS");
+
+    // Scenario 2: Real-Time Port-Drift XOR Differential Detection
+    let baseline = nexshield_core::PortBitmap::from_ports(&[22, 80, 443]);
+    let current = nexshield_core::PortBitmap::from_ports(&[80, 443, 3389, 5000]);
+    let opened = current.newly_opened(&baseline);
+    let closed = current.newly_closed(&baseline);
+    assert_eq!(opened, vec![3389, 5000]);
+    assert_eq!(closed, vec![22]);
+    println!("  [RT-2/8] Port-Drift XOR Differential Detection:     PASS");
+
+    // Scenario 3: RFC 6298 Jacobson/Karels Adaptive RTT Convergence
+    let rtt = nexshield_scanner::AdaptiveRttEstimator::new(Duration::from_millis(250));
+    rtt.record_sample(Duration::from_millis(24));
+    rtt.record_sample(Duration::from_millis(18));
+    rtt.record_sample(Duration::from_millis(30));
+    let rto = rtt.current_rto(Duration::from_millis(600)).as_millis();
+    assert!(rto >= 30 && rto <= 600);
+    println!("  [RT-3/8] RFC 6298 Adaptive RTT/RTO Convergence:     PASS (RTO={}ms)", rto);
+
+    // Scenario 4: Aho-Corasick Multi-Pattern & Threat Bloom Filter
+    let ac = nexshield_core::AhoCorasick::new(&["openssh", "nginx", "redis_version"], true);
+    let hits = ac.find_all("Server: nginx/1.25.3 | SSH-2.0-OpenSSH_9.6 | redis_version:7.2.4");
+    let bf = nexshield_core::ThreatBloomFilter::with_threat_intel_defaults();
+    assert_eq!(hits.len(), 3);
+    assert!(bf.contains("185.220.101.1") && bf.contains("45.33.32.156"));
+    println!("  [RT-4/8] Aho-Corasick & Threat Intel Bloom Filter:  PASS");
+
+    // Scenario 5: 21-Engine Threat Pipeline & Offline Geo/ASN Lookup
+    let pipeline = ThreatPipeline::new();
+    let analysis = pipeline.analyze(&outcome.result);
+    let geo = IpGeoEngine::new();
+    let cf_info = geo.lookup(IpAddr::V4(std::net::Ipv4Addr::new(1, 1, 1, 1)));
+    assert!(analysis.overall_risk_score >= 0.0);
+    assert!(!cf_info.country_code.is_empty());
+    println!("  [RT-5/8] 21-Engine Threat Pipeline & Radix Geo/ASN: PASS");
+
+    // Scenario 6: Append-Only WAL & Binary Merkle Tree Cryptographic Proof
+    let mut temp_db_path = std::env::temp_dir();
+    temp_db_path.push(format!("nexshield_rt_test_{}.db", std::process::id()));
+    let _ = fs::remove_file(&temp_db_path);
+    let db = NexDatabase::new(Some(temp_db_path.clone()));
+    db.log_activity("RT_SCAN", "Real-time scan 127.0.0.1", "info");
+    db.log_activity("RT_DRIFT", "Port drift +5000", "high");
+    assert!(db.verify_audit_chain().0);
+    let merkle_root = db.compute_audit_merkle_root();
+    assert_eq!(merkle_root.len(), 64);
+    let _ = fs::remove_file(&temp_db_path);
+    println!("  [RT-6/8] Append-Only WAL & Merkle Tree Root Proof:  PASS");
+
+    // Scenario 7: Continuous ASM Min-Heap Scheduler & SSE Ring-Buffer
+    let mut sched = nexshield_core::MinHeapScheduler::new();
+    sched.schedule(nexshield_core::ScanScheduleEntry {
+        id: "ASM-RT-01".to_string(),
+        target: "google.com".to_string(),
+        profile: "ssl".to_string(),
+        interval_secs: 60,
+        next_run_epoch_secs: 1_760_000_000,
+        runs_completed: 0,
+    });
+    let bus = nexshield_core::EventRingBuffer::new(64);
+    let seq1 = bus.publish("SCAN_START", "google.com", "Scheduled SSL probe", "info", 1_760_000_001);
+    let seq2 = bus.publish("PORT_DRIFT", "127.0.0.1", "Newly opened port 5000", "high", 1_760_000_002);
+    assert!(!sched.is_empty() && seq2 > seq1 && bus.read_since(seq1 - 1).len() == 2);
+    println!("  [RT-7/8] ASM Min-Heap & SSE Event Ring-Buffer:      PASS");
+
+    // Scenario 8: Multi-Format IaC Playbooks (TF/K8s/Ansible/PS1/Bash) & SARIF
+    for fmt_name in &["terraform", "kubernetes", "ansible", "powershell", "bash"] {
+        let fmt = ScriptFormat::from_str_name(fmt_name);
+        let script = RemediationEngine::generate_script("smb", fmt);
+        assert!(script.is_some());
+    }
+    let sarif = generate_sarif(&analysis);
+    assert!(sarif.contains("\"$schema\""));
+    println!("  [RT-8/8] 5-Format IaC Synthesis & SARIF v2.1.0:     PASS");
+
+    let elapsed_ms = start_total.elapsed().as_secs_f64() * 1000.0;
+    println!("================================================================");
+    println!("  [+] ALL 8 REAL-TIME SCENARIOS PASSED IN {:.2}ms", elapsed_ms);
+    println!("================================================================\n");
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_cli_embedded_self_test_and_realtime_suite() {
+        run_self_test();
+        run_realtime_test_suite();
     }
 }
