@@ -2349,8 +2349,13 @@ async function verifyAuditChainNow() {
                 badge.style.borderColor = "var(--green)";
                 badge.style.color = "var(--green)";
             }
-            const shortHead = (res.head_hash || "").slice(0, 16);
-            showToast(`[AUDIT OK] Verified ${res.verified_entries} SHA-256 hash-chained records (Head: ${shortHead}...)`, "success", 5000);
+            const shortHead = (res.head_hash || "").slice(0, 12);
+            const shortMerkle = (res.merkle_root || "").slice(0, 12);
+            showToast(
+                `[AUDIT OK] Verified ${res.verified_entries} records | Head: ${shortHead}... | Merkle Root: ${shortMerkle}...`,
+                "success",
+                5500
+            );
         } else {
             if (badge) {
                 badge.textContent = "[AUDIT: TAMPER_ALERT]";
@@ -2363,6 +2368,96 @@ async function verifyAuditChainNow() {
         showToast(`Audit verification error: ${err.message}`, "error");
     }
 }
+
+async function showSystemArchitectureModal() {
+    const overlay = document.getElementById("modalOverlay");
+    const title = document.getElementById("modalTitle");
+    const body = document.getElementById("modalBody");
+    if (!overlay || !title || !body) return;
+
+    title.innerText = "SYSTEM_DESIGN::NEXSHIELD_V7_ARCHITECTURE";
+    body.innerHTML = `<div style="font-family:var(--font-mono);opacity:0.7;">QUERYING_V7_SYSTEM_TELEMETRY...</div>`;
+    overlay.classList.remove("d-none");
+    overlay.classList.add("modal--active");
+
+    try {
+        const [arch, schedRes] = await Promise.all([
+            fetchJson("/api/system/architecture"),
+            fetchJson("/api/schedules"),
+        ]);
+        const s = arch.subsystems || {};
+        const schedules = Array.isArray(schedRes.schedules) ? schedRes.schedules : [];
+        const schedRows = schedules.map(j => `
+            <tr>
+                <td style="font-family:var(--font-mono);font-size:0.75rem;color:#38bdf8;">${escapeHtml(j.id)}</td>
+                <td style="font-family:var(--font-mono);">${escapeHtml(j.target)}</td>
+                <td><code>${escapeHtml(j.profile)}</code></td>
+                <td>Every ${j.interval_secs}s</td>
+                <td>${j.runs_completed}</td>
+            </tr>
+        `).join("");
+
+        body.innerHTML = `
+            <div style="font-family:var(--font-mono);font-size:0.8rem;display:flex;flex-direction:column;gap:0.85rem;">
+                <div style="display:grid;grid-template-columns:170px 1fr;gap:8px;padding:0.85rem;background:#0a0e17;border:1px solid #1f2d42;border-radius:6px;">
+                    <span style="opacity:0.55;">SCANNER REACTOR</span><span>${escapeHtml(s.scanner_engine || "")}</span>
+                    <span style="opacity:0.55;">BANNER AUTOMATON</span><span>${escapeHtml(s.banner_automaton || "")}</span>
+                    <span style="opacity:0.55;">THREAT BLOOM FILTER</span><span>${escapeHtml(s.threat_intel_filter || "")}</span>
+                    <span style="opacity:0.55;">STORAGE ENGINE</span><span>${escapeHtml(s.storage_engine?.concurrency || "")} | WAL: ${s.storage_engine?.wal_entries_written || 0} entries (${s.storage_engine?.wal_size_bytes || 0} B)</span>
+                    <span style="opacity:0.55;">MERKLE AUDIT ROOT</span><span style="color:var(--green);word-break:break-all;">${escapeHtml(s.audit_cryptography?.merkle_root_hash || "")}</span>
+                    <span style="opacity:0.55;">SSE RING BUFFER</span><span>Seq #${s.realtime_telemetry_bus?.head_sequence || 0} / Capacity ${s.realtime_telemetry_bus?.capacity || 256}</span>
+                </div>
+                <div style="border-top:1px solid #1f2d42;padding-top:0.75rem;">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.5rem;">
+                        <strong>MIN-HEAP CONTINUOUS ASM SCHEDULER (${schedules.length} POLICIES)</strong>
+                        <button class="btn btn--primary btn--sm" onclick="scheduleContinuousScan('127.0.0.1', 'vuln', 300)">[+ SCHEDULE 127.0.0.1]</button>
+                    </div>
+                    <table class="minimal-table">
+                        <thead><tr><th>Policy ID</th><th>Target</th><th>Profile</th><th>Interval</th><th>Runs</th></tr></thead>
+                        <tbody>${schedRows || '<tr><td colspan="5">No schedules active</td></tr>'}</tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    } catch (err) {
+        body.innerHTML = `<div class="sev-critical">${escapeHtml(err.message)}</div>`;
+    }
+}
+
+async function scheduleContinuousScan(target = "127.0.0.1", profile = "vuln", intervalSecs = 300) {
+    try {
+        const res = await fetchJson("/api/schedules", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ target, profile, interval_secs: intervalSecs }),
+        });
+        showToast(res.message || `Scheduled ${target} (${profile}) every ${intervalSecs}s`, "success");
+        showSystemArchitectureModal();
+    } catch (err) {
+        showToast(`Failed to register schedule: ${err.message}`, "error");
+    }
+}
+
+// Poll Ring-Buffer Telemetry Stream (/api/stream) for real-time sequence deltas
+let lastStreamSeq = 0;
+async function pollTelemetryRingBuffer() {
+    try {
+        const res = await fetchJson(`/api/stream?since=${lastStreamSeq}`);
+        if (res && typeof res.head_seq === "number") {
+            const events = Array.isArray(res.events) ? res.events : [];
+            if (lastStreamSeq > 0 && events.length > 0) {
+                events.forEach(ev => {
+                    _logToConsole(`[STREAM #${ev.seq}] ${ev.type}: ${ev.message}`, ev.severity || "info");
+                });
+            }
+            lastStreamSeq = res.head_seq;
+        }
+    } catch (_) {
+        // Silent background stream check
+    }
+}
+setInterval(pollTelemetryRingBuffer, 4000);
+setTimeout(pollTelemetryRingBuffer, 800);
 
 async function toggleAttackPathMode() {
     try {
@@ -2421,12 +2516,14 @@ async function showComplianceModal() {
 }
 
 const COMMAND_PALETTE_ACTIONS = [
+    { cmd: "system", desc: "Inspect v7.0 System Design Telemetry (WAL, Merkle Root, Ring-Buffer, Min-Heap ASM)", run: () => showSystemArchitectureModal() },
+    { cmd: "schedule 127.0.0.1", desc: "Register continuous Min-Heap ASM scan policy on 127.0.0.1 (every 300s)", run: () => scheduleContinuousScan("127.0.0.1", "vuln", 300) },
     { cmd: "scan 127.0.0.1", desc: "Run default service scan on localhost (127.0.0.1)", run: () => { document.getElementById("scanTarget").value = "127.0.0.1"; triggerManualScan(); } },
     { cmd: "scan vuln 127.0.0.1", desc: "Run Vulnerability Script profile scan on 127.0.0.1", run: () => { document.getElementById("scanTarget").value = "127.0.0.1"; document.getElementById("scanType").value = "vuln"; triggerManualScan(); } },
     { cmd: "fix smb terraform", desc: "Generate AWS Security Group Terraform (.tf) for SMB Port 445", run: () => showRemediationModal("smb", "terraform") },
     { cmd: "fix redis kubernetes", desc: "Generate Zero-Trust Kubernetes NetworkPolicy (.yaml) for Redis 6379", run: () => showRemediationModal("redis", "kubernetes") },
     { cmd: "fix rdp ansible", desc: "Generate Ansible Hardening Playbook (.yml) for RDP Port 3389", run: () => showRemediationModal("rdp", "ansible") },
-    { cmd: "verify audit", desc: "Verify SHA-256 cryptographic hash chain across all activity logs", run: () => verifyAuditChainNow() },
+    { cmd: "verify audit", desc: "Verify SHA-256 hash chain + Binary Merkle Tree Root across activity logs", run: () => verifyAuditChainNow() },
     { cmd: "compliance", desc: "Open CIS v8 / NIST 800-53 / PCI-DSS v4.0 Compliance Readiness Matrix", run: () => showComplianceModal() },
     { cmd: "paths", desc: "Highlight Tarjan network choke points & shortest lateral attack path", run: () => toggleAttackPathMode() },
     { cmd: "copilot", desc: "Open NexShield AI Security Copilot (RAG Advisor)", run: () => toggleRagCopilot(true) },

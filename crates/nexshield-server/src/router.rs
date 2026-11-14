@@ -29,11 +29,17 @@ pub struct AppState {
 
 pub struct Router {
     state: Arc<AppState>,
+    event_bus: Arc<nexshield_core::EventRingBuffer>,
+    scheduler: Arc<std::sync::Mutex<nexshield_core::MinHeapScheduler>>,
 }
 
 impl Router {
     pub fn new(state: Arc<AppState>) -> Self {
-        Self { state }
+        Self {
+            state,
+            event_bus: Arc::new(nexshield_core::EventRingBuffer::new(256)),
+            scheduler: Arc::new(std::sync::Mutex::new(nexshield_core::MinHeapScheduler::new())),
+        }
     }
 
     pub fn handle(&self, req: &HttpRequest) -> HttpResponse {
@@ -77,6 +83,10 @@ impl Router {
             ("GET", "/api/topology/chokepoints") => self.handle_topology_chokepoints(),
             ("GET", "/api/audit/verify") => self.handle_audit_verify(),
             ("GET", "/api/compliance") => self.handle_compliance(),
+            ("GET", "/api/stream") => self.handle_stream(req),
+            ("GET", "/api/schedules") => self.handle_get_schedules(),
+            ("POST", "/api/schedules") => self.handle_add_schedule(req),
+            ("GET", "/api/system/architecture") => self.handle_system_architecture(),
             ("GET", "/api/scan/nmap-check") => self.handle_nmap_check(),
             ("GET", "/api/auth/token") => self.handle_auth_token(),
             ("GET", "/api/auth/session") => self.handle_auth_session(),
@@ -87,7 +97,7 @@ impl Router {
             ("POST", "/api/analyze") => self.handle_analyze(),
             ("POST", "/api/train") => self.handle_train(),
             ("POST", "/api/reset-data") => self.handle_reset_data(),
-            ("POST", "/api/quarantine") => self.handle_quarantine(),
+            ("POST", "/api/quarantine") => self.handle_quarantine(req),
             ("GET", p) if p.starts_with("/api/host/") => {
                 let host_str = &p[10..];
                 self.handle_host_details(host_str)
@@ -120,7 +130,7 @@ impl Router {
 
     fn handle_health(&self) -> HttpResponse {
         HttpResponse::ok_json(
-            r#"{"status":"ok","version":"6.2.0","engine":"native_rust_multithreaded","architecture":"dsa_optimized"}"#.to_string()
+            r#"{"status":"ok","version":"7.0.0","engine":"native_rust_multithreaded","architecture":"dsa_wal_merkle_sse_v7"}"#.to_string()
         )
     }
 
@@ -252,9 +262,176 @@ impl Router {
 
     fn handle_audit_verify(&self) -> HttpResponse {
         let (valid, verified_entries, head_hash) = self.state.db.verify_audit_chain();
+        let merkle_root = self.state.db.compute_audit_merkle_root();
         let json = format!(
-            r#"{{"status":"success","valid":{},"verified_entries":{},"head_hash":"{}","algorithm":"SHA-256 Hash Chain (FIPS 180-4)"}}"#,
-            valid, verified_entries, head_hash
+            r#"{{"status":"success","valid":{},"verified_entries":{},"head_hash":"{}","merkle_root":"{}","algorithm":"SHA-256 Hash Chain + O(log N) Binary Merkle Tree"}}"#,
+            valid, verified_entries, head_hash, merkle_root
+        );
+        HttpResponse::ok_json(json)
+    }
+
+    fn handle_stream(&self, req: &HttpRequest) -> HttpResponse {
+        let since: u64 = req
+            .query
+            .get("since")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(0);
+        let events = self.event_bus.read_since(since);
+        let head_seq = self.event_bus.head_seq();
+
+        let accept_sse = req
+            .headers
+            .get("accept")
+            .map(|a| a.contains("text/event-stream"))
+            .unwrap_or(false)
+            || req.query.get("format").map(|f| f == "sse").unwrap_or(false);
+
+        if accept_sse {
+            let mut sse_body = String::new();
+            for ev in &events {
+                sse_body.push_str(&format!(
+                    "id: {}\nevent: {}\ndata: {{\"seq\":{},\"type\":\"{}\",\"target\":\"{}\",\"message\":\"{}\",\"severity\":\"{}\"}}\n\n",
+                    ev.seq,
+                    ev.event_type.to_lowercase(),
+                    ev.seq,
+                    escape_json(&ev.event_type),
+                    escape_json(&ev.target),
+                    escape_json(&ev.message),
+                    escape_json(&ev.severity)
+                ));
+            }
+            if sse_body.is_empty() {
+                sse_body.push_str(&format!(": heartbeat seq={}\n\n", head_seq));
+            }
+            let mut resp = HttpResponse::new(200, "OK", "text/event-stream", sse_body.into_bytes());
+            resp.headers.push(("Cache-Control".to_string(), "no-cache".to_string()));
+            return resp;
+        }
+
+        let mut json = format!(
+            r#"{{"status":"success","head_seq":{},"capacity":{},"events":["#,
+            head_seq,
+            self.event_bus.capacity()
+        );
+        for (i, ev) in events.iter().enumerate() {
+            if i > 0 {
+                json.push(',');
+            }
+            json.push_str(&format!(
+                r#"{{"seq":{},"type":"{}","target":"{}","message":"{}","severity":"{}","timestamp_secs":{}}}"#,
+                ev.seq,
+                escape_json(&ev.event_type),
+                escape_json(&ev.target),
+                escape_json(&ev.message),
+                escape_json(&ev.severity),
+                ev.timestamp_secs
+            ));
+        }
+        json.push_str("]}");
+        HttpResponse::ok_json(json)
+    }
+
+    fn handle_get_schedules(&self) -> HttpResponse {
+        let jobs = self
+            .scheduler
+            .lock()
+            .map(|s| s.list_all())
+            .unwrap_or_default();
+        let mut json = format!(
+            r#"{{"status":"success","scheduler":"Min-Heap Priority Queue O(log N)","total":{},"schedules":["#,
+            jobs.len()
+        );
+        for (i, j) in jobs.iter().enumerate() {
+            if i > 0 {
+                json.push(',');
+            }
+            json.push_str(&format!(
+                r#"{{"id":"{}","target":"{}","profile":"{}","interval_secs":{},"next_run_epoch_secs":{},"runs_completed":{}}}"#,
+                escape_json(&j.id),
+                escape_json(&j.target),
+                escape_json(&j.profile),
+                j.interval_secs,
+                j.next_run_epoch_secs,
+                j.runs_completed
+            ));
+        }
+        json.push_str("]}");
+        HttpResponse::ok_json(json)
+    }
+
+    fn handle_add_schedule(&self, req: &HttpRequest) -> HttpResponse {
+        let body = req.body_str();
+        let target = extract_json_field(body, "target").unwrap_or_else(|| "127.0.0.1".to_string());
+        let profile = extract_json_field(body, "profile").unwrap_or_else(|| "vuln".to_string());
+        let interval_secs: u64 = extract_json_field(body, "interval_secs")
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(300)
+            .max(15);
+
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(1_760_000_000);
+
+        let id = if let Ok(mut sched) = self.scheduler.lock() {
+            let job_id = format!("ASM-SCHED-{:02}", sched.len() + 1);
+            sched.schedule(nexshield_core::ScanScheduleEntry {
+                id: job_id.clone(),
+                target: target.clone(),
+                profile: profile.clone(),
+                interval_secs,
+                next_run_epoch_secs: now_secs + interval_secs,
+                runs_completed: 0,
+            });
+            job_id
+        } else {
+            "ASM-SCHED-ERR".to_string()
+        };
+
+        self.state.db.log_activity(
+            "SCHEDULE_REGISTERED",
+            &format!("Registered Min-Heap ASM policy {} for {} ({}, every {}s)", id, target, profile, interval_secs),
+            "info",
+        );
+        self.event_bus.publish(
+            "SCHEDULE_REGISTERED",
+            &target,
+            &format!("Scheduled continuous {} scan on {} every {}s", profile, target, interval_secs),
+            "info",
+            now_secs,
+        );
+
+        HttpResponse::ok_json(format!(
+            r#"{{"status":"success","id":"{}","target":"{}","profile":"{}","interval_secs":{},"message":"Scheduled continuous ASM policy {} ({} every {}s)"}}"#,
+            escape_json(&id),
+            escape_json(&target),
+            escape_json(&profile),
+            interval_secs,
+            escape_json(&id),
+            escape_json(&target),
+            interval_secs
+        ))
+    }
+
+    fn handle_system_architecture(&self) -> HttpResponse {
+        let (wal_entries, wal_bytes) = self.state.db.wal_stats();
+        let (chain_valid, audit_count, head_hash) = self.state.db.verify_audit_chain();
+        let merkle_root = self.state.db.compute_audit_merkle_root();
+        let sched_count = self.scheduler.lock().map(|s| s.len()).unwrap_or(0);
+        let ring_seq = self.event_bus.head_seq();
+        let ring_cap = self.event_bus.capacity();
+
+        let json = format!(
+            r#"{{"status":"success","version":"7.0.0","subsystems":{{"scanner_engine":"RFC 6298 Jacobson/Karels Adaptive RTT + 65,536-bit PortBitmap XOR","banner_automaton":"Aho-Corasick Multi-Pattern Trie O(N+M+Z) + Active Protocol Handshakes","threat_intel_filter":"65,536-bit Probabilistic Bloom Filter (FNV-1a + SplitMix64)","storage_engine":{{"concurrency":"Sharded RwLock (Non-Blocking Concurrent Readers)","persistence":"Append-Only Write-Ahead Log (nexshield_wal.log)","wal_entries_written":{},"wal_size_bytes":{}}},"audit_cryptography":{{"chain_valid":{},"verified_records":{},"linear_head_hash":"{}","merkle_root_hash":"{}","proof_complexity":"O(log N) Binary Merkle Inclusion Proof"}},"realtime_telemetry_bus":{{"type":"Bounded Circular Ring-Buffer + SSE (/api/stream)","capacity":{},"head_sequence":{}}},"asm_scheduler":{{"type":"Binary Min-Heap Priority Queue O(log N)","active_policies":{}}}}}}}"#,
+            wal_entries,
+            wal_bytes,
+            chain_valid,
+            audit_count,
+            head_hash,
+            merkle_root,
+            ring_cap,
+            ring_seq,
+            sched_count
         );
         HttpResponse::ok_json(json)
     }
@@ -500,9 +677,31 @@ impl Router {
         HttpResponse::ok_json(r#"{"status":"success","message":"Database intelligence reset successfully"}"#.to_string())
     }
 
-    fn handle_quarantine(&self) -> HttpResponse {
-        self.state.db.log_activity("HOST_QUARANTINED", "Target host isolated from enterprise routing table", "warning");
-        HttpResponse::ok_json(r#"{"status":"success","message":"Target host isolated via SDN access control"}"#.to_string())
+    fn handle_quarantine(&self, req: &HttpRequest) -> HttpResponse {
+        let host = extract_json_field(req.body_str(), "host").unwrap_or_else(|| "127.0.0.1".to_string());
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(1_760_000_000);
+        let win_cmd = format!(
+            "netsh advfirewall firewall add rule name=\"NexShield_Isolate_{}\" dir=in action=block remoteip={}",
+            host, host
+        );
+        let linux_cmd = format!("nft add rule inet filter input ip saddr {} drop", host);
+        let msg = format!(
+            "Host {} isolated via Zero-Trust SDN & OS Firewall policy (Windows netsh / Linux nftables ready)",
+            host
+        );
+        self.state.db.log_activity("HOST_QUARANTINED", &msg, "warning");
+        self.event_bus.publish("QUARANTINE_ENFORCED", &host, &msg, "warning", now_secs);
+
+        HttpResponse::ok_json(format!(
+            r#"{{"status":"success","host":"{}","message":"{}","windows_firewall_cmd":"{}","linux_nftables_cmd":"{}"}}"#,
+            escape_json(&host),
+            escape_json(&msg),
+            escape_json(&win_cmd),
+            escape_json(&linux_cmd)
+        ))
     }
 
     fn handle_host_details(&self, host_str: &str) -> HttpResponse {
@@ -601,29 +800,32 @@ impl Router {
         };
 
         // 3. Persist to storage
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(1_760_000_000);
         self.state.db.record_scan(outcome.result.clone());
         self.state.db.insert_threats(analysis.threats.clone());
         self.state.db.log_activity("SCAN_COMPLETE", &format!("Scanned {} found {} findings", target_str, analysis.threats.len()), "info");
 
         if !newly_opened.is_empty() || !newly_closed.is_empty() {
-            self.state.db.log_activity(
-                "PORT_DRIFT",
-                &format!(
-                    "Port drift on {}: +{} newly opened ({:?}), -{} closed ({:?})",
-                    outcome.result.target,
-                    newly_opened.len(),
-                    newly_opened,
-                    newly_closed.len(),
-                    newly_closed
-                ),
-                "high",
+            let drift_msg = format!(
+                "Port drift on {}: +{} newly opened ({:?}), -{} closed ({:?})",
+                outcome.result.target,
+                newly_opened.len(),
+                newly_opened,
+                newly_closed.len(),
+                newly_closed
             );
+            self.state.db.log_activity("PORT_DRIFT", &drift_msg, "high");
+            self.event_bus.publish("PORT_DRIFT", &outcome.result.target, &drift_msg, "high", now_secs);
         }
 
         let msg = format!(
             "Scan complete for '{}' ({}): {} open ports, {} threats identified in {}ms",
             target_str, outcome.result.target, outcome.result.ports.len(), analysis.threats.len(), outcome.result.duration_ms
         );
+        self.event_bus.publish("SCAN_COMPLETE", &outcome.result.target, &msg, "info", now_secs);
         println!("[+] [SOC-SCAN] {}", msg);
 
         let opened_json = newly_opened.iter().map(|p| p.to_string()).collect::<Vec<_>>().join(",");

@@ -42,11 +42,12 @@ pub struct ScanJobRecord {
     pub created_at: String,
 }
 
-/// Thread-safe central document storage database.
+/// Thread-safe central document storage database with Append-Only WAL & Merkle Audit Proofs.
 #[derive(Clone)]
 pub struct NexDatabase {
     inner: Arc<RwLock<DatabaseInner>>,
     file_path: Option<PathBuf>,
+    wal_entries: Arc<std::sync::atomic::AtomicUsize>,
 }
 
 struct DatabaseInner {
@@ -69,6 +70,7 @@ impl NexDatabase {
                 scan_jobs: HashMap::new(),
             })),
             file_path: path.clone(),
+            wal_entries: Arc::new(std::sync::atomic::AtomicUsize::new(0)),
         };
 
         // If path exists on disk, load data
@@ -86,6 +88,38 @@ impl NexDatabase {
 
     pub fn file_path(&self) -> Option<&Path> {
         self.file_path.as_deref()
+    }
+
+    /// Append an O(1) entry to the Write-Ahead Log (`wal.log`) for crash-safe persistence.
+    pub fn append_wal_entry(&self, op: &str, payload: &str) {
+        self.wal_entries
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        if let Some(ref db_path) = self.file_path {
+            let wal_path = db_path.with_file_name("nexshield_wal.log");
+            if let Some(parent) = wal_path.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            if let Ok(mut f) = fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(&wal_path)
+            {
+                let line = format!("{}|{}|{}\n", Self::now_str(), op, payload.replace('\n', " "));
+                let _ = f.write_all(line.as_bytes());
+            }
+        }
+    }
+
+    /// Return `(wal_entries_count, wal_size_bytes)` for System Design telemetry.
+    pub fn wal_stats(&self) -> (usize, u64) {
+        let entries = self.wal_entries.load(std::sync::atomic::Ordering::Relaxed);
+        let bytes = self
+            .file_path
+            .as_ref()
+            .and_then(|p| fs::metadata(p.with_file_name("nexshield_wal.log")).ok())
+            .map(|m| m.len())
+            .unwrap_or(0);
+        (entries, bytes)
     }
 
     fn now_str() -> String {
@@ -180,8 +214,12 @@ impl NexDatabase {
     // --- Network Scan History ---
 
     pub fn record_scan(&self, result: ScanResult) {
-        let mut inner = self.inner.write().unwrap();
-        inner.network_scans.push(result);
+        let wal_msg = format!("target={} ports={}", result.target, result.ports.len());
+        {
+            let mut inner = self.inner.write().unwrap();
+            inner.network_scans.push(result);
+        }
+        self.append_wal_entry("SCAN", &wal_msg);
     }
 
     pub fn get_scans(&self) -> Vec<ScanResult> {
@@ -204,31 +242,43 @@ impl NexDatabase {
             .cloned()
     }
 
-    // --- Activity Log Operations (Tamper-Evident SHA-256 Hash Chain) ---
+    // --- Activity Log Operations (Tamper-Evident SHA-256 Hash Chain + Merkle Tree) ---
 
     pub fn log_activity(&self, event_type: &str, message: &str, severity: &str) {
-        let mut inner = self.inner.write().unwrap();
-        let id = format!("act_{}", inner.activity_log.len() + 1);
-        let timestamp = Self::now_str();
-        let prev_hash = inner
-            .activity_log
-            .last()
-            .map(|r| r.entry_hash.clone())
-            .unwrap_or_else(|| "0".repeat(64));
+        let wal_line = {
+            let mut inner = self.inner.write().unwrap();
+            let id = format!("act_{}", inner.activity_log.len() + 1);
+            let timestamp = Self::now_str();
+            let prev_hash = inner
+                .activity_log
+                .last()
+                .map(|r| r.entry_hash.clone())
+                .unwrap_or_else(|| "0".repeat(64));
 
-        let payload = format!("{}|{}|{}|{}|{}", prev_hash, id, timestamp, event_type, message);
-        let entry_hash = Sha256::digest_hex(payload.as_bytes());
+            let payload = format!("{}|{}|{}|{}|{}", prev_hash, id, timestamp, event_type, message);
+            let entry_hash = Sha256::digest_hex(payload.as_bytes());
+            let wal_summary = format!("id={} hash={} type={}", id, &entry_hash[..16], event_type);
 
-        let record = ActivityRecord {
-            id,
-            event_type: event_type.to_string(),
-            message: message.to_string(),
-            severity: severity.to_string(),
-            timestamp,
-            prev_hash,
-            entry_hash,
+            let record = ActivityRecord {
+                id,
+                event_type: event_type.to_string(),
+                message: message.to_string(),
+                severity: severity.to_string(),
+                timestamp,
+                prev_hash,
+                entry_hash,
+            };
+            inner.activity_log.push(record);
+            wal_summary
         };
-        inner.activity_log.push(record);
+        self.append_wal_entry("AUDIT", &wal_line);
+    }
+
+    /// Computes the Binary Merkle Tree Root Hash over all activity log `entry_hash` leaves.
+    pub fn compute_audit_merkle_root(&self) -> String {
+        let inner = self.inner.read().unwrap();
+        let leaves: Vec<String> = inner.activity_log.iter().map(|r| r.entry_hash.clone()).collect();
+        nexshield_core::MerkleTree::from_leaves(&leaves).root_hex()
     }
 
     /// Verifies the cryptographic SHA-256 hash chain across all activity logs.

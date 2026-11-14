@@ -107,6 +107,7 @@ dependencies = [
 name = "nexshield-storage"
 version = "6.1.0"
 dependencies = [
+ "nexshield-core",
  "nexshield-types",
 ]
 

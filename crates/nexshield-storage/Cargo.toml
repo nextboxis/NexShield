@@ -6,4 +6,5 @@ authors = ["NexShield Core Team"]
 description = "Thread-safe, file-backed JSON document store and authentication storage for NexShield (Pure Rust std)"
 
 [dependencies]
+nexshield-core = { path = "../nexshield-core" }
 nexshield-types = { path = "../nexshield-types" }

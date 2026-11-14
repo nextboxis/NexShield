@@ -28,7 +28,7 @@
                     <span class="nav-brand__icon">[NEX]</span>
                     <span class="nav-brand__name">NexShield</span>
                 </a>
-                <span class="badge-rust-core">Pure Rust v6.2</span>
+                <span class="badge-rust-core">Pure Rust v7.0</span>
                 <div class="nav-live-status">
                     <span class="status-indicator-dot" id="statusDot"></span>
                     <span id="statusText">System Active</span>
@@ -50,6 +50,10 @@
                     <span class="search-icon">/</span>
                     <input type="text" id="globalSearch" placeholder="Search threats, hosts, CVEs..." onkeyup="globalSearchHandler(event)" />
                 </div>
+
+                <button class="btn btn--secondary btn--sm" onclick="showSystemArchitectureModal(); return false;" title="v7.0 System Design Telemetry (WAL, Merkle Root, Ring-Buffer, Min-Heap ASM)">
+                    <span>[SYS: v7.0]</span>
+                </button>
 
                 <button class="btn btn--secondary btn--sm" onclick="openCommandPalette(); return false;" title="Tactical Command Palette (Ctrl+K)">
                     <span>[CMD: Ctrl+K]</span>

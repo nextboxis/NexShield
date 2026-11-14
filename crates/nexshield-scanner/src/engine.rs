@@ -7,11 +7,62 @@ use nexshield_types::{HostPort, PortState, Protocol, ScanResult};
 
 use crate::prober::probe_port;
 use std::net::{IpAddr, SocketAddr, TcpStream};
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::mpsc::channel;
 use std::sync::Arc;
 use std::thread;
 use std::time::{Duration, Instant};
+
+/// RFC 6298 Jacobson/Karels Adaptive RTT & Timeout Estimator (Lock-Free Atomic).
+pub struct AdaptiveRttEstimator {
+    srtt_us: AtomicU64,
+    rttvar_us: AtomicU64,
+    samples: AtomicUsize,
+}
+
+impl AdaptiveRttEstimator {
+    pub fn new(initial_timeout: Duration) -> Self {
+        let init_us = initial_timeout.as_micros() as u64;
+        Self {
+            srtt_us: AtomicU64::new(init_us),
+            rttvar_us: AtomicU64::new(init_us / 2),
+            samples: AtomicUsize::new(0),
+        }
+    }
+
+    /// Record a measured TCP connect RTT sample in microseconds.
+    pub fn record_sample(&self, rtt: Duration) {
+        let r_us = (rtt.as_micros() as u64).max(200);
+        let prev_count = self.samples.fetch_add(1, Ordering::Relaxed);
+        if prev_count == 0 {
+            self.srtt_us.store(r_us, Ordering::Relaxed);
+            self.rttvar_us.store(r_us / 2, Ordering::Relaxed);
+        } else {
+            let srtt = self.srtt_us.load(Ordering::Relaxed);
+            let rttvar = self.rttvar_us.load(Ordering::Relaxed);
+            let delta = srtt.abs_diff(r_us);
+            // RTTVAR = 3/4 * RTTVAR + 1/4 * |SRTT - R|
+            let next_var = (rttvar * 3 + delta) / 4;
+            // SRTT = 7/8 * SRTT + 1/8 * R
+            let next_srtt = (srtt * 7 + r_us) / 8;
+            self.rttvar_us.store(next_var, Ordering::Relaxed);
+            self.srtt_us.store(next_srtt, Ordering::Relaxed);
+        }
+    }
+
+    /// Compute adaptive RTO = SRTT + 4 * RTTVAR, clamped to [45ms, max_timeout].
+    pub fn current_rto(&self, max_timeout: Duration) -> Duration {
+        if self.samples.load(Ordering::Relaxed) < 2 {
+            return max_timeout;
+        }
+        let srtt = self.srtt_us.load(Ordering::Relaxed);
+        let rttvar = self.rttvar_us.load(Ordering::Relaxed);
+        let rto_us = srtt.saturating_add(rttvar.saturating_mul(4));
+        let min_us = 45_000; // 45ms floor for reliable local/LAN probing
+        let max_us = max_timeout.as_micros() as u64;
+        Duration::from_micros(rto_us.clamp(min_us, max_us.max(min_us)))
+    }
+}
 
 #[derive(Debug, Clone)]
 pub struct ScanOptions {
@@ -52,6 +103,7 @@ pub fn scan_target(options: ScanOptions) -> ScanOutcome {
     let (tx, rx) = channel::<u16>();
     let port_index = Arc::new(AtomicUsize::new(0));
     let ports_arc = Arc::new(ports);
+    let rtt_estimator = Arc::new(AdaptiveRttEstimator::new(options.timeout));
 
     let worker_count = options.concurrency.min(total_ports).max(1);
     let mut handles = Vec::with_capacity(worker_count);
@@ -62,6 +114,7 @@ pub fn scan_target(options: ScanOptions) -> ScanOutcome {
         let target = options.target;
         let timeout = options.timeout;
         let limiter = rate_limiter.clone();
+        let rtt = Arc::clone(&rtt_estimator);
         let thread_tx = tx.clone();
 
         let handle = thread::spawn(move || {
@@ -80,9 +133,12 @@ pub fn scan_target(options: ScanOptions) -> ScanOutcome {
                     }
                 }
 
-                // Attempt TCP Connect
+                // Attempt TCP Connect with RFC 6298 Adaptive RTO
                 let addr = SocketAddr::new(target, port);
-                if TcpStream::connect_timeout(&addr, timeout).is_ok() {
+                let dynamic_timeout = rtt.current_rto(timeout);
+                let t0 = Instant::now();
+                if TcpStream::connect_timeout(&addr, dynamic_timeout).is_ok() {
+                    rtt.record_sample(t0.elapsed());
                     let _ = thread_tx.send(port);
                 }
             }
