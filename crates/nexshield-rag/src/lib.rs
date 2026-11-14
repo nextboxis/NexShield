@@ -2,4 +2,4 @@
 
 pub mod knowledge;
 
-pub use knowledge::{KnowledgeChunk, RagEngine, SECURITY_KNOWLEDGE_BASE};
+pub use knowledge::{KnowledgeChunk, RagCorpusStats, RagEngine, SECURITY_KNOWLEDGE_BASE};
