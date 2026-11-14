@@ -157,10 +157,15 @@ impl CveIndex {
         let cve_id = extract_quoted_field(content, "\"cveId\":")?;
         let summary = extract_quoted_field(content, "\"value\":")
             .unwrap_or_else(|| "No description available.".to_string());
-        let short_name = extract_quoted_field(content, "\"shortName\":")
-            .unwrap_or_else(|| "system".to_string());
-        
-        let score = extract_number_field(content, "\"baseScore\":").unwrap_or(7.5);
+        let raw_product = extract_quoted_field(content, "\"product\":")
+            .filter(|p| !p.eq_ignore_ascii_case("n/a") && !p.is_empty());
+        let short_name = raw_product
+            .or_else(|| extract_quoted_field(content, "\"assignerShortName\":"))
+            .or_else(|| extract_quoted_field(content, "\"shortName\":"))
+            .unwrap_or_else(|| infer_service_from_summary(&summary));
+
+        let score = extract_number_field(content, "\"baseScore\":")
+            .unwrap_or_else(|| estimate_cvss_from_summary(&summary));
         let severity = if score >= 9.0 {
             Severity::Critical
         } else if score >= 7.0 {
@@ -174,12 +179,58 @@ impl CveIndex {
 
         Some(CveRecord {
             cve_id,
-            product: short_name,
+            product: short_name.to_lowercase(),
             cvss_score: score,
             severity,
             summary,
             is_kev,
         })
+    }
+}
+
+fn infer_service_from_summary(summary: &str) -> String {
+    let lower = summary.to_lowercase();
+    for kw in &[
+        "openssh", "ssh", "apache", "nginx", "iis", "smb", "rdp", "redis", "mongodb", "mysql",
+        "mariadb", "postgresql", "postgres", "docker", "kubernetes", "openssl", "tls", "ftp",
+        "vsftpd", "proftpd", "telnet", "dns", "bind", "snmp", "ldap", "kerberos", "windows",
+        "linux", "kernel", "php", "java", "tomcat", "wordpress",
+    ] {
+        if lower.contains(kw) {
+            return (*kw).to_string();
+        }
+    }
+    "system".to_string()
+}
+
+fn estimate_cvss_from_summary(summary: &str) -> f32 {
+    let lower = summary.to_lowercase();
+    if lower.contains("arbitrary code")
+        || lower.contains("remote code")
+        || lower.contains("execute arbitrary commands")
+        || lower.contains("buffer overflow")
+        || lower.contains("unauthenticated")
+        || lower.contains("root privileges")
+    {
+        9.4
+    } else if lower.contains("sql injection")
+        || lower.contains("privilege escalation")
+        || lower.contains("gain privileges")
+        || lower.contains("directory traversal")
+        || lower.contains("bypass authentication")
+        || lower.contains("memory corruption")
+        || lower.contains("use-after-free")
+    {
+        7.8
+    } else if lower.contains("denial of service")
+        || lower.contains("information disclosure")
+        || lower.contains("sensitive information")
+        || lower.contains("cross-site scripting")
+        || lower.contains("cross-site request forgery")
+    {
+        5.5
+    } else {
+        3.7
     }
 }
 
