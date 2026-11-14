@@ -7,5 +7,5 @@ pub mod pipeline;
 
 pub use engines::*;
 pub use ip_geo::{code_to_country_name, GeoRecord, IpGeoEngine};
-pub use ml_predictor::MlThreatPredictor;
+pub use ml_predictor::{MlThreatPredictor, TrainingMetrics, TrainingSample};
 pub use pipeline::{AnalysisReport, ThreatPipeline};
