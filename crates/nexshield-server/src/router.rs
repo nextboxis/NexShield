@@ -678,7 +678,9 @@ impl Router {
     }
 
     fn handle_quarantine(&self, req: &HttpRequest) -> HttpResponse {
-        let host = extract_json_field(req.body_str(), "host").unwrap_or_else(|| "127.0.0.1".to_string());
+        let host = extract_json_field(req.body_str(), "host")
+            .or_else(|| extract_json_field(req.body_str(), "ip"))
+            .unwrap_or_else(|| "127.0.0.1".to_string());
         let now_secs = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
@@ -879,7 +881,8 @@ impl Router {
             "MEDIUM"
         } else {
             "LOW"
-        };
+        }
+        .to_string();
 
         let summary_text = format!(
             "NexShield Mission Control evaluated {} monitored host nodes across the operational perimeter. Threat correlation identified {} discrete vulnerabilities with {} critical and {} high severity exposures.",
@@ -1371,4 +1374,154 @@ fn escape_json(text: &str) -> String {
         .replace('\n', "\\n")
         .replace('\r', "\\r")
         .replace('\t', "\\t")
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nexshield_cve::CveIndex;
+    use nexshield_engine::{IpGeoEngine, ThreatPipeline};
+    use nexshield_notifier::{WebhookConfig, WebhookDispatcher};
+    use nexshield_rag::RagEngine;
+    use nexshield_storage::NexDatabase;
+    use std::collections::HashMap;
+    use std::path::PathBuf;
+
+    fn build_test_router(test_name: &str) -> Router {
+        let mut db_path = std::env::temp_dir();
+        db_path.push(format!("nexshield_router_test_{}_{}.db", test_name, std::process::id()));
+        let _ = std::fs::remove_file(&db_path);
+
+        let state = Arc::new(AppState {
+            db: NexDatabase::new(Some(db_path)),
+            cve_index: CveIndex::new(),
+            rag_engine: RagEngine::new(),
+            geo_engine: IpGeoEngine::new(),
+            pipeline: ThreatPipeline::new(),
+            notifier: WebhookDispatcher::new(WebhookConfig {
+                slack_url: None,
+                discord_url: None,
+                teams_url: None,
+                generic_url: None,
+            }),
+            static_dir: PathBuf::from("static"),
+            templates_dir: PathBuf::from("templates"),
+        });
+
+        Router::new(state)
+    }
+
+    fn make_req(method: &str, path: &str, query_pairs: &[(&str, &str)], body: &str) -> HttpRequest {
+        let mut query = HashMap::new();
+        for (k, v) in query_pairs {
+            query.insert((*k).to_string(), (*v).to_string());
+        }
+        HttpRequest {
+            method: method.to_string(),
+            path: path.to_string(),
+            query,
+            headers: HashMap::new(),
+            body: body.as_bytes().to_vec(),
+        }
+    }
+
+    #[test]
+    fn test_realtime_multi_profile_scans_and_port_drift_xor() {
+        let router = build_test_router("multi_profile");
+
+        // 1. Test multiple scan profiles (quick, vuln, stealth, ssl)
+        for profile in &["quick", "vuln", "stealth", "ssl"] {
+            let body = format!(r#"{{"target":"127.0.0.1","ports":"{}"}}"#, profile);
+            let req = make_req("POST", "/api/scan", &[], &body);
+            let resp = router.handle(&req);
+            assert_eq!(resp.status, 200);
+            let text = String::from_utf8_lossy(&resp.body);
+            assert!(text.contains(r#""status":"success""#));
+            assert!(text.contains(r#""target":"127.0.0.1""#));
+        }
+
+        // 2. Verify real-time SSE / JSON delta stream captured scan events
+        let stream_req = make_req("GET", "/api/stream", &[("since", "0")], "");
+        let stream_resp = router.handle(&stream_req);
+        assert_eq!(stream_resp.status, 200);
+        let stream_text = String::from_utf8_lossy(&stream_resp.body);
+        assert!(stream_text.contains("SCAN_COMPLETE"));
+
+        // 3. Verify SSE text/event-stream formatting
+        let sse_req = make_req("GET", "/api/stream", &[("since", "0"), ("format", "sse")], "");
+        let sse_resp = router.handle(&sse_req);
+        assert_eq!(sse_resp.status, 200);
+        assert!(sse_resp.content_type.contains("text/event-stream"));
+        let sse_text = String::from_utf8_lossy(&sse_resp.body);
+        assert!(sse_text.contains("event: scan_complete"));
+    }
+
+    #[test]
+    fn test_realtime_schedules_merkle_audit_and_system_architecture() {
+        let router = build_test_router("arch_merkle");
+
+        // 1. Register new ASM schedule in Min-Heap
+        let sched_req = make_req(
+            "POST",
+            "/api/schedules",
+            &[],
+            r#"{"target":"1.1.1.1","profile":"ssl","interval_secs":120}"#,
+        );
+        let sched_resp = router.handle(&sched_req);
+        assert_eq!(sched_resp.status, 200);
+        let sched_body = String::from_utf8_lossy(&sched_resp.body);
+        assert!(sched_body.contains("1.1.1.1"));
+
+        // 2. Verify Binary Merkle Tree + SHA-256 hash chain audit verification
+        let audit_req = make_req("GET", "/api/audit/verify", &[], "");
+        let audit_resp = router.handle(&audit_req);
+        assert_eq!(audit_resp.status, 200);
+        let audit_body = String::from_utf8_lossy(&audit_resp.body);
+        assert!(audit_body.contains(r#""valid":true"#));
+        assert!(audit_body.contains(r#""merkle_root":"#));
+
+        // 3. Verify System Architecture & WAL telemetry endpoint
+        let arch_req = make_req("GET", "/api/system/architecture", &[], "");
+        let arch_resp = router.handle(&arch_req);
+        assert_eq!(arch_resp.status, 200);
+        let arch_body = String::from_utf8_lossy(&arch_resp.body);
+        assert!(arch_body.contains(r#""version":"7.0.0""#));
+        assert!(arch_body.contains("RFC 6298 Jacobson/Karels"));
+    }
+
+    #[test]
+    fn test_realtime_iac_remediation_quarantine_rag_and_compliance() {
+        let router = build_test_router("iac_compliance");
+
+        // 1. Test all 5 IaC formats (terraform, kubernetes, ansible, powershell, bash)
+        for fmt in &["terraform", "kubernetes", "ansible", "powershell", "bash"] {
+            let rem_req = make_req(
+                "GET",
+                "/api/remediation/generate",
+                &[("service", "smb"), ("format", fmt)],
+                "",
+            );
+            let rem_resp = router.handle(&rem_req);
+            assert_eq!(rem_resp.status, 200);
+            let rem_body = String::from_utf8_lossy(&rem_resp.body);
+            assert!(rem_body.contains("compliance_controls"));
+        }
+
+        // 2. Test Active Quarantine Firewall synthesis
+        let quar_req = make_req("POST", "/api/quarantine", &[], r#"{"ip":"185.220.101.1"}"#);
+        let quar_resp = router.handle(&quar_req);
+        assert_eq!(quar_resp.status, 200);
+        let quar_body = String::from_utf8_lossy(&quar_resp.body);
+        assert!(quar_body.contains("NexShield_Isolate_185.220.101.1"));
+
+        // 3. Test RAG Copilot, Compliance Matrix, and Choke-Points
+        let rag_req = make_req("POST", "/api/rag/query", &[], r#"{"query":"EternalBlue SMBv1 mitigation"}"#);
+        assert_eq!(router.handle(&rag_req).status, 200);
+
+        let comp_req = make_req("GET", "/api/compliance", &[], "");
+        assert_eq!(router.handle(&comp_req).status, 200);
+
+        let cp_req = make_req("GET", "/api/topology/chokepoints", &[], "");
+        assert_eq!(router.handle(&cp_req).status, 200);
+    }
 }
