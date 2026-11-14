@@ -26,7 +26,7 @@ fn print_banner() {
 ██║╚██╗██║██╔══╝   ██╔██╗ ╚════██║██╔══██║██║██╔══╝  ██║     ██║  ██║
 ██║ ╚████║███████╗██╔╝ ██╗███████║██║  ██║██║███████╗███████╗██████╔╝
 ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝╚══════╝╚══════╝╚═════╝ 
-                 MISSION CONTROL v6.1 (100% PURE RUST)
+                 MISSION CONTROL v8.0 (100% PURE RUST)
 "#);
 }
 
@@ -500,6 +500,10 @@ fn run_geo_lookup(ip_str: &str) {
 
 fn run_cve_search(query: &str) {
     let index = CveIndex::new();
+    let cve_dir = Path::new("cve_data");
+    if cve_dir.exists() {
+        let _ = index.import_cvelist_directory(cve_dir, 400);
+    }
     println!("[*] Querying Offline CVE & CISA KEV Intelligence for '{}'...", query);
 
     let results = index.lookup_product(query);
@@ -570,10 +574,15 @@ fn run_server(port: u16, host: &str) {
     let static_dir = project_root.join("static");
     let templates_dir = project_root.join("templates");
     let data_dir = project_root.join("data");
+    let cve_dir = project_root.join("cve_data");
 
     let db = NexDatabase::new(Some(data_dir.join("nexshield.db")));
     let cve_index = CveIndex::new();
     let rag_engine = RagEngine::new();
+    if cve_dir.exists() {
+        let _ = cve_index.import_cvelist_directory(&cve_dir, 500);
+        let _ = rag_engine.index_cve_corpus(&cve_dir, 500);
+    }
     let geo_engine = IpGeoEngine::new();
     let pipeline = ThreatPipeline::new();
     let notifier = WebhookDispatcher::new(WebhookConfig {

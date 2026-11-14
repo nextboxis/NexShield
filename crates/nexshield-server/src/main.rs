@@ -18,7 +18,7 @@ fn print_banner() {
 ██║╚██╗██║██╔══╝   ██╔██╗ ╚════██║██╔══██║██║██╔══╝  ██║     ██║  ██║
 ██║ ╚████║███████╗██╔╝ ██╗███████║██║  ██║██║███████╗███████╗██████╔╝
 ╚═╝  ╚═══╝╚══════╝╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝╚══════╝╚══════╝╚═════╝ 
-        MISSION CONTROL SERVER v6.1 (NATIVE PURE RUST RUNTIME)
+        MISSION CONTROL SERVER v8.0 (NATIVE PURE RUST RUNTIME)
 "#);
 }
 
@@ -35,6 +35,7 @@ fn main() -> std::io::Result<()> {
     let static_dir = project_root.join("static");
     let templates_dir = project_root.join("templates");
     let data_dir = project_root.join("data");
+    let cve_dir = project_root.join("cve_data");
 
     println!("[*] Initializing NexShield Zero-Dependency Architecture...");
 
@@ -44,10 +45,16 @@ fn main() -> std::io::Result<()> {
 
     // 2. CVE & KEV Intelligence
     let cve_index = CveIndex::new();
+    if cve_dir.exists() {
+        let _ = cve_index.import_cvelist_directory(&cve_dir, 500);
+    }
     println!("  [+] CVE & CISA KEV Inverted Index loaded ({} definitions).", cve_index.total_cves());
 
     // 3. RAG Security Knowledge Base
     let rag_engine = RagEngine::new();
+    if cve_dir.exists() {
+        let _ = rag_engine.index_cve_corpus(&cve_dir, 500);
+    }
     println!("  [+] RAG Cybersecurity Knowledge Base loaded ({} chunks).", rag_engine.total_chunks());
 
     // 4. IP Geolocation Radix Trie

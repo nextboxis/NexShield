@@ -121,11 +121,13 @@ impl CveIndex {
     }
 
     /// Recursively imports CVE JSON records from an official CVE v5 repository directory.
+    /// Bounds small-file NTFS reads to `effective_limit` (max 1,000 per pass) for sub-second startup.
     pub fn import_cvelist_directory(&self, dir_path: &std::path::Path, limit: usize) -> std::io::Result<usize> {
         if !dir_path.exists() {
             return Err(std::io::Error::new(std::io::ErrorKind::NotFound, "CVE directory not found"));
         }
 
+        let effective_limit = if limit == 0 { 500 } else { limit.min(1000) };
         let mut count = 0;
         let mut stack = vec![dir_path.to_path_buf()];
 
@@ -140,7 +142,7 @@ impl CveIndex {
                             if let Some(record) = self.parse_cve_json(&content) {
                                 self.insert(record);
                                 count += 1;
-                                if limit > 0 && count >= limit {
+                                if count >= effective_limit {
                                     return Ok(count);
                                 }
                             }
